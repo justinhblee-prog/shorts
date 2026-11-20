@@ -244,6 +244,43 @@ class EDLFFmpegRenderer:
         if sum(path.stat().st_size for path in assets.values()) > self.max_input_bytes:
             raise EDLRenderError("aggregate source assets exceed configured input byte limit")
 
+        tracks = []
+        if self.ffprobe_path is not None:
+            source_metadata = {}
+            for clip in edl["clips"]:
+                if clip["type"] != "video":
+                    continue
+                asset_id = clip["asset_id"]
+                if asset_id not in source_metadata:
+                    source_metadata[asset_id] = probe_media(
+                        assets[asset_id], self.ffprobe_path,
+                        max_duration_ms=3_600_000,
+                        max_bytes=self.max_input_bytes,
+                    )
+                metadata = source_metadata[asset_id]
+                if clip["source_out_ms"] > metadata["duration_ms"] + 1:
+                    raise EDLRenderError("EDL source trim exceeds probed media duration")
+                if metadata["audio_streams"]:
+                    tracks.append({
+                        "path": str(assets[asset_id]),
+                        "source_in_ms": round(clip["source_in_ms"]),
+                        "start_ms": round(clip["start_ms"]),
+                        "duration_ms": round(clip["end_ms"] - clip["start_ms"]),
+                        "gain": 1.0,
+                    })
+        if self.audio_tracks_resolver:
+            additional_tracks = self.audio_tracks_resolver(payload)
+            if not isinstance(additional_tracks, list):
+                raise EDLRenderError("audio resolver must return a list of trusted tracks")
+            tracks.extend(additional_tracks)
+        if len(tracks) > 8:
+            raise EDLRenderError("combined source and bed audio is limited to eight tracks")
+        for track in tracks:
+            track_path = _regular_file(track.get("path") if isinstance(track, dict) else None,
+                                       "resolved audio track")
+            if track_path.stat().st_size > self.max_input_bytes:
+                raise EDLRenderError("audio track exceeds configured input byte limit")
+
         work_dir = Path(tempfile.mkdtemp(prefix="render-", dir=str(self.staging_root)))
         final_output = self.staging_root / ("render-" + uuid.uuid4().hex + ".mp4")
         video_only = work_dir / "video.mp4"
@@ -259,42 +296,6 @@ class EDLFFmpegRenderer:
             self._run(argv, stop_event, deadline, log_path)
             if not video_only.is_file() or video_only.stat().st_size < 1:
                 raise EDLRenderError("FFmpeg did not produce a non-empty video output")
-            tracks = []
-            if self.ffprobe_path is not None:
-                source_metadata = {}
-                for clip in edl["clips"]:
-                    if clip["type"] != "video":
-                        continue
-                    asset_id = clip["asset_id"]
-                    if asset_id not in source_metadata:
-                        source_metadata[asset_id] = probe_media(
-                            assets[asset_id], self.ffprobe_path,
-                            max_duration_ms=3_600_000,
-                            max_bytes=self.max_input_bytes,
-                        )
-                    metadata = source_metadata[asset_id]
-                    if clip["source_out_ms"] > metadata["duration_ms"] + 1:
-                        raise EDLRenderError("EDL source trim exceeds probed media duration")
-                    if metadata["audio_streams"]:
-                        tracks.append({
-                            "path": str(assets[asset_id]),
-                            "source_in_ms": round(clip["source_in_ms"]),
-                            "start_ms": round(clip["start_ms"]),
-                            "duration_ms": round(clip["end_ms"] - clip["start_ms"]),
-                            "gain": 1.0,
-                        })
-            if self.audio_tracks_resolver:
-                additional_tracks = self.audio_tracks_resolver(payload)
-                if not isinstance(additional_tracks, list):
-                    raise EDLRenderError("audio resolver must return a list of trusted tracks")
-                tracks.extend(additional_tracks)
-            if len(tracks) > 8:
-                raise EDLRenderError("combined source and bed audio is limited to eight tracks")
-            for track in tracks:
-                track_path = _regular_file(track.get("path") if isinstance(track, dict) else None,
-                                           "resolved audio track")
-                if track_path.stat().st_size > self.max_input_bytes:
-                    raise EDLRenderError("audio track exceeds configured input byte limit")
             if tracks:
                 mix_argv = build_audio_mix_argv(
                     tracks, mixed_audio, ffmpeg_path=self.ffmpeg_path,
