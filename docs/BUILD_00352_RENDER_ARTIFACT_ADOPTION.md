@@ -25,7 +25,11 @@ root. The store adopts only a regular, non-symlink `.mp4`, `.m4a`, or
 
 The artifact is not published. The queue transition and artifact metadata are
 committed together; a stale worker cannot adopt output after losing its lease.
-Artifact reads are workspace-scoped and re-verify the stored checksum and size.
+A process crash between the filesystem rename and SQLite commit can leave an
+unindexed private file, so the store provides a grace-period orphan reconciler.
+It takes the queue write lock and removes only old, generated artifact filenames
+that have no metadata row. Artifact reads are workspace-scoped and re-verify
+the stored checksum and size.
 
 ## Worker wiring
 
