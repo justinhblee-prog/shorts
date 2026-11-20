@@ -96,6 +96,34 @@ class RenderOutputStoreTests(unittest.TestCase):
                 self.claimed["lease_token"], self.claimed["attempt"], self.result,
             )
 
+    def test_discards_artifact_after_queue_attempt_fails_before_review(self):
+        adopted = self.outputs.adopt(
+            self.job["id"], self.workspace, self.worker,
+            self.claimed["lease_token"], self.claimed["attempt"], self.result,
+        )
+        path = self.media_root / self.result["media_path"]
+        self.queue.fail(
+            self.job["id"], self.worker, self.claimed["lease_token"],
+            "render_failed", "test failure", False,
+            generation_token=self.generation, workspace_id=self.workspace,
+        )
+        self.assertTrue(self.outputs.discard_if_stale(
+            self.job["id"], self.workspace, self.claimed["attempt"],
+            self.claimed["lease_token"],
+        ))
+        self.assertFalse(path.exists())
+        with self.assertRaises(RenderOutputNotFound):
+            self.outputs.get_reviewable(self.job["id"], self.workspace)
+
+    def test_preserves_artifact_when_queue_review_handoff_succeeded(self):
+        self.adopt_and_finish()
+        path = self.media_root / self.result["media_path"]
+        self.assertFalse(self.outputs.discard_if_stale(
+            self.job["id"], self.workspace, self.claimed["attempt"],
+            self.claimed["lease_token"],
+        ))
+        self.assertTrue(path.is_file())
+
     def test_rejects_cross_workspace_output_access(self):
         self.adopt_and_finish()
         with self.assertRaises(RenderOutputNotFound):
