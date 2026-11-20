@@ -334,3 +334,5 @@ NaN now require authenticated operator workspace resolution for tenant-owned pro
 - Added regression tests for workspace-specific coverage and unknown workspace isolation. CI validation is pending.
 
 - Analytics coverage status endpoints fail closed when `X-Nexus-Workspace-Id` is omitted; the requested workspace is checked against the authenticated operator's membership.
+
+- YouTube Analytics detail reads are now workspace-filtered in the store query itself, not only pre-authorized at the API layer.
