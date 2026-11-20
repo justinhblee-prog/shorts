@@ -397,5 +397,45 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.assertTrue(valid_review_token("secret", "secret"))
 
 
+    def test_review_lists_are_workspace_isolated_and_legacy_scope_is_default(self):
+        with self.queue.db() as connection:
+            connection.execute(
+                "UPDATE production_runs SET workspace_id='workspace-a' WHERE job_id='job-1'"
+            )
+            connection.execute(
+                "UPDATE pipeline_jobs SET workspace_id='workspace-a' WHERE id='job-1'"
+            )
+        self.assertEqual(self.review.list_pending(), [])
+        self.assertEqual(self.review.list_pending(workspace_id="workspace-b"), [])
+        scoped = self.review.list_pending(workspace_id="workspace-a")
+        self.assertEqual([item["job_id"] for item in scoped], ["job-1"])
+
+    def test_review_decisions_and_history_require_exact_workspace(self):
+        with self.queue.db() as connection:
+            connection.execute(
+                "UPDATE production_runs SET workspace_id='workspace-a' WHERE job_id='job-1'"
+            )
+            connection.execute(
+                "UPDATE pipeline_jobs SET workspace_id='workspace-a' WHERE id='job-1'"
+            )
+        with self.assertRaises(ReviewNotFound):
+            self.review.decide(
+                "job-1", "approved", "operator-b", "Reviewed",
+                workspace_id="workspace-b"
+            )
+        with self.assertRaises(ReviewNotFound):
+            self.review.history("job-1", workspace_id="workspace-b")
+        result = self.review.decide(
+            "job-1", "approved", "operator-a", "Reviewed",
+            workspace_id="workspace-a"
+        )
+        self.assertEqual(result["production"]["status"], "approved")
+        self.assertEqual(
+            [item["job_id"] for item in self.review.list_approved(workspace_id="workspace-a")],
+            ["job-1"]
+        )
+        self.assertEqual(self.review.list_approved(), [])
+
+
 if __name__ == "__main__":
     unittest.main()
