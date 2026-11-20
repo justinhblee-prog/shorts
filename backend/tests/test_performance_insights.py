@@ -74,6 +74,43 @@ class PerformanceTests(unittest.TestCase):
   self.assertEqual(result["metric_boundary"]["ranking_score_adjustment"],0)
 
 
+ def test_performance_insights_and_financial_context_are_workspace_scoped(self):
+  self.video("job-workspace-a","Brain Glitch","US","Sleep A","video-workspace-a")
+  self.video("job-workspace-b","Brain Glitch","US","Sleep B","video-workspace-b")
+  with self.q.db() as connection:
+   connection.execute("UPDATE production_runs SET workspace_id='ws-a' WHERE job_id='job-workspace-a'")
+   connection.execute("UPDATE production_runs SET workspace_id='ws-b' WHERE job_id='job-workspace-b'")
+  base={"brand":"Brain Glitch","region":"US","entry_type":"sponsor","amount":100,
+        "currency":"USD","source_type":"operator_receipt",
+        "occurred_at":"2026-11-15T00:00:00+00:00"}
+  self.l.record({**base,"source_reference":"workspace-a-invoice"},workspace_id="ws-a")
+  self.l.record({**base,"source_reference":"workspace-b-invoice"},workspace_id="ws-b")
+  analyzer=PerformanceAnalyzer(self.db)
+  a=analyzer.analyze(workspace_id="ws-a")
+  b=analyzer.analyze(workspace_id="ws-b")
+  self.assertEqual({item["job_id"] for item in a["videos"]},{"job-workspace-a"})
+  self.assertEqual({item["job_id"] for item in b["videos"]},{"job-workspace-b"})
+  self.assertEqual(a["financial"][0]["entries"],1)
+  self.assertEqual(b["financial"][0]["entries"],1)
+  self.assertEqual(analyzer.analyze()["videos"],[])
+
+ def test_tiktok_performance_insights_are_workspace_scoped(self):
+  for job,video_id,workspace in (
+   ("job-tt-a","tt-video-a","ws-a"),("job-tt-b","tt-video-b","ws-b")
+  ):
+   self.p.create(job,{"brand":"Brain Glitch","region":"US","language":"English","topic":job})
+   self.p.stage(job,"rendered","review_pending")
+   store=TikTokPublishStore(self.db)
+   attempt=store.begin(job,job,False,"operator-1","attempt-"+job,False,False)
+   store.set_initialized(job,attempt["attempt_id"],"publish-"+job,{"creator_nickname":"test"})
+   store.mark_status(job,attempt["attempt_id"],"PUBLISH_COMPLETE",[video_id],None)
+   TikTokMetricsStore(self.db).save_snapshot(job,{"id":video_id,"view_count":10,
+                                                  "like_count":1,"comment_count":0,"share_count":0})
+   with self.q.db() as connection:
+    connection.execute("UPDATE production_runs SET workspace_id=? WHERE job_id=?",(workspace,job))
+  result=PerformanceAnalyzer(self.db).analyze(platform="tiktok",workspace_id="ws-a")
+  self.assertEqual({item["job_id"] for item in result["videos"]},{"job-tt-a"})
+
  def test_youtube_analytics_watch_time_and_retention_are_exposed_without_inference(self):
   self.video("j-analytics","Brain Glitch","US","Sleep","yt-analytics-1")
   analytics=YouTubeAnalyticsStore(self.db)
