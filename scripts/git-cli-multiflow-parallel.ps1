@@ -10,13 +10,18 @@ function Read-State([string]$Path){
  if(-not(Test-Path $Path)){return @{schema_version=1;tasks=@{}}}
  return (Get-Content -LiteralPath $Path -Raw -Encoding UTF8|ConvertFrom-Json -AsHashtable)
 }
+function Test-LeaseHeld([string]$Id,[string]$Root){
+ $path=Join-Path (Join-Path $Root "leases") "$Id.lease"
+ if(-not(Test-Path $path)){return $false}
+ try{$probe=[IO.File]::Open($path,[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None);$probe.Dispose();return $false}catch{return $true}
+}
 function Set-State([string]$Path,[string]$Id,[string]$Status,[string]$Detail){
  $lockPath="$Path.lock";$lock=$null
  for($i=0;$i -lt 100 -and -not $lock;$i++){try{$lock=[IO.File]::Open($lockPath,[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)}catch{Start-Sleep -Milliseconds 100}}
  if(-not $lock){throw "State lock timeout: $Path"}
  try{
   $s=Read-State $Path
-  if(-not $s.tasks.ContainsKey($Id)){$s.tasks[$Id]=@{}}
+  if(-not ($s.tasks.Keys -contains $Id)){$s.tasks[$Id]=@{}}
   $s.tasks[$Id].status=$Status;$s.tasks[$Id].detail=$Detail;$s.tasks[$Id].updated_at=[DateTime]::UtcNow.ToString("o")
   $tmp="$Path.$([guid]::NewGuid().ToString('N')).tmp"
   [IO.File]::WriteAllText($tmp,($s|ConvertTo-Json -Depth 20),[Text.UTF8Encoding]::new($false))
@@ -89,7 +94,12 @@ $statePath=Join-Path $stateDir "state.json";$state=Read-State $statePath
 $queue=[Collections.Generic.Queue[object]]::new()
 foreach($t in $eligible){
  $prior=$state.tasks[[string]$t.id]
- if($prior -and $prior.status -in @("queued","running","draft_pr_created")){continue}
+ if($prior -and $prior.status -eq "draft_pr_created"){continue}
+ if($prior -and $prior.status -eq "running"){
+  if(Test-LeaseHeld ([string]$t.id) $stateDir){continue}
+  Set-State $statePath ([string]$t.id) "failed" "Recovered stale running state; previous worker lease is no longer held."
+ }
+ if($prior -and $prior.status -eq "queued" -and (Test-LeaseHeld ([string]$t.id) $stateDir)){continue}
  $queue.Enqueue($t)
 }
 $active=[Collections.Generic.List[object]]::new()
