@@ -152,7 +152,7 @@ class ScheduleStore:
                 c.execute("""UPDATE schedule_dispatch_outbox
                     SET status='cancelled',last_error='Schedule deactivated before dispatch'
                     WHERE schedule_id=? AND status='pending'""", (sid,))
-            return self.get(sid, c)
+            return self.get(sid, c, workspace_id=workspace_id)
 
     def pending_dispatches(self, limit=100, now=None):
         limit = _bounded_limit(limit, "limit", 500)
