@@ -275,12 +275,18 @@ class WorkspaceAssetStore:
             if not isinstance(media_metadata, dict):
                 raise ValueError("media_metadata must be an object")
             duration_ms = media_metadata.get("duration_ms")
+            asset_before = self.get_asset(workspace_id, principal_id, asset_id)
+            video_streams = media_metadata.get("video_streams")
+            audio_streams = media_metadata.get("audio_streams")
+            has_video = media_metadata.get("has_video")
+            has_audio = media_metadata.get("has_audio")
             if (isinstance(duration_ms, bool) or not isinstance(duration_ms, int)
                     or not 1 <= duration_ms <= 3_600_000
-                    or not isinstance(media_metadata.get("has_video"), bool)
-                    or not isinstance(media_metadata.get("has_audio"), bool)
-                    or not (media_metadata["has_video"] or media_metadata["has_audio"])):
-                raise ValueError("verified media metadata is invalid")
+                    or media_metadata.get("byte_size") != asset_before["byte_size"]
+                    or not isinstance(has_video, bool) or not isinstance(has_audio, bool)
+                    or not isinstance(video_streams, list) or not isinstance(audio_streams, list)
+                    or has_video != bool(video_streams) or has_audio != bool(audio_streams)):
+                raise ValueError("verified media metadata is invalid or does not match asset bytes")
             serialized_metadata = json.dumps(
                 media_metadata, ensure_ascii=False, sort_keys=True,
                 separators=(",", ":"), allow_nan=False,
