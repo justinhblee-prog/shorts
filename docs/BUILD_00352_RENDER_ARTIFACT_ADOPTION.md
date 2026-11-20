@@ -175,12 +175,14 @@ bound to the final artifact checksum. The workflow result is the validation
 gate; a source-level test or fake subprocess is not treated as equivalent.
 
 
-Latest verified Compose run on commit 5639093fbed73ed9422bf5a3ef108cee9701f157
-passed the worker security-limit assertions, generated real-media FFmpeg render,
-ffprobe stream validation, lease-fenced artifact adoption, pending review,
-artifact-hash-bound approval and encrypted backup/restore checks. The CPU limit
-assertion accepts Docker's supported CpuQuota or NanoCpus representation; it
-does not weaken the required two-CPU cap.
+Latest verified Compose run #44754249046 on commit
+da945b470093323671da92a6b3fba39f476bfc44 passed the worker security-limit
+assertions, generated-fixture real FFmpeg render, ffprobe stream validation,
+lease-fenced artifact adoption, pending review, artifact-hash-bound approval
+and encrypted backup/restore checks. The CPU limit assertion accepts Docker's
+supported CpuQuota or NanoCpus representation; it does not weaken the required
+two-CPU cap. This proves the pinned image toolchain works on the CI fixture,
+not that all customer media or production hosts are compatible.
 
 
 ## FFmpeg/ffprobe binary pinning
@@ -197,6 +199,6 @@ cannot change unnoticed during rollout.
 
 The same Compose run built the image and started the worker only after its
 image-baked FFmpeg/ffprobe checksum manifest was verified. It then passed the
-real-media render/review and encrypted backup/restore smoke. The independent
-backend validation suite also passed; the browser smoke was still running at
-the time this document was updated.
+render/review and encrypted backup/restore smoke. The independent backend,
+Playwright Chromium browser smoke and Korean font fallback checks also passed
+in backend run #44754249154.
