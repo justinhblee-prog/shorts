@@ -111,11 +111,15 @@ async function waitForServer() {
     );
     assert.equal(await recoveredJobButton.getAttribute("aria-pressed"), "true",
       "clicking a job must select its detail panel");
+    const previousEventPanel = await page.locator("#developmentJobEvents").textContent();
     const parentJobButton = page.locator('[data-development-job="browser-smoke-ui-parent"]');
     await parentJobButton.press("Enter");
-    await page.waitForFunction(() =>
-      document.querySelector('[data-development-job="browser-smoke-ui-parent"]')?.getAttribute("aria-pressed") === "true"
-    );
+    await page.waitForFunction(previous => {
+      const button = document.querySelector('[data-development-job="browser-smoke-ui-parent"]');
+      const panel = document.querySelector("#developmentJobEvents");
+      return button?.getAttribute("aria-pressed") === "true" &&
+        panel && panel.textContent !== previous;
+    }, previousEventPanel);
     assert.equal(await recoveredJobButton.getAttribute("aria-pressed"), "false",
       "selecting another job must clear the previous selection");
     const events = await page.evaluate(async ({ tokenValue, id }) => {
