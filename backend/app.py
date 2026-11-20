@@ -1,11 +1,14 @@
+import asyncio
 import os
+import shutil
 import logging
 import secrets
 import tempfile
-from workspace_asset_store import WorkspaceAssetStore, AssetError, AssetNotFound
+from workspace_asset_store import WorkspaceAssetStore, AssetError, AssetNotFound, AssetConflict
 from timeline_render_store import TimelineRenderStore, SnapshotError, SnapshotConflict
 from render_artifact_store import RenderArtifactStore, ArtifactAdoptionError
-from media_scanner import ClamAVScanner, MediaScanError
+from media_scanner import ClamAVScanner, MediaScanError, MediaInfectedError
+from ffprobe_validate import FFprobeValidationError, probe_source_media
 from starlette.concurrency import run_in_threadpool
 from typing import Any, Literal
 from datetime import datetime, timedelta, timezone
@@ -305,6 +308,11 @@ class TrendProductionDraft(BaseModel):
     idempotency_key:str|None=None
     recommendation_run_id:str|None=Field(default=None,min_length=1,max_length=64)
 
+class TimelineRenderSubmitInput(BaseModel):
+    model_config = {"extra": "forbid"}
+    edl:dict[str,Any]
+    idempotency_key:str=Field(min_length=8,max_length=128)
+
 class WorkspaceCreateInput(BaseModel):
     model_config = {"extra": "forbid"}
     name:str=Field(min_length=1,max_length=120)
@@ -559,6 +567,83 @@ def require_review_permission(token, permission):
     if not allowed:
         raise HTTPException(403,"Operator role does not grant this action")
     return operator_id
+
+def _configured_ffprobe_binary():
+    configured = (
+        os.getenv("NEXUS_FFPROBE_PATH")
+        or os.getenv("FFPROBE_PATH")
+        or "ffprobe"
+    )
+    candidate = Path(configured)
+    if not candidate.is_absolute():
+        discovered = shutil.which(configured)
+        if discovered:
+            candidate = Path(discovered)
+    return candidate
+
+
+def _scan_workspace_asset(workspace_id, principal_id, asset_id):
+    """Run optional ClamAV + ffprobe; never mark an asset clean on scanner failure."""
+    if not media_stager.scan_enabled:
+        return {"scan_status": "pending", "scanner_status": "disabled",
+                "media_metadata": None}
+    path = workspace_asset_store.path_for_scan(
+        workspace_id, principal_id, asset_id
+    )
+    try:
+        scanner = ClamAVScanner(
+            max_bytes=workspace_asset_store.max_asset_bytes
+        )
+        scanner.scan(path)
+    except MediaScanError as exc:
+        if "detected an infected artifact" in str(exc):
+            workspace_asset_store.mark_scan_result(
+                workspace_id, principal_id, asset_id, False,
+                scanner_verified=True,
+            )
+            return {"scan_status": "rejected", "scanner_status": "infected",
+                    "media_metadata": None}
+        return {"scan_status": "pending", "scanner_status": "unavailable",
+                "media_metadata": None}
+    except ValueError:
+        return {"scan_status": "pending", "scanner_status": "misconfigured",
+                "media_metadata": None}
+
+    ffprobe_binary = _configured_ffprobe_binary()
+    if not ffprobe_binary.is_absolute() or not ffprobe_binary.is_file():
+        return {"scan_status": "pending", "scanner_status": "probe_unavailable",
+                "media_metadata": None}
+    try:
+        media_metadata = probe_source_media(
+            path, ffprobe_binary,
+            max_bytes=workspace_asset_store.max_asset_bytes,
+            timeout_seconds=15,
+        )
+    except FFprobeValidationError as exc:
+        message = str(exc).lower()
+        if "could not be started" in message or "binary" in message or "timeout" in message:
+            return {"scan_status": "pending", "scanner_status": "probe_unavailable",
+                    "media_metadata": None}
+        workspace_asset_store.mark_scan_result(
+            workspace_id, principal_id, asset_id, False,
+            scanner_verified=True,
+        )
+        return {"scan_status": "rejected", "scanner_status": "invalid_media",
+                "media_metadata": None}
+
+    # Re-hash after both external scanners have read the file to close the
+    # upload/scan time-of-check-to-time-of-use window.
+    workspace_asset_store.path_for_scan(workspace_id, principal_id, asset_id)
+    verified = workspace_asset_store.mark_scan_result(
+        workspace_id, principal_id, asset_id, True,
+        media_metadata=media_metadata, scanner_verified=True,
+    )
+    return {
+        "scan_status": verified["scan_status"],
+        "scanner_status": "clean",
+        "media_metadata": verified["media_metadata"],
+    }
+
 
 def resolve_operator_workspace_scope(operator_id, workspace_id):
     """Resolve an optional workspace selector against the authenticated operator membership."""
