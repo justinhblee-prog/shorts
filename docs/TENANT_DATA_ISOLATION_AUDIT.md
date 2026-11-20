@@ -1,7 +1,7 @@
 # Tenant Data Isolation Audit and Migration Plan
 
 **Date:** 2026-11-20  
-**Status:** Inventory complete; tenant-column migration intentionally not started.
+**Status:** Inventory complete; first isolated media-staging primitive implemented; end-to-end workspace propagation and tenant data migration remain incomplete.
 
 ## Executive finding
 
@@ -26,6 +26,19 @@ The following SQLite stores currently define tables without a `workspace_id` col
 | Files | `MediaStager` filesystem paths derived from job IDs; no workspace asset registry yet | File ownership, retention, signed access and deletion are not tenant-aware |
 
 The inventory is based on the current source schemas in `backend/queue_store.py`, `production_pipeline.py`, `review_workflow.py`, `brand_operations.py`, `scheduler_store.py`, `youtube_publishing.py`, `tiktok_publishing.py`, `youtube_oauth.py`, `tiktok_oauth.py`, `ledger.py`, `trends.py`, and `media_staging.py`.
+
+## Implemented slice — workspace-scoped media staging
+
+`backend/media_staging.py` now accepts an optional, validated `workspace_id` for `stage`, `staged_path`, and `cleanup_uploaded`. Tenant media is placed under a SHA-256-derived opaque workspace directory, with job filenames independently hashed. Temporary `.part` files are created inside the same namespace and pruning traverses nested namespaces. Invalid workspace IDs fail before the artifact download begins. Omitting `workspace_id` preserves the existing legacy path for current operator workflows.
+
+This is a storage primitive only, not an end-to-end tenant boundary:
+- Existing production recovery callers do not yet provide an authoritative workspace ID.
+- Queue, upload-store lookups, worker leases, and production records are still not workspace-scoped.
+- No tenant asset registry or authorized asset retrieval API exists.
+- Legacy root-level files are not moved or assigned to a workspace.
+- Cleanup must not be treated as tenant-safe until upload records themselves are workspace-scoped.
+
+Tests added for same-job cross-workspace path separation, opaque directory names, invalid-ID rejection before network access, and cleanup isolation.
 
 ## Required migration sequence
 
