@@ -612,3 +612,10 @@ The YouTube Data API, YouTube Analytics and TikTok metrics collectors use renewa
 Current constraints: clips must be ordered and contiguous; the total timeline is capped at 180 seconds; aggregate registered input bytes are bounded; optional audio is used as the output narration/music track (source-clip audio mixing is not implemented); title clips are rejected.
 
 This is a tested low-level primitive, **not yet an end-to-end render worker**. It is intentionally not connected to the API or queue until workspace-owned asset registration, workspace-scoped durable render-job state, lease/recovery semantics and an authenticated submission contract are implemented. Title clips are rejected for now rather than passed through unsafe text/filter interpolation. No automatic approval or publishing occurs.
+
+
+### BUILD — workspace-scoped render asset registry
+
+The authenticated `POST /api/render/assets` endpoint streams only MP4 video or M4A/MP4 audio into an opaque workspace namespace. It enforces per-type byte limits, verifies the MP4-family signature, computes SHA-256, and atomically registers the asset with its authenticated owner and workspace. `GET /api/render/assets` lists only the selected workspace's assets. `POST /api/render/validate-edl` validates EDL v1 and resolves every video `asset_id` against the authenticated workspace; it never returns filesystem paths.
+
+Malware scanning follows `NEXUS_MEDIA_SCAN_ENABLED`. If scanning is disabled, uploads are stored with `scan_status=disabled` and are **not render-resolvable**. Rendering requires a clean ClamAV result and a fresh SHA-256/size match at resolution time. Enable scanning only after configuring the ClamAV database/updater. This milestone still does not enqueue or execute render jobs.
