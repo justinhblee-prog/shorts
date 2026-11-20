@@ -47,8 +47,6 @@ jobs:
           docker compose exec -T worker python -c "import os; assert os.path.exists('/app/data')"
           docker compose exec -T render-worker python -c "import os; assert os.path.exists('/app/data')"
           docker compose exec -T scheduler python -c "import os; assert os.path.exists('/app/data')"
-      - name: Verify isolated render worker creates a real MP4
-        run: docker compose exec -T render-worker python render_integration_smoke.py
           for service in api worker render-worker scheduler metrics-collector; do
             healthy=0
             for attempt in $(seq 1 90); do
@@ -59,6 +57,8 @@ jobs:
             done
             test "$healthy" = "1"
           done
+      - name: Verify isolated render worker creates a real MP4
+        run: docker compose exec -T render-worker python render_integration_smoke.py
       - name: Verify scheduled backup and isolated restore
         run: |
           set -eu
