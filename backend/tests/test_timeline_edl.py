@@ -24,6 +24,7 @@ class TimelineEDLTests(unittest.TestCase):
     def test_rejects_unknown_version_and_fields(self):
         for mutate in (
             lambda p: p.update(version=2),
+            lambda p: p.update(version=True),
             lambda p: p.update(remote_url="https://evil.example/video.mp4"),
             lambda p: p["clips"][0].update(local_path="C:/secret.mp4"),
         ):
@@ -44,7 +45,8 @@ class TimelineEDLTests(unittest.TestCase):
 
     def test_rejects_non_finite_negative_and_inconsistent_times(self):
         for field, value in (("start_ms", float("nan")), ("end_ms", float("inf")),
-                             ("source_in_ms", -1), ("source_out_ms", 7000)):
+                             ("source_in_ms", -1), ("source_out_ms", 7000),
+                             ("start_ms", 10**10000)):
             payload = {**self.valid, "clips": [dict(x) for x in self.valid["clips"]]}
             payload["clips"][0][field] = value
             with self.subTest(field=field), self.assertRaises(EDLValidationError):
