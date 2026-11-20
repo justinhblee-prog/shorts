@@ -85,8 +85,10 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
         title_file.write_text("safe title", encoding="utf-8")
         audio_file = self.root / "mix.m4a"
         audio_file.write_bytes(b"audio")
+        video_file = self.root / "video.media"
+        video_file.write_bytes(b"video")
         argv = build_timeline_ffmpeg_argv(
-            self.edl, {"asset_video": self.root / "video.media"},
+            self.edl, {"asset_video": video_file},
             self.root / "out.mp4", ffmpeg_path=str(self.ffmpeg),
             font_path=self.font, audio_mix_path=audio_file,
             title_files={"t1": title_file},
