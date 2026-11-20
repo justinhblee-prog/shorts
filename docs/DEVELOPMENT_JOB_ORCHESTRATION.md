@@ -347,3 +347,16 @@ Code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [
 The trusted runner now requires a second worktree read after executor completion. The worker requires an executor verification hook, compares its actual tracked/untracked Git paths with the claimed list, and quarantines missing or mismatched evidence before review-pending.
 
 Exact-head validation: head `c84cd357b7b9bc7d8e8f87040467e8c449a1ecf9` passed **821 tests**, `scripts/validate.sh`, and frontend syntax validation in [run 44547815032](https://github.com/justinhblee-prog/shorts/actions/runs/44547815032). Hosted Linux only; Windows local runner and live autonomous continuation remain unverified.
+
+## Current aggregate integration checkpoint — 2026-11-20
+
+The current dashboard/core follow-up is maintained in PR #415:
+https://github.com/justinhblee-prog/shorts/pull/415
+
+- Development-job listing now uses a stable insertion snapshot. The first page captures a UTC cutoff under SQLite `BEGIN IMMEDIATE`; later pages carry the same `created_before` boundary so newly inserted high-priority jobs cannot shift offsets and cause duplicate/missing rows.
+- The dashboard serializes concurrent page requests through one in-flight promise. Rapid repeated prerequisite clicks share one API request, and pagination controls remain disabled until the request settles.
+- Cross-page prerequisite navigation fetches the parent page and focuses the parent card. Browser coverage verifies one request under rapid double-click, final-page completion, and keyboard-accessible focus transfer.
+- Workstream classification normalizes Windows-style separators and case. A mixed-case `Frontend\\App.js` fixture is verified in the UI lane.
+- Exact application/test head `006805df47d5cf493a2ad5e95396f074170ce416` passed [GitHub Actions run 44660726931](https://github.com/justinhblee-prog/shorts/actions/runs/44660726931): 901 backend tests, frontend syntax, dashboard Chromium smoke, recovery/workstream/DAG/pagination Chromium smoke, and artifact [14594589376](https://github.com/justinhblee-prog/shorts/actions/runs/44660726931/artifacts/14594589376).
+- Exact documentation head `95a2b6969eccbf0d308e4fb47d234a3aae246722` passed [run 44661022116](https://github.com/justinhblee-prog/shorts/actions/runs/44661022116), including 901 backend tests, frontend syntax, both Chromium suites, and artifact [14595406964](https://github.com/justinhblee-prog/shorts/actions/runs/44661022116/artifacts/14595406964).
+- PR #415 remains Draft/open/unmerged. The isolated Windows worker remains a separate Draft PR #416 and is not activated. Hosted CI does not prove Windows self-hosted runner isolation, LocalAppData persistence across runs, live Ollama generation, production database behavior, or provider publishing.
