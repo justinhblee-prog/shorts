@@ -138,8 +138,10 @@ class WorkspaceAssetStoreTests(unittest.TestCase):
         verified = self.store.mark_scan_result(
             "ws_studio", "editor", result["asset_id"], True,
             media_metadata={
-                "duration_ms": 1000, "has_video": True, "has_audio": False,
-                "video_streams": [], "audio_streams": [],
+                "duration_ms": 1000, "byte_size": len(b"editor-media"),
+                "has_video": True, "has_audio": False,
+                "video_streams": [{"codec": "h264", "width": 640, "height": 360}],
+                "audio_streams": [],
             },
             scanner_verified=True,
         )
