@@ -995,6 +995,8 @@ def youtube_analytics_collection_status(
     x_nexus_workspace_id:str|None=Header(default=None),
 ):
     operator_id=require_review_permission(x_review_token,"analytics.read")
+    if not x_nexus_workspace_id:
+        raise HTTPException(403,"Workspace scope is required for analytics status")
     workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     freshness=max(300,int(os.getenv("YOUTUBE_ANALYTICS_MIN_AGE_SECONDS","86400")))
     return youtube_analytics_store.status(
@@ -1218,6 +1220,8 @@ def publishing_analytics_status(
 ):
     """Summarize workspace-scoped analytics coverage without exposing provider credentials."""
     operator_id=require_review_permission(x_review_token,"analytics.read")
+    if not x_nexus_workspace_id:
+        raise HTTPException(403,"Workspace scope is required for analytics status")
     workspace_id=resolve_operator_workspace_scope(operator_id,x_nexus_workspace_id)
     youtube=youtube_analytics_store.status(workspace_id=workspace_id)
     tiktok=tiktok_metrics_store.status(tiktok_publish_store,workspace_id=workspace_id)
