@@ -337,6 +337,8 @@ NaN now require authenticated operator workspace resolution for tenant-owned pro
 
 - YouTube Analytics detail reads are now workspace-filtered in the store query itself, not only pre-authorized at the API layer.
 
-- Analytics status header validation explicitly rejects FastAPI `Header` sentinel values in direct-call tests as well as omitted HTTP headers; regression fix CI pending.
+- Analytics status header validation explicitly rejects absent workspace headers; direct-call regression tests passed in Backend run `44696462688`.
 
-- Browser smoke API fixture now supplies the selected workspace ID when checking analytics status, matching the API's required tenant context.
+- Browser smoke API fixture supplies the selected workspace ID when checking analytics status; Chromium smoke and screenshot artifact `14611580399` passed in run `44696462688`.
+
+- Latest analytics workspace isolation code head `fb85fb68af395796c901e9392b3c6fa43a7a686d` passed Backend validation + Chromium smoke and Compose integration/backup restore (runs `44696462688`, `44696462695`).
