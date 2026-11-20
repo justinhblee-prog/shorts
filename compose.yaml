@@ -8,6 +8,7 @@ services:
     environment:
       NEXUS_DB_PATH: /app/data/nexus.sqlite3
       NEXUS_MEDIA_DIR: /app/data/media
+      NEXUS_PRIVATE_MEDIA_ROOT: ${NEXUS_PRIVATE_MEDIA_ROOT:-/app/data/private-media}
     ports:
       - "8502:8502"
     volumes:
@@ -66,9 +67,9 @@ services:
     env_file: .env
     environment:
       NEXUS_DB_PATH: /app/data/nexus.sqlite3
-      NEXUS_PRIVATE_MEDIA_ROOT: /app/data/private-media
-      NEXUS_RENDER_STAGING_ROOT: /app/data/render-staging
-      NEXUS_RENDER_ARTIFACT_ROOT: /app/data/render-artifacts
+      NEXUS_PRIVATE_MEDIA_ROOT: ${NEXUS_PRIVATE_MEDIA_ROOT:-/app/data/private-media}
+      NEXUS_RENDER_STAGING_ROOT: ${NEXUS_RENDER_STAGING_ROOT:-/app/data/render-staging}
+      NEXUS_RENDER_ARTIFACT_ROOT: ${NEXUS_RENDER_ARTIFACT_ROOT:-/app/data/render-artifacts}
       NEXUS_FFMPEG_PATH: ${NEXUS_FFMPEG_PATH:-/usr/bin/ffmpeg}
       NEXUS_FFPROBE_PATH: ${NEXUS_FFPROBE_PATH:-/usr/bin/ffprobe}
       NEXUS_RENDER_LEASE_SECONDS: ${NEXUS_RENDER_LEASE_SECONDS:-300}
