@@ -229,7 +229,7 @@ class ReviewStore:
         run["brand_profile"] = profile
         return ReviewStore.sanitize_production_record(run)
 
-    def update_policy_evidence(self, job_id, reviewer_id, declarations):
+    def update_policy_evidence(self, job_id, reviewer_id, declarations, workspace_id=None):
         """Persist explicit operator attestations and recompute the policy report."""
         reviewer_id = str(reviewer_id or "").strip()
         if not reviewer_id or len(reviewer_id) > 128:
@@ -250,9 +250,11 @@ class ReviewStore:
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             run = c.execute(
-                "SELECT status FROM production_runs WHERE job_id=?", (job_id,)
+                "SELECT status,workspace_id FROM production_runs WHERE job_id=?", (job_id,)
             ).fetchone()
             if run is None:
+                raise ReviewNotFound(job_id)
+            if run["workspace_id"] != workspace_id:
                 raise ReviewNotFound(job_id)
             if run["status"] != "review_pending":
                 raise ReviewConflict("Policy evidence can only be updated while review is pending")
@@ -262,8 +264,8 @@ class ReviewStore:
             if not has_queue:
                 raise ReviewConflict("Durable queue payload is unavailable for policy evidence")
             job = c.execute(
-                "SELECT payload_json,status FROM pipeline_jobs WHERE id=? AND job_type='short_video_production'",
-                (job_id,),
+                "SELECT payload_json,status FROM pipeline_jobs WHERE id=? AND job_type='short_video_production' AND workspace_id IS ?",
+                (job_id, workspace_id),
             ).fetchone()
             if job is None or job["status"] != "review_pending":
                 raise ReviewConflict("Queue job is not in review_pending state")
@@ -327,10 +329,10 @@ class ReviewStore:
                 "created_at": timestamp,
             }
 
-    def policy_evidence_history(self, job_id):
+    def policy_evidence_history(self, job_id, workspace_id=None):
         with self.db() as c:
             exists = c.execute(
-                "SELECT 1 FROM production_runs WHERE job_id=?", (job_id,)
+                "SELECT 1 FROM production_runs WHERE job_id=? AND workspace_id IS ?", (job_id, workspace_id)
             ).fetchone()
             if exists is None:
                 raise ReviewNotFound(job_id)
@@ -346,7 +348,7 @@ class ReviewStore:
                 "created_at": row["created_at"],
             } for row in rows]
 
-    def decide(self, job_id, decision, reviewer_id, comment=""):
+    def decide(self, job_id, decision, reviewer_id, comment="", workspace_id=None):
         if decision not in self.DECISIONS:
             raise ValueError("Unsupported review decision")
         reviewer_id = str(reviewer_id or "").strip()
@@ -361,7 +363,7 @@ class ReviewStore:
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             run = c.execute(
-                "SELECT * FROM production_runs WHERE job_id=?", (job_id,)
+                "SELECT * FROM production_runs WHERE job_id=? AND workspace_id IS ?", (job_id, workspace_id)
             ).fetchone()
             if run is None:
                 raise ReviewNotFound(job_id)
@@ -438,7 +440,7 @@ class ReviewStore:
                     "Durable queue is unavailable; review decision cannot be committed"
                 )
             queued = c.execute(
-                "SELECT job_type,status FROM pipeline_jobs WHERE id=?", (job_id,)
+                "SELECT job_type,status FROM pipeline_jobs WHERE id=? AND workspace_id IS ?", (job_id, workspace_id)
             ).fetchone()
             if queued is None:
                 raise ReviewConflict(
@@ -481,7 +483,7 @@ class ReviewStore:
             return {"production": self._with_artifacts(c, dict(row)),
                     "decision": decisions[-1], "history": decisions}
 
-    def history(self, job_id):
+    def history(self, job_id, workspace_id=None):
         with self.db() as c:
             exists = c.execute(
                 "SELECT 1 FROM production_runs WHERE job_id=?", (job_id,)
