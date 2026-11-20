@@ -5,6 +5,7 @@ completion as proof of publication; successful renders enter review_pending.
 """
 from __future__ import annotations
 
+import inspect
 import threading
 
 from ffmpeg_edl_renderer import EDLFFmpegRenderer
@@ -12,7 +13,8 @@ from ffmpeg_edl_renderer import EDLFFmpegRenderer
 
 class TimelineRenderWorker:
     def __init__(self, queue, renderer, worker_id, generation_token,
-                 heartbeat_seconds=10, artifact_store=None, shutdown_event=None):
+                 heartbeat_seconds=10, artifact_store=None, shutdown_event=None,
+                 principal_resolver=None):
         if not callable(renderer):
             raise TypeError("renderer callback is required")
         if not worker_id or not generation_token:
@@ -26,6 +28,7 @@ class TimelineRenderWorker:
         self.heartbeat_seconds = heartbeat_seconds
         self.artifact_store = artifact_store
         self.shutdown_event = shutdown_event
+        self.principal_resolver = principal_resolver
 
     def run_once(self):
         if self.shutdown_event is not None and self.shutdown_event.is_set():
@@ -65,40 +68,66 @@ class TimelineRenderWorker:
         shutdown_watch = threading.Thread(target=cancel_for_shutdown, daemon=True)
         heartbeat.start()
         shutdown_watch.start()
+        staged_path = None
+        adopted = False
         try:
-            render_payload = dict(job["payload"])
-            # The queue owns workspace identity; expose it to the trusted
-            # asset resolver without changing the immutable stored payload.
+            payload = job["payload"]
+            principal_id = payload.get("creator_principal_id")
+            if self.principal_resolver is not None:
+                resolved = self.principal_resolver(job["workspace_id"], payload)
+                if principal_id is not None and principal_id != resolved:
+                    raise RuntimeError("render job creator does not match immutable snapshot owner")
+                principal_id = resolved
+
+            render_payload = dict(payload)
             render_payload["workspace_id"] = job["workspace_id"]
-            result = self.renderer(render_payload, stop_event=cancel_render)
+            try:
+                parameters = inspect.signature(self.renderer).parameters
+                accepts_kwargs = any(
+                    item.kind == inspect.Parameter.VAR_KEYWORD
+                    for item in parameters.values()
+                )
+                context = {"workspace_id": job["workspace_id"], "principal_id": principal_id}
+                context = {
+                    key: value for key, value in context.items()
+                    if accepts_kwargs or key in parameters
+                }
+            except (TypeError, ValueError):
+                context = {}
+            result = self.renderer(render_payload, stop_event=cancel_render, **context)
+            if isinstance(result, dict):
+                staged_path = result.get("staged_path")
             if lease_lost.is_set():
                 raise RuntimeError("timeline render lease was lost")
             if self.shutdown_event is not None and self.shutdown_event.is_set():
                 raise RuntimeError("timeline render cancelled for graceful worker shutdown")
             if self.artifact_store is not None:
-                if not isinstance(result, dict) or "staged_path" not in result:
+                if not isinstance(result, dict) or not staged_path:
                     raise RuntimeError("renderer must return staged_path when artifact adoption is enabled")
                 self.artifact_store.adopt(
                     job["id"], self.worker_id, job["lease_token"],
                     self.generation_token, job["workspace_id"],
-                    job["payload"]["snapshot_id"],
-                    job["payload"]["snapshot_sha256"], result["staged_path"],
+                    payload["snapshot_id"], payload["snapshot_sha256"], staged_path,
                 )
+                adopted = True
             else:
                 self.queue.finish(
                     job["id"], self.worker_id, job["lease_token"],
-                    {"render_result": result, "snapshot_id": job["payload"]["snapshot_id"],
+                    {"render_result": result, "snapshot_id": payload["snapshot_id"],
                      "review_required": True},
                     generation_token=self.generation_token,
                     workspace_id=job["workspace_id"],
                 )
             return True
         except Exception as exc:
+            if staged_path and self.artifact_store is not None and not adopted:
+                try:
+                    self.artifact_store.discard_staged(staged_path)
+                except Exception:
+                    pass
             if not lease_lost.is_set():
                 try:
-                    shutting_down = (
-                        self.shutdown_event is not None and self.shutdown_event.is_set()
-                    )
+                    shutting_down = self.shutdown_event is not None and self.shutdown_event.is_set()
                     self.queue.fail(
                         job["id"], self.worker_id, job["lease_token"],
                         "timeline_worker_shutdown" if shutting_down else "timeline_render_failed",
@@ -113,7 +142,6 @@ class TimelineRenderWorker:
             stop.set()
             heartbeat.join(timeout=max(1.0, self.heartbeat_seconds + 1.0))
             shutdown_watch.join(timeout=1.0)
-
 
 def create_edl_render_worker(queue, asset_store, worker_id, generation_token,
                              staging_root, ffmpeg_path, artifact_store, *,
