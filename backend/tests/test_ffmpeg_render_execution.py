@@ -29,7 +29,7 @@ class FFmpegRenderExecutionTests(unittest.TestCase):
 
     def test_adopts_verified_artifact_with_hash_and_review_state(self):
         result = execute_ffmpeg_render(self.command(), self.root, "accepted.mp4",
-                                       ffprobe_path=sys.executable)
+                                       ffprobe_path=[sys.executable, str(self.ffprobe)])
         self.assertEqual(result["status"], "review_pending")
         self.assertEqual(result["size_bytes"], len(b"fake mp4 fixture"))
         self.assertTrue((self.root / "accepted.mp4").is_file())
