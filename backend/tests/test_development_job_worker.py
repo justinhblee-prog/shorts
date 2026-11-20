@@ -278,7 +278,7 @@ class DevelopmentJobWorkerTests(unittest.TestCase):
 
         self.assertFalse(thread.is_alive())
         self.assertEqual(outcomes, ["lease_lost"])
-        self.assertEqual(self.store.get(job["id"])["status"], "leased")
+        self.assertEqual(self.store.get(job["id"])["status"], "running")
 
     def test_stale_evidence_gate_conflict_returns_lease_lost(self):
         job = self.store.create("Stale completion fence", scope=["backend/example.py"])
