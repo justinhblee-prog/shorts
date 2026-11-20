@@ -301,3 +301,10 @@ NaN now require authenticated operator workspace resolution for tenant-owned pro
 - Legacy operator-token worker endpoints are rejected with HTTP 410 once worker credential mode is configured. With no worker credential configuration, legacy compatibility remains unchanged.
 - The existing worker process still accesses SQLite directly and has not been migrated to this API. The new protocol is not a claim of full worker isolation; no credentials, runner settings, or production execution were activated.
 - Added unit and API tests for digest validation, explicit grants, workspace-fenced claim/lease behavior, legacy-mode guard, and stale process-generation rejection. Code head aa2fa5b96205323fa97e58e9fbda89c0a6199f68 passed Backend validation + Chromium browser smoke (run 44692285597) and Compose integration smoke (run 44692285539).
+
+## Active workspace selection and scoped performance evidence — 2026-11-20
+
+- Added a responsive workspace selector to the dashboard toolbar. It loads only the authenticated operator's memberships and sends X-Nexus-Workspace-Id on subsequent API calls when selected. No workspace is auto-selected; the default view remains unassigned legacy data.
+- Workspace metadata listing uses a dedicated workspace.read permission; creating or managing memberships retains stronger media.manage permissions.
+- Performance insights and recommendation exposure/evaluation now use workspace-scoped production and financial evidence. Recommendation selections are linked only when the production job and exposure share the same workspace.
+- Browser smoke verifies membership loading, workspace selection header propagation, and return to the legacy default. Latest validation pending.
