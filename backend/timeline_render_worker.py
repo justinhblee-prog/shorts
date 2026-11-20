@@ -6,6 +6,7 @@ completion as proof of publication; successful renders enter review_pending.
 from __future__ import annotations
 
 import threading
+from pathlib import Path
 
 
 class TimelineRenderWorker:
@@ -76,7 +77,7 @@ class TimelineRenderWorker:
                 staged = result.get("staged_path")
                 if isinstance(staged, str):
                     try:
-                        candidate = __import__("pathlib").Path(staged)
+                        candidate = Path(staged)
                         candidate.resolve(strict=False).relative_to(
                             self.artifact_store.staging_root.resolve(strict=True)
                         )
