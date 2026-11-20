@@ -1,5 +1,5 @@
 """Durable SQLite workspace registry; authentication remains the caller's responsibility."""
-import re, sqlite3, uuid
+import os, re, sqlite3, uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,8 +26,9 @@ def _wid(value):
     return value
 
 class WorkspaceStore:
-    def __init__(self, db_path="data/nexus.sqlite3"):
-        self.db_path = str(db_path)
+    def __init__(self, db_path=None):
+        # Match every other backend store/worker so all modules share one SQLite file.
+        self.db_path = str(db_path if db_path is not None else (os.getenv("NEXUS_DB_PATH") or "data/nexus.sqlite3"))
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         with self.db() as db:
             db.executescript("""
