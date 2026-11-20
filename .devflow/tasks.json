@@ -117,7 +117,7 @@
         "Do not modify .devflow/tasks.json or unrelated project files"
       ],
       "external_gates": [],
-      "notes": "Retry using JSON-constrained local Ollama turns, in addition to text-call parsing, tool_name schema, empty-turn guard, and corrected worktree base. Draft PR only."
+      "notes": "Reattempt after removing JSON-constrained mode from Ollama tool requests. A real local model tool-call diagnostic now runs before worker scheduling and reports done_reason, output length, and tool-call counts. Repeated identical tool calls are bounded to prevent no-progress loops. Draft PR only; no merge or deployment."
     }
   ]
 }
