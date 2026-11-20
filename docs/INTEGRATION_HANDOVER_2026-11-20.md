@@ -81,3 +81,12 @@ The next engineering gate remains the ordered Windows runner preflight and two-r
 - PR #415 includes parent dashboard/API changes, workstream/dependency UI, DAG mutation guards, Windows tooling path-integrity guards, and the multi-flow handover documents.
 - This hosted validation does not prove execution on the trusted Windows self-hosted runner, persistence across two actual runner jobs, or a live Ollama generation cycle. Those remain external BLOCKED gates.
 - PR #415 remains Draft/open/unmerged. No merge or deployment was performed.
+
+
+## 9. Aggregate candidate continuation and runner activation dependency — 2026-11-20
+
+- Aggregate PR #415 head `b3db65d7b1391f107c6b1ca5ae3448e61d4cac9d` passed exact-head hosted workflow [44643755871](https://github.com/justinhblee-prog/shorts/actions/runs/44643755871): 17/17 steps, zero failures. Its browser artifact [14586849009](https://github.com/justinhblee-prog/shorts/actions/runs/44643755871/artifacts/14586849009) was retrieved; desktop and mobile screenshots were visually inspected.
+- Follow-up documentation commit `87639d8f6c83405df4cac46209f5b1808e8bc5a3` records the Windows worker activation constraint in MULTI_FLOW_EXECUTION. Its exact-head hosted workflow [44644264702](https://github.com/justinhblee-prog/shorts/actions/runs/44644264702) passed all 17 steps.
+- Important activation dependency: the worker workflow currently exists on the unmerged integration branch. GitHub requires a `workflow_dispatch` workflow to exist on the default branch for manual dispatch; scheduled workflow evaluation also uses the default branch. Therefore the Windows/Ollama workflow cannot be triggered from this candidate until an authorized default-branch change makes it available.
+- The available repository connection supports run inspection and reruns but does not expose workflow dispatch. No Windows run, LocalAppData two-run persistence, or live Ollama generation is claimed.
+- PR #415 remains Draft/open/unmerged. Default-branch workflow activation, merge, deployment, and external provider operations remain gated; no changes to the default branch were made.
