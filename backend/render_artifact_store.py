@@ -238,7 +238,7 @@ class RenderArtifactStore:
             raise ValueError("staging grace_seconds must be at least 7200")
         cutoff = time.time() - grace_seconds
         removed_files = removed_dirs = removed_bytes = 0
-        output_pattern = re.compile(r"^render_[a-f0-9]{32}\\.mp4$")
+        output_pattern = re.compile(r"^render_[a-f0-9]{32}\.mp4$")
         for path in self.staging_root.iterdir():
             if path.is_symlink():
                 continue
