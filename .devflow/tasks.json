@@ -45,7 +45,8 @@
         "Use real pinned FFmpeg and ffprobe binaries in an isolated worker container",
         "Enforce CPU, memory, disk, network and process-count quotas outside this Python module",
         "Add actual audio-mix support and real-media integration tests"
-      ]
+      ],
+      "notes": "Existing Draft PRs #435-#439 require integration review before any merge. #435 and #436 are individually clean against the shared base; #437 and #439 are divergent FFmpeg renderer implementations with GitHub mergeable_state=dirty and overlapping backend/timeline_ffmpeg_renderer.py; #438 is based on #437. Tests passed for #435-#438; #439 currently has no check runs. Do not merge automatically; consolidate duplicate renderer paths and validate before review."
     },
     {
       "id": "BUILD-00353",
