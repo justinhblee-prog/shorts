@@ -275,5 +275,5 @@ NaN now require authenticated operator workspace resolution for tenant-owned pro
 
 - Review inbox, approved queue, and publishing overview now resolve `X-Nexus-Workspace-Id` through authenticated operator membership before reading review rows.
 - Review decisions and policy-evidence changes are workspace-fenced in the store transaction; omitted scope can see/act only on legacy unassigned rows.
-- New regression coverage verifies workspace A cannot list or decide workspace B's review job, while a matching workspace can complete the review.
-- CI for latest code commit `c9cf95ba92ad53d8708b0d3816243606650c0427` is pending at handover time.
+- Regression coverage verifies workspace A cannot list, decide, or alter policy evidence for workspace B's review job, while a matching workspace can complete the review.
+- Code head `7dc2b1742256832a744810188fdff1638668e6d7` passed Backend tests and Chromium browser smoke (run `44687938486`) plus Compose integration build/readiness/backup/restore (run `44687938515`).
