@@ -229,9 +229,16 @@ class ProductionStore:
             )
 
     def stage(self, job_id, stage, status="running", error=None,
-              worker_id=None, lease_token=None):
+              worker_id=None, lease_token=None, workspace_id=None):
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            if workspace_id is not None:
+                parent = c.execute(
+                    "SELECT 1 FROM production_runs WHERE job_id=? AND workspace_id=?",
+                    (job_id, workspace_id),
+                ).fetchone()
+                if parent is None:
+                    raise KeyError(job_id)
             timestamp = utc_now()
             if worker_id is not None or lease_token is not None:
                 self._assert_worker_lease(c, job_id, worker_id, lease_token, timestamp)
@@ -240,7 +247,7 @@ class ProductionStore:
                 # Keep this in the same transaction as the fenced stage transition.
                 c.execute("DELETE FROM production_artifacts WHERE job_id=?", (job_id,))
             updated=c.execute("""UPDATE production_runs SET current_stage=?,status=?,error=?,updated_at=?
-                         WHERE job_id=?""", (stage, status, error, timestamp, job_id))
+                         WHERE job_id=? AND (? IS NULL OR workspace_id=?)""", (stage, status, error, timestamp, job_id, workspace_id, workspace_id))
             if updated.rowcount != 1:
                 raise KeyError(job_id)
 
@@ -291,7 +298,8 @@ class ProductionStore:
                             )
 
     def artifact(self, job_id, stage, artifact_type, url, metadata,
-                 worker_id=None, lease_token=None, provider_attempt=None):
+                 worker_id=None, lease_token=None, provider_attempt=None,
+                 workspace_id=None):
         if artifact_type in ("audio", "video") and (
             not isinstance(url, str) or not url.startswith(("https://", "http://"))
         ):
@@ -300,6 +308,13 @@ class ProductionStore:
             raise ValueError("artifact URL must be a string or null")
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
+            if workspace_id is not None:
+                parent = c.execute(
+                    "SELECT 1 FROM production_runs WHERE job_id=? AND workspace_id=?",
+                    (job_id, workspace_id),
+                ).fetchone()
+                if parent is None:
+                    raise KeyError(job_id)
             timestamp = utc_now()
             if worker_id is not None or lease_token is not None:
                 self._assert_worker_lease(c, job_id, worker_id, lease_token, timestamp)
