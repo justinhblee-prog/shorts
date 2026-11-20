@@ -203,11 +203,15 @@ async function waitForServer() {
         "/api/publishing/analytics-status",
       ];
       return Promise.all(paths.map(async path => {
-        const response = await fetch(path, { headers: { "X-Review-Token": token } });
+        const headers = { "X-Review-Token": token };
+        if (path === "/api/publishing/analytics-status") {
+          headers["X-Nexus-Workspace-Id"] = workspaceId;
+        }
+        const response = await fetch(path, { headers });
         const body = await response.json();
         return { path, status: response.status, body };
       }));
-    }, "nexus-ui-browser-smoke-token-2026-11-19-32chars");
+    }, "nexus-ui-browser-smoke-token-2026-11-19-32chars", workspaceId);
     assert.deepEqual(liveApiChecks.map(result => result.status), [200, 200, 200, 200]);
     assert.ok(Array.isArray(liveApiChecks[0].body.brands));
     assert.ok(Number.isFinite(Number(liveApiChecks[1].body.total)));
