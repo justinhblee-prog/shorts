@@ -8,10 +8,7 @@ from __future__ import annotations
 import hashlib
 import math
 import os
-try:
-    import resource
-except ImportError:  # Windows development environments do not expose POSIX rlimits.
-    resource = None
+import shutil
 import subprocess
 import uuid
 from pathlib import Path
@@ -43,6 +40,7 @@ class TimelineRenderer:
             media_root or os.getenv("NEXUS_MEDIA_DIR", "data/media")
         ).resolve()
         self.ffmpeg_path = ffmpeg_path or os.getenv("NEXUS_FFMPEG_PATH", "ffmpeg")
+        self.prlimit_path = os.getenv("NEXUS_PRLIMIT_PATH", "prlimit")
         self.timeout_seconds = int(timeout_seconds or os.getenv("NEXUS_RENDER_TIMEOUT_SECONDS", "900"))
         self.max_asset_bytes = int(max_asset_bytes or os.getenv("NEXUS_RENDER_MAX_ASSET_BYTES", str(512 * 1024 * 1024)))
         self.max_total_asset_bytes = int(max_total_asset_bytes or os.getenv("NEXUS_RENDER_MAX_TOTAL_ASSET_BYTES", str(1024 * 1024 * 1024)))
@@ -79,19 +77,6 @@ class TimelineRenderer:
         if resolved.stat().st_size > self.max_asset_bytes:
             raise TimelineRenderError("Render asset exceeds the configured size limit")
         return resolved
-
-    @staticmethod
-    def _resource_limits(memory_bytes: int, cpu_seconds: int, output_bytes: int):
-        if os.name != "posix" or resource is None:
-            return None
-
-        def apply():
-            resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds + 1))
-            resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
-            resource.setrlimit(resource.RLIMIT_FSIZE, (output_bytes, output_bytes))
-            resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
-
-        return apply
 
     def render(self, edl, asset_paths, output_dir=None, audio_asset_id=None):
         """Render validated video clips; asset_paths must come from an ownership-checked registry.
@@ -194,6 +179,19 @@ class TimelineRenderer:
             "-f", "mp4", str(temporary_path),
         ])
 
+        if os.name == "posix":
+            if shutil.which(self.prlimit_path) is None:
+                raise TimelineRenderError("POSIX prlimit is required for bounded FFmpeg execution")
+            command = [
+                self.prlimit_path,
+                f"--cpu={self.max_cpu_seconds}",
+                f"--as={self.max_memory_bytes}",
+                f"--fsize={self.max_output_bytes}",
+                "--nofile=64", "--nproc=32", "--", *command,
+            ]
+        elif self.runner is subprocess.run:
+            raise TimelineRenderError("Production FFmpeg rendering requires a POSIX worker with prlimit")
+
         try:
             completed = self.runner(
                 command,
@@ -204,9 +202,6 @@ class TimelineRenderer:
                 stderr=subprocess.PIPE,
                 timeout=self.timeout_seconds,
                 cwd=str(resolved_dir),
-                preexec_fn=self._resource_limits(
-                    self.max_memory_bytes, self.max_cpu_seconds, self.max_output_bytes
-                ),
             )
         except subprocess.TimeoutExpired as exc:
             temporary_path.unlink(missing_ok=True)
