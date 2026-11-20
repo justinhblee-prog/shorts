@@ -8,6 +8,7 @@ Artifacts are review-pending outputs, never published media.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import time
@@ -16,6 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from queue_store import LeaseConflict
+from ffprobe_validate import probe_media
 
 _ARTIFACT_ID = re.compile(r"^rart_[a-f0-9]{32}$")
 _ALLOWED_SUFFIXES = {".mp4", ".m4a", ".aac"}
@@ -26,13 +28,22 @@ class ArtifactAdoptionError(RuntimeError):
 
 
 class RenderArtifactStore:
-    def __init__(self, queue, staging_root, artifact_root, max_bytes=2_000_000_000):
+    def __init__(self, queue, staging_root, artifact_root, max_bytes=2_000_000_000,
+                 ffprobe_path=None, require_audio=False, max_duration_ms=3_600_000):
         if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 1:
             raise ValueError("max_bytes must be a positive integer")
         self.queue = queue
         self.staging_root = Path(staging_root).resolve()
         self.artifact_root = Path(artifact_root).resolve()
         self.max_bytes = max_bytes
+        if not isinstance(require_audio, bool):
+            raise ValueError("require_audio must be boolean")
+        if (isinstance(max_duration_ms, bool) or not isinstance(max_duration_ms, int)
+                or not 1 <= max_duration_ms <= 3_600_000):
+            raise ValueError("max_duration_ms must be between 1 and 3600000")
+        self.ffprobe_path = ffprobe_path
+        self.require_audio = require_audio
+        self.max_duration_ms = max_duration_ms
         self.staging_root.mkdir(parents=True, exist_ok=True)
         self.artifact_root.mkdir(parents=True, exist_ok=True)
         if self.staging_root == self.artifact_root:
@@ -49,9 +60,24 @@ class RenderArtifactStore:
                     byte_size INTEGER NOT NULL CHECK(byte_size > 0),
                     media_suffix TEXT NOT NULL,
                     storage_key TEXT NOT NULL UNIQUE,
+                    probe_json TEXT,
+                    duration_ms INTEGER,
+                    video_width INTEGER,
+                    video_height INTEGER,
+                    audio_streams INTEGER,
                     created_at TEXT NOT NULL
                 )
             """)
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(render_artifacts)")}
+            for name, declaration in (
+                ("probe_json", "TEXT"),
+                ("duration_ms", "INTEGER"),
+                ("video_width", "INTEGER"),
+                ("video_height", "INTEGER"),
+                ("audio_streams", "INTEGER"),
+            ):
+                if name not in columns:
+                    db.execute(f"ALTER TABLE render_artifacts ADD COLUMN {name} {declaration}")
             db.execute("""CREATE TRIGGER IF NOT EXISTS render_artifacts_no_update
                 BEFORE UPDATE ON render_artifacts
                 BEGIN SELECT RAISE(ABORT,'render artifacts are immutable'); END""")
@@ -94,6 +120,15 @@ class RenderArtifactStore:
         digest, size = self._sha256(source)
         if size < 1 or size > self.max_bytes:
             raise ArtifactAdoptionError("render output size is outside configured limits")
+        probe = None
+        if self.ffprobe_path is not None:
+            probe = probe_media(
+                source, self.ffprobe_path, max_duration_ms=self.max_duration_ms,
+                max_bytes=self.max_bytes, require_audio=self.require_audio,
+            )
+            verified_digest, verified_size = self._sha256(source)
+            if verified_digest != digest or verified_size != size:
+                raise ArtifactAdoptionError("staged media changed during ffprobe validation")
         artifact_id = "rart_" + uuid.uuid4().hex
         storage_key = artifact_id + suffix
         destination = self.artifact_root / storage_key
@@ -136,10 +171,17 @@ class RenderArtifactStore:
                 db.execute("""
                     INSERT INTO render_artifacts
                     (artifact_id,job_id,workspace_id,snapshot_id,snapshot_sha256,
-                     artifact_sha256,byte_size,media_suffix,storage_key,created_at)
-                    VALUES(?,?,?,?,?,?,?,?,?,?)
+                     artifact_sha256,byte_size,media_suffix,storage_key,probe_json,
+                     duration_ms,video_width,video_height,audio_streams,created_at)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (artifact_id, job_id, workspace_id, snapshot_id, snapshot_sha256,
-                      digest, size, suffix, storage_key, timestamp))
+                      digest, size, suffix, storage_key,
+                      json.dumps(probe, sort_keys=True) if probe is not None else None,
+                      probe["duration_ms"] if probe is not None else None,
+                      probe["video_streams"][0]["width"] if probe is not None else None,
+                      probe["video_streams"][0]["height"] if probe is not None else None,
+                      probe["audio_streams"] if probe is not None else None,
+                      timestamp))
                 updated = db.execute("""
                     UPDATE pipeline_jobs
                     SET status='review_pending',worker_id=NULL,lease_token=NULL,
