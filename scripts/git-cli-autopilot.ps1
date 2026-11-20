@@ -7,7 +7,7 @@ param(
  [Parameter(ParameterSetName="Finalize")][string]$Title
 )
 $ErrorActionPreference="Stop"
-function Invoke-Git { param([string[]]$Args) & git @Args; if($LASTEXITCODE -ne 0){throw "git $($Args -join ' ') failed (exit $LASTEXITCODE)"} }
+function Invoke-Git { param([string[]]$GitArgs) & git @Args; if($LASTEXITCODE -ne 0){throw "git $( $GitArgs -join ' ') failed (exit $LASTEXITCODE)"} }
 function Get-RepoRoot { $r=(& git rev-parse --show-toplevel 2>$null); if($LASTEXITCODE -ne 0 -or -not $r){throw "Not inside a Git repository."}; return $r.Trim() }
 foreach($tool in @("git","gh")){if(-not(Get-Command $tool -ErrorAction SilentlyContinue)){throw "Required CLI not found: $tool"}}
 & gh auth status *> $null
@@ -17,8 +17,8 @@ $manifestPath=Join-Path $root ".devflow\tasks.json"
 if(-not(Test-Path $manifestPath)){throw "Task manifest not found: $manifestPath"}
 $manifest=Get-Content $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
 if($Status){
- Write-Host "=== Git status ==="; Invoke-Git -Args @("-C",$root,"status","--short","--branch")
- Write-Host "=== Worktrees ==="; Invoke-Git -Args @("-C",$root,"worktree","list"); exit 0
+ Write-Host "=== Git status ==="; Invoke-Git -GitArgs @("-C",$root,"status","--short","--branch")
+ Write-Host "=== Worktrees ==="; Invoke-Git -GitArgs @("-C",$root,"worktree","list"); exit 0
 }
 if($PSCmdlet.ParameterSetName -eq "Prepare"){
  $entry=@($manifest.tasks|Where-Object{$_.id -eq $Task})|Select-Object -First 1
@@ -27,13 +27,13 @@ if($PSCmdlet.ParameterSetName -eq "Prepare"){
  foreach($depId in @($entry.depends_on)){ $dep=@($manifest.tasks|Where-Object{$_.id -eq $depId})|Select-Object -First 1; if(-not $dep -or $dep.status -ne "completed"){throw "Dependency is not completed: $depId"} }
  if(-not $Base){$Base=$manifest.policy.default_base}; if(-not $Base){throw "No base branch configured."}
  $dirty=& git -C $root status --porcelain; if($LASTEXITCODE -ne 0){throw "Cannot inspect primary checkout."}; if($dirty){throw "Primary checkout is dirty. No files changed; commit or stash first."}
- Invoke-Git -Args @("-C",$root,"fetch","origin","--prune")
+ Invoke-Git -GitArgs @("-C",$root,"fetch","origin","--prune")
  $baseRef="refs/remotes/origin/$Base"; & git -C $root show-ref --verify --quiet $baseRef
  if($LASTEXITCODE -ne 0){throw "Base branch not found on origin: $Base"}
  $slug=($Task.ToLowerInvariant() -replace "[^a-z0-9]+","-").Trim("-"); $stamp=Get-Date -Format "yyyyMMdd-HHmmss"
  $branchName="work/$slug-$stamp"; $wtRoot=Join-Path (Split-Path $root -Parent) ((Split-Path $root -Leaf)+"-worktrees"); $wt=Join-Path $wtRoot "$slug-$stamp"
  New-Item -ItemType Directory -Force -Path $wtRoot|Out-Null
- Invoke-Git -Args @("-C",$root,"worktree","add","-b",$branchName,$wt,$baseRef)
+ Invoke-Git -GitArgs @("-C",$root,"worktree","add","-b",$branchName,$wt,$baseRef)
  Write-Host "[GIT AUTOPILOT] Worktree prepared."; Write-Host "Task: $Task"; Write-Host "Branch: $branchName"; Write-Host "Base: $Base"; Write-Host "Worktree: $wt"
  Write-Host "After changes, run scripts/git-cli-autopilot.ps1 -Finalize from that worktree."; exit 0
 }
@@ -46,9 +46,9 @@ if($Finalize){
  if(-not $entry){throw "Task not found in manifest: $taskId"}
  $validator=Join-Path $wtRoot "scripts\devflow.py"
  if(Test-Path $validator){& python $validator validate; if($LASTEXITCODE -ne 0){throw "Validation failed. Changes retained; no commit or PR created."}}
- else{Write-Warning "scripts/devflow.py missing. Git diff checks only; task validation is not complete."; Invoke-Git -Args @("diff","--check")}
- Invoke-Git -Args @("add","-A"); Invoke-Git -Args @("diff","--cached","--check")
- $commitTitle="BUILD: $taskId - $($entry.title)"; Invoke-Git -Args @("commit","-m",$commitTitle); Invoke-Git -Args @("push","-u","origin",$branchName)
+ else{Write-Warning "scripts/devflow.py missing. Git diff checks only; task validation is not complete."; Invoke-Git -GitArgs @("diff","--check")}
+ Invoke-Git -GitArgs @("add","-A"); Invoke-Git -GitArgs @("diff","--cached","--check")
+ $commitTitle="BUILD: $taskId - $($entry.title)"; Invoke-Git -GitArgs @("commit","-m",$commitTitle); Invoke-Git -GitArgs @("push","-u","origin",$branchName)
  $baseBranch=$manifest.policy.default_base; if(-not $baseBranch){throw "Manifest default_base missing; branch pushed but PR not created."}
  $prTitle=if($Title){$Title}else{$commitTitle}; $body="Task: $taskId - $($entry.title). Local validation passed if configured. External gates remain open. Draft only; no merge, deployment, or publishing."
  & gh pr create --draft --base $baseBranch --head $branchName --title $prTitle --body $body
