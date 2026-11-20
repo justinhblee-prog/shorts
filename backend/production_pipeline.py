@@ -101,7 +101,8 @@ class ProductionStore:
             CREATE TABLE IF NOT EXISTS production_runs(
               job_id TEXT PRIMARY KEY, brand TEXT NOT NULL, region TEXT NOT NULL,
               language TEXT NOT NULL, topic TEXT NOT NULL, status TEXT NOT NULL,
-              current_stage TEXT, error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+              current_stage TEXT, error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+              workspace_id TEXT);
             CREATE TABLE IF NOT EXISTS production_artifacts(
               id TEXT PRIMARY KEY, job_id TEXT NOT NULL REFERENCES production_runs(job_id),
               stage TEXT NOT NULL, artifact_type TEXT NOT NULL, artifact_url TEXT,
@@ -125,6 +126,10 @@ class ProductionStore:
             CREATE INDEX IF NOT EXISTS idx_provider_reconciliation_job
               ON provider_attempt_reconciliation_events(job_id,created_at);
             """)
+            run_columns = {row[1] for row in c.execute("PRAGMA table_info(production_runs)").fetchall()}
+            if "workspace_id" not in run_columns:
+                c.execute("ALTER TABLE production_runs ADD COLUMN workspace_id TEXT")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_production_runs_workspace_status ON production_runs(workspace_id,status,updated_at)")
             columns = {row[1] for row in c.execute(
                 "PRAGMA table_info(provider_execution_attempts)").fetchall()}
             if "adopted_at" not in columns:
@@ -151,11 +156,25 @@ class ProductionStore:
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             timestamp = utc_now()
+            queue_table = c.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pipeline_jobs'"
+            ).fetchone()
+            workspace_id = None
+            if queue_table:
+                queue_row = c.execute(
+                    "SELECT workspace_id,job_type FROM pipeline_jobs WHERE id=?", (job_id,)
+                ).fetchone()
+                if queue_row is None or queue_row["job_type"] != "short_video_production":
+                    raise ValueError("matching production queue job is required")
+                workspace_id = queue_row["workspace_id"]
             c.execute("""INSERT OR IGNORE INTO production_runs
-              (job_id,brand,region,language,topic,status,current_stage,created_at,updated_at)
-              VALUES(?,?,?,?,?,'queued','queued',?,?)""",
+              (job_id,brand,region,language,topic,status,current_stage,created_at,updated_at,workspace_id)
+              VALUES(?,?,?,?,?,'queued','queued',?,?,?)""",
               (job_id, brief["brand"], brief["region"], brief["language"],
-               brief["topic"], timestamp, timestamp))
+               brief["topic"], timestamp, timestamp, workspace_id))
+            stored = c.execute("SELECT workspace_id FROM production_runs WHERE job_id=?", (job_id,)).fetchone()
+            if stored is None or stored["workspace_id"] != workspace_id:
+                raise ValueError("production and queue workspace ownership mismatch")
 
     @staticmethod
     def _assert_worker_lease(c, job_id, worker_id, lease_token, now_value=None):
