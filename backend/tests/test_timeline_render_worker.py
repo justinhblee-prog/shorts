@@ -3,7 +3,8 @@ import unittest
 from pathlib import Path
 
 from queue_store import JobQueue
-from timeline_render_worker import TimelineRenderWorker
+from timeline_render_worker import TimelineRenderWorker, create_edl_render_worker
+from ffmpeg_edl_renderer import EDLFFmpegRenderer
 from render_artifact_store import RenderArtifactStore
 
 
@@ -16,6 +17,28 @@ class TimelineRenderWorkerTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_factory_wires_edl_renderer_and_requires_artifact_store(self):
+        root = Path(self.temp.name)
+        binary = root / "ffmpeg"
+        binary.write_bytes(b"fixture binary")
+        staging = root / "staging"
+        artifacts = root / "artifacts"
+        store = RenderArtifactStore(self.queue, staging, artifacts)
+        class AssetResolver:
+            def resolve_clean_asset_path(self, workspace_id, principal_id, asset_id):
+                return root / "source.mp4"
+        (root / "source.mp4").write_bytes(b"fixture source")
+        worker = create_edl_render_worker(
+            self.queue, AssetResolver(), "timeline-worker", self.generation,
+            staging, binary, store, heartbeat_seconds=0.02,
+        )
+        self.assertIsInstance(worker.renderer, EDLFFmpegRenderer)
+        self.assertIs(worker.artifact_store, store)
+        with self.assertRaisesRegex(ValueError, "artifact_store is required"):
+            create_edl_render_worker(
+                self.queue, AssetResolver(), "timeline-worker", self.generation,
+                staging, binary, None,
+            )
     def test_consumes_timeline_job_and_finishes_in_review_pending(self):
         queued = self.queue.enqueue(
             "timeline_render",
