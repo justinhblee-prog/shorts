@@ -1,5 +1,6 @@
 [CmdletBinding()]
-param([switch]$Plan,[switch]$Run,[string]$Task,[string]$Base,[string]$AgentCommand=$env:DEVFLOW_AGENT_COMMAND,[string]$AgentArgsJson=$env:DEVFLOW_AGENT_ARGS_JSON,[ValidateRange(1,20)][int]$MaxTasks=3,)
+param([switch]$Plan,[switch]$Run,[string]$Task,[string]$Base,[string]$AgentCommand=$env:DEVFLOW_AGENT_COMMAND,[string]$AgentArgsJson=$env:DEVFLOW_AGENT_ARGS_JSON,[ValidateRange(1,20)][int]$MaxTasks=3
+)
 $ErrorActionPreference="Stop"
 function Git($repo,[string[]]$GitArgs){ & git -C $repo @GitArgs; if($LASTEXITCODE -ne 0){throw "git failed (exit $LASTEXITCODE)"} }
 function Root { $r=& git rev-parse --show-toplevel 2>$null; if($LASTEXITCODE -ne 0 -or -not $r){throw "Run inside a Git checkout."}; $r.Trim() }
