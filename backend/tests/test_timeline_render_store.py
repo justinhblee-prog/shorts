@@ -130,5 +130,49 @@ class TimelineRenderStoreTests(unittest.TestCase):
         self.assertEqual(self.queue.stats(workspace_id="ws_studio").get("total", 0), 0)
 
 
+    def test_submit_requires_probed_stream_type_and_source_duration(self):
+        audio_only = self.assets.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"audio-only"), "music.wav"
+        )
+        self.assets.mark_scan_result(
+            "ws_studio", "alice", audio_only["asset_id"], True,
+            media_metadata={
+                "duration_ms": 6000, "byte_size": len(b"audio-only"),
+                "has_video": False, "has_audio": True,
+                "video_streams": [], "audio_streams": [{"codec": "aac"}],
+            },
+        )
+        invalid_video = {
+            **self.edl,
+            "clips": [{
+                **self.edl["clips"][0], "asset_id": audio_only["asset_id"],
+            }],
+        }
+        with self.assertRaisesRegex(SnapshotError, "probed video asset"):
+            self.store.submit("ws_studio", "alice", invalid_video, "render-type-0001")
+
+        video = self.assets.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"short-video"), "short.mp4"
+        )
+        self.assets.mark_scan_result(
+            "ws_studio", "alice", video["asset_id"], True,
+            media_metadata={
+                "duration_ms": 2000, "byte_size": len(b"short-video"),
+                "has_video": True, "has_audio": False,
+                "video_streams": [{"codec": "h264", "width": 640, "height": 360}],
+                "audio_streams": [],
+            },
+        )
+        too_long = {
+            **self.edl,
+            "clips": [{
+                **self.edl["clips"][0], "asset_id": video["asset_id"],
+                "source_out_ms": 5000,
+            }],
+        }
+        with self.assertRaisesRegex(EDLValidationError, "source trim exceeds"):
+            self.store.submit("ws_studio", "alice", too_long, "render-duration-0001")
+
+
 if __name__ == "__main__":
     unittest.main()
