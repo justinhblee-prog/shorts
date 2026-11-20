@@ -12,7 +12,7 @@ if($Run){
  $stateRoot=Join-Path (Split-Path $repoRoot -Parent) ((Split-Path $repoRoot -Leaf)+"-multiflow-state")
  if($AgentCommand){$env:DEVFLOW_AGENT_COMMAND=$AgentCommand}
  if($AgentArgsJson){$env:DEVFLOW_AGENT_ARGS_JSON=$AgentArgsJson}
- & $engine -StateRoot $stateRoot -MaxParallel ([Math]::Min(3,[int]$manifest.policy.max_parallel_worktrees)) -MaxTasks $MaxTasks -Task $Task
+ & $engine -StateRoot $stateRoot -MaxParallel ([Math]::Min(3,[int]$manifest.policy.max_parallel_worktrees)) -MaxTasks $MaxTasks -Task $Task -Base $Base
  if($LASTEXITCODE -ne 0){throw "Parallel multiflow engine failed (exit $LASTEXITCODE)."}
  exit 0
 }
