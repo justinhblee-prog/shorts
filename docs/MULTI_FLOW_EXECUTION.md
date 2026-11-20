@@ -264,3 +264,37 @@ PR #412: https://github.com/justinhblee-prog/shorts/pull/412. Exact head at chec
 - `backend/requirements.txt` exists on `main`, but that alone is insufficient: the workflow's Python entrypoints and contract tests are not present there. Copying only the workflow file to `main` would create a broken activation and is explicitly not the next step.
 - Required promotion unit must be dependency-complete and reviewed as one stack: worker workflow + worker/executor/backlog/intake/review-publication modules + seed/data contracts + tests + any required backend dependencies. Before proposing activation, compare every imported module and referenced path against `main`, then run the main-targeted CI suite on the promotion branch.
 - No promotion PR, default-branch update, workflow dispatch, merge, or runner execution was performed. This is a verified activation dependency, not a claim that the Windows runner is offline.
+
+
+## 24. Worker activation dependency closure — 2026-11-20
+
+A second-pass import and call-site audit expands the promotion boundary beyond the initial missing-file checks.
+
+### Runtime import closure (all confirmed absent from `main`)
+- `backend/run_development_agent.py` — scheduled/manual entrypoint.
+- `backend/development_agent_executor.py` — constrained Aider subprocess executor; imports `development_job_worker` and `development_security`.
+- `backend/development_backlog_service.py` — coordinator; imports `development_job_worker` and `development_github_intake`.
+- `backend/development_github_intake.py` — read-only issue intake; imports `development_jobs`.
+- `backend/development_job_worker.py` — lease/heartbeat worker; imports `development_jobs` and `development_security`.
+- `backend/development_jobs.py` — SQLite DAG/lease/evidence store; imports `development_security`.
+- `backend/development_security.py` — diagnostic redaction.
+- `backend/seed_development_jobs.py` — idempotent seed graph; imports `development_jobs`.
+- `backend/recover_development_reviews.py` — read-only review recovery; imports `development_jobs` and `publish_development_reviews`.
+- `backend/publish_development_reviews.py` — exact Draft PR artifact verification/publication; imports `development_jobs`.
+- `.github/workflows/nexus-development-job-worker.yml` — invokes the entrypoints and contains the Windows runner/toolchain contract.
+
+### Validation and documentation closure
+- `backend/tests/test_development_worker_workflow_contract.py` is confirmed absent from `main`.
+- Promotion must also include worker-specific unit/regression tests, orchestration design contract, and any workflow path filters/validation scripts required by those tests. Final filenames must be enumerated from the branch tree/CI discovery; do not infer them from guessed names.
+- `backend/requirements.txt` already exists on `main`. Recheck the complete import graph and dependency diff at promotion time rather than replacing unrelated backend dependencies.
+
+### Activation configuration and security gates
+- Workflow job permissions include contents write, pull-request write, and actions write. Keep the read-only intake/recovery token separate from the built-in token used for Draft PR operations; verify exact scopes and repository Actions permissions before activation.
+- Required runtime: trusted self-hosted Windows runner labelled `self-hosted, windows, nexus-local-ai`, runner version >= 2.327.1, Python >= 3.11, Git Bash/POSIX shell, Node >= 18, loopback Ollama API, and exact `qwen2.5-coder:7b` model availability.
+- Required configuration includes `NEXUS_GITHUB_READ_TOKEN` (fine-grained read-only intake/recovery), `NEXUS_APPROVED_SCOPES` (explicit path allowlist; empty object is fail-closed), and repository GITHUB_TOKEN permissions for Draft PR operations and bounded workflow continuation.
+- SQLite state and backend/Aider virtual environments are outside `GITHUB_WORKSPACE` under LocalAppData. A real second-run check is still required to prove persistence; hosted Linux CI cannot prove Windows path semantics or local Ollama operation.
+- The executor strips GitHub/provider credentials from the child process environment and validates repository-relative scopes, including resolved symlink targets. These code-level controls do not replace trusted-runner isolation and review of allowed Aider behavior.
+- The workflow sends issue descriptions to a local coding agent on a self-hosted runner. Before scheduled execution, confirm the runner is dedicated/isolated, contains no unrelated credentials or sensitive workspaces, and approved scopes exclude secrets, production data, and runner configuration. Do not use a general-purpose workstation runner.
+
+### Promotion rule
+Do not create a workflow-only activation change. Prepare a dependency-complete promotion branch/PR only after full import/path/test closure is enumerated against `main`, security review is complete, and main-targeted CI passes. Keep the aggregate PR Draft/unmerged; do not dispatch or enable the schedule without explicit authorization.
