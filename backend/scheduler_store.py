@@ -113,14 +113,14 @@ class ScheduleStore:
               (id,name,interval_seconds,workspace_id,payload_json,next_run_at,active,created_at,updated_at)
               VALUES(?,?,?,?,?,?,1,?,?)""",
               (sid, name.strip(), interval, workspace_id, json.dumps(payload, ensure_ascii=False), due, stamp, stamp))
-            return self.get(sid, c)
+            return self.get(sid, c, workspace_id=workspace_id)
 
-    def get(self, sid, c=None):
+    def get(self, sid, c=None, workspace_id=None):
         if c is not None:
-            row = c.execute("SELECT * FROM production_schedules WHERE id=?", (sid,)).fetchone()
+            row = c.execute("SELECT * FROM production_schedules WHERE id=? AND workspace_id IS ?", (sid, workspace_id)).fetchone()
             return self._decode(row)
         with self.db() as db:
-            return self.get(sid, db)
+            return self.get(sid, db, workspace_id=workspace_id)
 
     @staticmethod
     def _decode(row):
@@ -131,19 +131,19 @@ class ScheduleStore:
         d["active"] = bool(d["active"])
         return d
 
-    def list(self):
+    def list(self, workspace_id=None):
         with self.db() as c:
             return [self._decode(r) for r in c.execute(
-                "SELECT * FROM production_schedules ORDER BY created_at DESC")]
+                "SELECT * FROM production_schedules WHERE workspace_id IS ? ORDER BY created_at DESC", (workspace_id,))]
 
-    def set_active(self, sid, active):
+    def set_active(self, sid, active, workspace_id=None):
         if not isinstance(active, bool):
             raise ValueError("active must be a boolean")
         with self.db() as c:
             c.execute("BEGIN IMMEDIATE")
             stamp = _stamp(datetime.now(timezone.utc))
-            cur = c.execute("UPDATE production_schedules SET active=?,updated_at=? WHERE id=?",
-                            (int(bool(active)), stamp, sid))
+            cur = c.execute("UPDATE production_schedules SET active=?,updated_at=? WHERE id=? AND workspace_id IS ?",
+                            (int(bool(active)), stamp, sid, workspace_id))
             if not cur.rowcount:
                 return None
             if not active:
