@@ -198,7 +198,7 @@ def run_once():
             _discard_unadopted_output(render_result, job["workspace_id"])
         if not lost_lease.is_set():
             _fail_if_owned(job, "render_validation_failed", str(exc), retryable=False)
-        print(f"render_failed job={job['id']} code=render_validation_failed")
+        print(f"render_failed job={job['id']} code=render_validation_failed error={type(exc).__name__} reason={str(exc)[:240]}")
     except Exception as exc:
         if output_adopted:
             _discard_stale_adoption(job)
