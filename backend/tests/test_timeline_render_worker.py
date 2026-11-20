@@ -54,6 +54,30 @@ class TimelineRenderWorkerTests(unittest.TestCase):
         self.assertEqual(finished["status"], "review_pending")
         self.assertEqual(finished["worker_id"], None)
 
+
+    def test_shutdown_cancels_active_renderer_and_requeues_job(self):
+        import threading
+        queued = self.queue.enqueue(
+            "timeline_render",
+            {"snapshot_id": "edl_shutdown", "snapshot_sha256": "d" * 64, "edl": {}},
+            workspace_id="ws_fixture",
+        )
+        shutdown = threading.Event()
+
+        def render(payload, stop_event):
+            shutdown.set()
+            self.assertTrue(stop_event.wait(2))
+            raise RuntimeError("renderer observed cancellation")
+
+        worker = TimelineRenderWorker(
+            self.queue, render, "timeline-worker", self.generation,
+            heartbeat_seconds=0.02, shutdown_event=shutdown,
+        )
+        self.assertFalse(worker.run_once())
+        finished = self.queue.get(queued["id"], workspace_id="ws_fixture")
+        self.assertEqual(finished["status"], "failed_retriable")
+        self.assertEqual(finished["error_code"], "timeline_worker_shutdown")
+
     def test_renderer_failure_is_recorded_as_retryable(self):
         queued = self.queue.enqueue("timeline_render", {
             "snapshot_id": "edl_failure", "snapshot_sha256": "b" * 64, "edl": {}
