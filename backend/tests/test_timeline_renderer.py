@@ -220,6 +220,8 @@ class TimelineRendererTests(unittest.TestCase):
         self.assertEqual(self.calls, [])
 
     def test_lease_cancellation_terminates_ffmpeg_process_group(self):
+        if os.name != "posix":
+            self.skipTest("FFmpeg process-group limits require POSIX")
         class FakeProcess:
             pid = 4242
             returncode = None
