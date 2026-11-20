@@ -248,7 +248,7 @@ class RenderAssetStore:
             """, (workspace_id, limit)).fetchall()
         return [dict(row) for row in rows]
 
-    def resolve_asset_paths(self, workspace_id, asset_ids, require_clean_scan=True):
+    def resolve_asset_paths(self, workspace_id, asset_ids, require_clean_scan=True, expected_asset_type=None):
         """Resolve IDs only inside one workspace and verify the stored bytes on every use."""
         if not isinstance(workspace_id, str) or not _WORKSPACE_ID.fullmatch(workspace_id):
             raise RenderAssetError("An explicit valid workspace is required for render assets")
@@ -260,7 +260,7 @@ class RenderAssetStore:
         placeholders = ",".join("?" for _ in unique_ids)
         with self.db() as connection:
             rows = connection.execute(
-                f"""SELECT asset_id,relative_path,size_bytes,sha256,scan_status
+                f"""SELECT asset_id,asset_type,relative_path,size_bytes,sha256,scan_status
                     FROM render_assets
                     WHERE workspace_id=? AND deleted_at IS NULL
                       AND asset_id IN ({placeholders})""",
@@ -274,6 +274,8 @@ class RenderAssetStore:
             row = by_id[asset_id]
             if require_clean_scan and row["scan_status"] != "clean":
                 raise RenderAssetError("Render asset has not passed the required malware scan")
+            if expected_asset_type is not None and row["asset_type"] != expected_asset_type:
+                raise RenderAssetError("Render asset type does not match the EDL clip type")
             candidate = self.media_root / row["relative_path"]
             if candidate.is_symlink() or not candidate.is_file():
                 raise RenderAssetError("Registered render asset is missing or is a symlink")
