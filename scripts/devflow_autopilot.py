@@ -89,6 +89,10 @@ def agent_command() -> list[str]:
 
 
 def task_prompt(task: dict, attempt: int, previous_failure: str = "") -> str:
+    previous_section = (
+        f"Previous validation failure to repair:\n{previous_failure}"
+        if previous_failure else ""
+    )
     return f"""You are implementing one task in the NEXUS STUDIO PRO repository.
 Work only in the current Git worktree. Do not modify any other checkout or repository.
 
@@ -111,8 +115,18 @@ Instructions:
 - Finish with a concise list of changes, commands/tests run, and known blockers.
 
 Attempt: {attempt}
-{("Previous validation failure to repair:\\n" + previous_failure) if previous_failure else ""}
+{previous_section}
 """
+
+
+def agent_environment() -> dict[str, str]:
+    # Do not leak API keys, cloud credentials, CI tokens or provider secrets to the agent.
+    allowed = {
+        "PATH", "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA",
+        "SYSTEMROOT", "WINDIR", "HOMEDRIVE", "HOMEPATH", "PATHEXT",
+        "COMSPEC", "TEMP", "TMP", "TMPDIR", "LANG", "TERM", "CODEX_HOME",
+    }
+    return {key: value for key, value in os.environ.items() if key.upper() in allowed}
 
 
 def main() -> int:
@@ -157,6 +171,7 @@ def main() -> int:
                 command + [prompt], cwd=str(worktree), text=True,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 timeout=args.agent_timeout, check=False, shell=False,
+                env=agent_environment(),
             )
             print((result.stdout or "")[-16000:], flush=True)
             if result.returncode:
