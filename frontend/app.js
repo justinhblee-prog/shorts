@@ -821,6 +821,24 @@
     }catch(e){toast(e.message);}
   });
   $("openSettings").addEventListener("click",()=>$("settingsDialog").showModal());
+  $("openSettingsNav").addEventListener("click",()=>$("settingsDialog").showModal());
+  const globalSearch=$("workspaceSearch");
+  if(globalSearch){
+    globalSearch.addEventListener("keydown",event=>{
+      if(event.key!=="Enter")return;
+      const query=globalSearch.value.trim().toLocaleLowerCase("ko");
+      if(!query)return;
+      const candidates=[...document.querySelectorAll("main h1,main h2,main h3,main label,main .panel-kicker,main .section-index")];
+      const match=candidates.find(node=>(node.textContent||"").toLocaleLowerCase("ko").includes(query));
+      if(match){match.scrollIntoView({behavior:"smooth",block:"center"});match.setAttribute("tabindex","-1");match.focus({preventScroll:true});}
+      else{toast("검색어와 일치하는 화면 항목을 찾지 못했습니다.");}
+    });
+    globalSearch.addEventListener("keydown",event=>{if(event.key==="Escape")globalSearch.value="";});
+    window.addEventListener("keydown",event=>{
+      if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();globalSearch.focus();globalSearch.select();}
+    });
+  }
+
   $("saveToken").addEventListener("click",async()=>{
     token=$("tokenInput").value.trim();reviewer=$("reviewerInput").value.trim()||"operator";
     try{await api("/api/queue/stats");$("settingsDialog").close();msg("tokenMessage","인증 성공");await refreshAll();}
