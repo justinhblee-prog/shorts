@@ -88,3 +88,5 @@ PR #417 remains Draft/open/unmerged. No merge, deployment, secret change, runner
 - The editor is local/browser-only and does not upload source media to the backend. JSON export explicitly records `rendered: false`; MP4 rendering, audio mixing, transitions, captions burn-in, and server-side render jobs remain unimplemented pending a rendering engine integration.
 - Browser smoke now exercises title clip creation, selection, removal, and empty-state recovery. Exact-head CI is running on the latest UI branch commit.
 - Removed the apt package-manager dependency from hosted UI validation. Korean text is still checked in Chromium; the browser uses installed OS fallback fonts rather than waiting on network package installation.
+
+- Follow-up CI correction: navigation browser assertions now exercise the new distinct feature anchors instead of legacy section anchors; legacy assertion caused a stale selector timeout and did not indicate a UI runtime failure.
