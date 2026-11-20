@@ -196,6 +196,73 @@ class OperatorWorkspaceApiTests(unittest.TestCase):
         finally:
             queue_patch.stop()
 
+    def test_media_staging_requires_workspace_scope_for_tenant_job(self):
+        class ScopedProductionStore:
+            def get(self, job_id, workspace_id=None):
+                if workspace_id not in (None, "ws_alice"):
+                    return None
+                return {
+                    "job_id": job_id, "workspace_id": "ws_alice",
+                    "status": "rendered",
+                    "artifacts": [{
+                        "artifact_type": "video",
+                        "artifact_url": "https://renderer.example/video.mp4",
+                        "metadata": {},
+                    }],
+                }
+            def artifact(self, *args, **kwargs):
+                return None
+            def stage(self, *args, **kwargs):
+                return None
+
+        class FakeStager:
+            def staged_path(self, job_id, workspace_id=None):
+                return os.path.join(self.temp.name, "not-created.mp4")
+            def stage(self, job_id, url, workspace_id=None):
+                return {"media_path": "opaque/video.mp4", "sha256": "a" * 64,
+                        "size_bytes": 100, "content_type": "video/mp4"}
+
+        store_patch = patch.object(api, "production_store", ScopedProductionStore())
+        stager_patch = patch.object(api, "media_stager", FakeStager())
+        store_patch.start()
+        stager_patch.start()
+        try:
+            with patch.dict(os.environ, {"NEXUS_WORKSPACE_AUTH_MODE": "sqlite"}):
+                with patch.object(api, "require_review_permission", return_value="alice"):
+                    with self.assertRaises(HTTPException) as missing:
+                        api.stage_production_media("job-alice")
+                    self.assertEqual(missing.exception.status_code, 403)
+                    with self.assertRaises(HTTPException) as wrong:
+                        api.stage_production_media(
+                            "job-alice", x_nexus_workspace_id="ws_mallory"
+                        )
+                    self.assertEqual(wrong.exception.status_code, 403)
+                    allowed = api.stage_production_media(
+                        "job-alice", x_nexus_workspace_id="ws_alice"
+                    )
+                    self.assertEqual(allowed["media_path"], "opaque/video.mp4")
+        finally:
+            stager_patch.stop()
+            store_patch.stop()
+
+    def test_workspace_media_cleanup_fails_closed_without_scoped_upload_store(self):
+        class ScopedProductionStore:
+            def get(self, job_id, workspace_id=None):
+                return {"job_id": job_id, "workspace_id": "ws_alice"}
+
+        store_patch = patch.object(api, "production_store", ScopedProductionStore())
+        store_patch.start()
+        try:
+            with patch.dict(os.environ, {"NEXUS_WORKSPACE_AUTH_MODE": "sqlite"}):
+                with patch.object(api, "require_review_permission", return_value="alice"):
+                    with self.assertRaises(HTTPException) as denied:
+                        api.cleanup_production_media(
+                            "job-alice", x_nexus_workspace_id="ws_alice"
+                        )
+            self.assertEqual(denied.exception.status_code, 409)
+        finally:
+            store_patch.stop()
+
     def test_unauthenticated_workspace_requests_are_rejected(self):
         with patch.object(api, "require_review_permission",
                           side_effect=HTTPException(401, "Valid review token required")):
