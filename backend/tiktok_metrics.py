@@ -408,9 +408,9 @@ class TikTokMetricsStore:
                 """,(*params,limit,offset)).fetchall()
         return [dict(row) for row in rows]
 
-    def recent_metrics(self, publication_store, limit=100):
+    def recent_metrics(self, publication_store, limit=100, workspace_id=None):
         limit = max(1, min(int(limit), 200))
-        eligible = publication_store.list_metrics_eligible(limit=limit)
+        eligible = publication_store.list_metrics_eligible_scoped(workspace_id,limit=limit)
         by_video = {x["video_id"]: x for x in eligible}
         if not by_video:
             return []
