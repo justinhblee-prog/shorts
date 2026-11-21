@@ -45,11 +45,23 @@ if(-not(Test-Path -LiteralPath $launcher)){throw "Multi-flow launcher missing: $
 $preflight=Join-Path $PSScriptRoot "git-cli-agent-config.ps1"
 if(-not(Test-Path -LiteralPath $preflight)){throw "Agent CLI preflight missing: $preflight"}
 if($Supervisor){
- if(-not $RunId){throw "Supervisor RunId is required."}
+ if(-not $RunId){$RunId="supervisor-"+(Get-Date -Format "yyyyMMdd-HHmmss")+"-"+[guid]::NewGuid().ToString("N").Substring(0,8)}
+ $runFile=Join-Path $logRoot "$RunId.run.json"
  $lockPath=Join-Path $stateRoot "scheduler.lock"
  $lock=$null
  $statusPath=Join-Path $logRoot "$RunId.status.json"
  $cycle=0;$consecutiveFailures=0;$lastExit=0
+ if(-not(Test-Path -LiteralPath $runFile)){
+  Write-JsonAtomic $runFile @{
+   run_id=$RunId;pid=$PID;repository=$root;started_at=[DateTime]::UtcNow.ToString("o")
+   status_file=$statusPath;max_tasks=$MaxTasks;poll_interval_seconds=$PollIntervalSeconds
+   max_cycles=$MaxCycles;task=$Task;base=$Base;mode="foreground-supervisor"
+  }
+ }
+ Write-JsonAtomic $statusPath @{
+  run_id=$RunId;status="starting";cycle=0;max_cycles=$MaxCycles
+  poll_interval_seconds=$PollIntervalSeconds;updated_at=[DateTime]::UtcNow.ToString("o")
+ }
  try{
   try{$lock=[IO.File]::Open($lockPath,[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)}
   catch{throw "Another multi-flow supervisor already owns the scheduler lease. Check the active run logs before starting another."}
@@ -59,12 +71,20 @@ if($Supervisor){
    $psi.FileName=(Get-Command pwsh -ErrorAction Stop).Source
    $psi.WorkingDirectory=$root
    $psi.UseShellExecute=$false
+   $psi.RedirectStandardOutput=$true
+   $psi.RedirectStandardError=$true
    foreach($arg in @("-NoProfile","-NoLogo","-NonInteractive","-File",$launcher,"-Run","-MaxTasks",[string]$MaxTasks)){[void]$psi.ArgumentList.Add($arg)}
    if($Task){[void]$psi.ArgumentList.Add("-Task");[void]$psi.ArgumentList.Add($Task)}
    if($Base){[void]$psi.ArgumentList.Add("-Base");[void]$psi.ArgumentList.Add($Base)}
    $runner=[Diagnostics.Process]::new();$runner.StartInfo=$psi
+   $cycleStdout=Join-Path $logRoot "$RunId.cycle-$cycle.stdout.log"
+   $cycleStderr=Join-Path $logRoot "$RunId.cycle-$cycle.stderr.log"
    if(-not $runner.Start()){throw "Could not start multi-flow launcher cycle $cycle."}
+   $stdoutTask=$runner.StandardOutput.ReadToEndAsync()
+   $stderrTask=$runner.StandardError.ReadToEndAsync()
    $runner.WaitForExit()
+   [IO.File]::WriteAllText($cycleStdout,$stdoutTask.Result,[Text.UTF8Encoding]::new($false))
+   [IO.File]::WriteAllText($cycleStderr,$stderrTask.Result,[Text.UTF8Encoding]::new($false))
    $lastExit=$runner.ExitCode
    if($lastExit -eq 0){$consecutiveFailures=0}else{$consecutiveFailures++}
    if($MaxCycles -gt 0 -and $cycle -ge $MaxCycles){break}
@@ -78,6 +98,7 @@ if($Supervisor){
     run_id=$RunId;status=$state;cycle=$cycle;max_cycles=$MaxCycles
     last_exit_code=$lastExit;consecutive_failures=$consecutiveFailures
     next_poll_at=$nextPoll;poll_interval_seconds=$PollIntervalSeconds
+    last_stdout_log=$cycleStdout;last_stderr_log=$cycleStderr
     updated_at=[DateTime]::UtcNow.ToString("o")
    }
    Start-Sleep -Seconds ([int]$delay)
@@ -87,6 +108,7 @@ if($Supervisor){
   Write-JsonAtomic $statusPath @{
    run_id=$RunId;status=$terminalStatus;cycle=$cycle;max_cycles=$MaxCycles
    last_exit_code=$lastExit;consecutive_failures=$consecutiveFailures
+   last_stdout_log=$cycleStdout;last_stderr_log=$cycleStderr
    finished_at=[DateTime]::UtcNow.ToString("o")
   }
  }catch{
