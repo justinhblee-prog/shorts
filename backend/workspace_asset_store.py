@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import sqlite3
 import tempfile
 import uuid
@@ -186,6 +187,22 @@ class WorkspaceAssetStore:
                     if next_size > self.max_asset_bytes:
                         raise AssetError("asset exceeds configured byte limit")
                     if chunk:
+                        # Keep a configurable physical free-space reserve on the media volume.
+                        # This is a per-chunk preflight, not an atomic filesystem reservation.
+                        try:
+                            minimum_free = int(os.getenv("NEXUS_MEDIA_MIN_FREE_BYTES", str(1024 * 1024 * 1024)))
+                        except (TypeError, ValueError) as exc:
+                            raise AssetError("NEXUS_MEDIA_MIN_FREE_BYTES must be a non-negative integer") from exc
+                        if minimum_free < 0:
+                            raise AssetError("NEXUS_MEDIA_MIN_FREE_BYTES must be a non-negative integer")
+                        try:
+                            free_bytes = shutil.disk_usage(self.storage_root).free
+                        except OSError as exc:
+                            raise AssetError("media storage free space could not be checked") from exc
+                        if free_bytes < minimum_free + len(chunk):
+                            raise AssetError(
+                                f"insufficient media storage free space (need {minimum_free + len(chunk)} bytes; have {free_bytes})"
+                            )
                         # Reserve each chunk before it reaches disk. Staging the
                         # complete upload before reserving quota lets concurrent
                         # requests exhaust the host filesystem despite the logical
