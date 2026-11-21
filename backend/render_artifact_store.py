@@ -30,13 +30,18 @@ class ArtifactAdoptionError(RuntimeError):
 
 class RenderArtifactStore:
     def __init__(self, queue, staging_root, artifact_root, max_bytes=2_000_000_000,
-                 ffprobe_path=None, require_audio=False, max_duration_ms=3_600_000):
+                 ffprobe_path=None, require_audio=False, max_duration_ms=3_600_000,
+                 max_storage_bytes=20_000_000_000):
         if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 1:
             raise ValueError("max_bytes must be a positive integer")
         self.queue = queue
         self.staging_root = Path(staging_root).resolve()
         self.artifact_root = Path(artifact_root).resolve()
         self.max_bytes = max_bytes
+        if (isinstance(max_storage_bytes, bool) or not isinstance(max_storage_bytes, int)
+                or max_storage_bytes < 1):
+            raise ValueError("max_storage_bytes must be a positive integer")
+        self.max_storage_bytes = max_storage_bytes
         if not isinstance(require_audio, bool):
             raise ValueError("require_audio must be boolean")
         if (isinstance(max_duration_ms, bool) or not isinstance(max_duration_ms, int)
@@ -155,6 +160,13 @@ class RenderArtifactStore:
                 # Re-check after acquiring the write lock, immediately before
                 # moving the file. No other worker can reclaim this lease here.
                 self.queue.assert_lease(job, worker_id, lease_token, timestamp, workspace_id)
+                # Enforce the shared artifact-volume quota while holding the
+                # same SQLite write lock used by every adoption. Count every
+                # regular file (including unindexed crash leftovers) so an
+                # orphan cannot make the configured limit under-report usage.
+                usage = self.storage_usage()
+                if usage["used_bytes"] + size > self.max_storage_bytes:
+                    raise ArtifactAdoptionError("artifact storage quota would be exceeded")
                 # Flush file data before rename. Windows requires a writable
                 # handle for FlushFileBuffers; the staging file is worker-owned.
                 with source.open("rb+") as stream:
@@ -225,6 +237,29 @@ class RenderArtifactStore:
 
 
 
+
+    def storage_usage(self):
+        """Return physical regular-file usage for the private artifact volume."""
+        files = used_bytes = 0
+        try:
+            with os.scandir(self.artifact_root) as entries:
+                for entry in entries:
+                    try:
+                        if not entry.is_file(follow_symlinks=False):
+                            continue
+                        stat = entry.stat(follow_symlinks=False)
+                    except FileNotFoundError:
+                        continue
+                    files += 1
+                    used_bytes += stat.st_size
+        except OSError as exc:
+            raise ArtifactAdoptionError("unable to measure private artifact storage usage") from exc
+        return {
+            "files": files,
+            "used_bytes": used_bytes,
+            "max_bytes": self.max_storage_bytes,
+            "available_bytes": max(0, self.max_storage_bytes - used_bytes),
+        }
 
     def reconcile_orphaned_staging(self, grace_seconds=7200):
         """Remove crash-left staging outputs older than the maximum render timeout.

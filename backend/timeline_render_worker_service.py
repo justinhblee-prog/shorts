@@ -51,6 +51,9 @@ HEIGHT = _integer_env("NEXUS_RENDER_HEIGHT", 1920, 16, 8192)
 FPS = _integer_env("NEXUS_RENDER_FPS", 30, 1, 60)
 MAX_INPUT_BYTES = _integer_env("NEXUS_RENDER_MAX_INPUT_BYTES", 2_000_000_000, 1, 10_000_000_000)
 MAX_OUTPUT_BYTES = _integer_env("NEXUS_RENDER_MAX_OUTPUT_BYTES", 2_000_000_000, 1, 10_000_000_000)
+MAX_STORAGE_BYTES = _integer_env(
+    "NEXUS_RENDER_MAX_STORAGE_BYTES", 20_000_000_000, 1, 1_000_000_000_000
+)
 TIMEOUT_SECONDS = _integer_env("NEXUS_RENDER_TIMEOUT_SECONDS", 900, 1, 3600)
 RECONCILE_INTERVAL_SECONDS = _integer_env(
     "NEXUS_RENDER_RECONCILE_INTERVAL_SECONDS", 300, 60, 86_400
@@ -90,13 +93,17 @@ def reconcile_artifacts(artifact_store, logger=None):
     removed = (
         staging["removed_files"] + staging["removed_directories"] + artifacts["removed"]
     )
+    usage = artifact_store.storage_usage()
     log.info(
         "render_artifact_reconciliation_completed removed_staging_files=%s "
-        "removed_staging_directories=%s removed_artifacts=%s removed_bytes=%s",
+        "removed_staging_directories=%s removed_artifacts=%s removed_bytes=%s "
+        "artifact_storage_files=%s artifact_storage_used_bytes=%s "
+        "artifact_storage_available_bytes=%s artifact_storage_quota_bytes=%s",
         staging["removed_files"], staging["removed_directories"],
         artifacts["removed"], staging["removed_bytes"] + artifacts["removed_bytes"],
+        usage["files"], usage["used_bytes"], usage["available_bytes"], usage["max_bytes"],
     )
-    return {"staging": staging, "artifacts": artifacts, "removed": removed}
+    return {"staging": staging, "artifacts": artifacts, "storage": usage, "removed": removed}
 
 
 def build_worker():
@@ -107,6 +114,7 @@ def build_worker():
         queue, STAGING_ROOT, ARTIFACT_ROOT,
         max_bytes=MAX_OUTPUT_BYTES, ffprobe_path=FFPROBE_PATH,
         require_audio=False, max_duration_ms=3_600_000,
+        max_storage_bytes=MAX_STORAGE_BYTES,
     )
     renderer = TimelineFFmpegRenderer(
         STAGING_ROOT, workspace_asset_resolver(assets),
@@ -147,8 +155,9 @@ def main():
         worker.generation_token = generation
         logging.getLogger("nexus.timeline_render_worker").info(
             "timeline_render_worker_started id=%s lease_seconds=%s "
-            "heartbeat_seconds=%s reconciliation_interval_seconds=%s",
+            "heartbeat_seconds=%s reconciliation_interval_seconds=%s artifact_storage_quota_bytes=%s",
             WORKER_ID, LEASE_SECONDS, HEARTBEAT_SECONDS, RECONCILE_INTERVAL_SECONDS,
+            MAX_STORAGE_BYTES,
         )
         next_reconciliation = 0.0
         logger = logging.getLogger("nexus.timeline_render_worker")

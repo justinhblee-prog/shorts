@@ -246,5 +246,59 @@ class TimelineRenderWorkerTests(unittest.TestCase):
         self.assertEqual(failed["status"], "failed_retriable")
 
 
+    def test_heartbeat_lease_loss_cancels_renderer_and_discards_late_staged_output(self):
+        import threading
+
+        root = Path(self.temp.name)
+        staging = root / "lease-loss-staging"
+        artifacts = root / "lease-loss-artifacts"
+        staging.mkdir()
+        store = RenderArtifactStore(self.queue, staging, artifacts)
+        heartbeat_failed = threading.Event()
+        staged = staging / "late-output.mp4"
+
+        class LeaseLossQueue:
+            def __init__(self, delegate):
+                self.delegate = delegate
+
+            def __getattr__(self, name):
+                return getattr(self.delegate, name)
+
+            def heartbeat(self, *args, **kwargs):
+                heartbeat_failed.set()
+                raise RuntimeError("simulated generation/lease fence rejection")
+
+        def render(payload, stop_event):
+            self.assertTrue(heartbeat_failed.wait(2), "heartbeat monitor did not run")
+            self.assertTrue(stop_event.wait(2), "lease loss was not propagated to renderer")
+            # Simulate a renderer that finishes writing at the cancellation boundary.
+            staged.write_bytes(b"late-output-after-lease-loss")
+            return {"staged_path": str(staged)}
+
+        queued = self.queue.enqueue(
+            "timeline_render",
+            {"snapshot_id": "edl_" + "7" * 32,
+             "snapshot_sha256": "f" * 64, "edl": {}},
+            workspace_id="ws_fixture",
+        )
+        worker = TimelineRenderWorker(
+            LeaseLossQueue(self.queue), render, "timeline-worker", self.generation,
+            heartbeat_seconds=0.01, artifact_store=store,
+        )
+
+        self.assertFalse(worker.run_once())
+        self.assertFalse(staged.exists(), "unadopted output must be discarded after heartbeat lease loss")
+        self.assertFalse(artifacts.exists() and any(artifacts.iterdir()))
+        with self.queue.db() as db:
+            self.assertEqual(
+                db.execute("SELECT COUNT(*) FROM render_artifacts WHERE job_id=?",
+                           (queued["id"],)).fetchone()[0],
+                0,
+            )
+        # The stale worker must not mutate the queue after its lease fence is rejected.
+        current = self.queue.get(queued["id"], workspace_id="ws_fixture")
+        self.assertEqual(current["status"], "running")
+
+
 if __name__ == "__main__":
     unittest.main()
