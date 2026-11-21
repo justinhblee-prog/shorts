@@ -209,9 +209,9 @@ class DevelopmentJobApiTests(unittest.TestCase):
 
     def test_stable_chronological_ordering(self):
         timestamps = iter([
-            datetime(2023, 4, 1, tzinfo=timezone.utc),
-            datetime(2023, 4, 2, tzinfo=timezone.utc),
-            datetime(2023, 4, 3, tzinfo=timezone.utc),
+            datetime(2023, 4, 1, 0, 0, tzinfo=timezone.utc),
+            datetime(2023, 4, 1, 0, 1, tzinfo=timezone.utc),
+            datetime(2023, 4, 1, 0, 2, tzinfo=timezone.utc),
         ])
         with mock.patch.object(development_jobs_module, "_now", side_effect=lambda: next(timestamps)):
             event_job = self.store.create(title="Chronological event fixture", scope=["backend/chronological.py"])
