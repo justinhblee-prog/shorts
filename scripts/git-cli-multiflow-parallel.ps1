@@ -25,6 +25,13 @@ function Set-State([string]$Path,[string]$Id,[string]$Status,[string]$Detail){
   $s=Read-State $Path
   if(-not ($s.tasks.Keys -contains $Id)){$s.tasks[$Id]=@{}}
   $s.tasks[$Id].status=$Status;$s.tasks[$Id].detail=$Detail;$s.tasks[$Id].updated_at=[DateTime]::UtcNow.ToString("o")
+  if($Status -eq "running"){
+   if(-not $s.tasks[$Id].attempt_count){$s.tasks[$Id].attempt_count=0}
+   $s.tasks[$Id].attempt_count=[int]$s.tasks[$Id].attempt_count+1
+   $s.tasks[$Id].retry_after_utc=$null
+  }elseif($Status -in @("failed","timed_out")){
+   $s.tasks[$Id].retry_after_utc=[DateTime]::UtcNow.AddMinutes(5).ToString("o")
+  }
   $tmp="$Path.$([guid]::NewGuid().ToString('N')).tmp"
   [IO.File]::WriteAllText($tmp,($s|ConvertTo-Json -Depth 20),[Text.UTF8Encoding]::new($false))
   Move-Item -LiteralPath $tmp -Destination $Path -Force
@@ -130,7 +137,8 @@ if(& git -C $root status --porcelain){throw "Primary checkout must be clean."}
 & gh auth status *> $null;if($LASTEXITCODE -ne 0){throw "GitHub CLI authentication required."}
 if(-not $env:DEVFLOW_AGENT_COMMAND -or -not $env:DEVFLOW_AGENT_ARGS_JSON){throw "Configure DEVFLOW_AGENT_COMMAND and DEVFLOW_AGENT_ARGS_JSON."}
 $manifest=Get-Content (Join-Path $root ".devflow/tasks.json") -Raw -Encoding UTF8|ConvertFrom-Json
-$open=& gh pr list --state open --json title,body,headRefName,baseRefName --limit 1000;if($LASTEXITCODE -ne 0){throw "Cannot inspect open PRs; stopping safely."}
+$open=& gh pr list --state open --json title,body,headRefName,baseRefName,files --limit 1000;if($LASTEXITCODE -ne 0){throw "Cannot inspect open PRs; stopping safely."}
+$openPrs=@($open|ConvertFrom-Json)
 $supervisorBranch=[string]$env:GITHUB_REF_NAME
 if(-not $supervisorBranch){
  $supervisorBranch=(& git -C $root branch --show-current 2>$null)
@@ -144,13 +152,42 @@ $openIds=@($open|ConvertFrom-Json|Where-Object{
  $prText=@($_.title,$_.body,$_.headRefName,$_.baseRefName) -join "`n"
  [regex]::Matches($prText,'BUILD-[0-9]{5}')|ForEach-Object{$_.Value}
 }|Sort-Object -Unique)
-$eligible=@()
+function Get-TaskScopePaths($Task){
+ $paths=@()
+ foreach($entry in @($Task.scope)){
+  $value=([string]$entry).Trim().Replace("\\","/").TrimStart("./").ToLowerInvariant()
+  if($value -match "/" -or $value -match "\\.[a-z0-9]{1,8}$"){$paths+=($value.TrimEnd("/"))}
+ }
+ @($paths|Sort-Object -Unique)
+}
+function Test-ScopeOverlap([string[]]$Left,[string[]]$Right){
+ foreach($a in $Left){foreach($b in $Right){
+  if($a -eq $b -or $a.StartsWith($b+"/") -or $b.StartsWith($a+"/")){return $true}
+ }}
+ return $false
+}
+$activeWorktreeText=& git -C $root worktree list --porcelain
+if($LASTEXITCODE -ne 0){throw "Cannot inspect active worktrees; refusing overlapping dispatch."}
+$activeWorktreeIds=@([regex]::Matches(($activeWorktreeText -join "`n"),'(?i)BUILD-[0-9]{5}')|ForEach-Object{$_.Value}|Sort-Object -Unique)
+$openFiles=@()
+foreach($pr in $openPrs){
+ if($supervisorBranch -and [string]$pr.headRefName -eq $supervisorBranch){continue}
+ foreach($file in @($pr.files)){
+  $path=if($file -is [string]){[string]$file}else{[string]$file.path}
+  if($path){$openFiles+=($path.Replace("\\","/").ToLowerInvariant())}
+ }
+}
+$eligible=@();$acceptedScopes=@()
 foreach($t in @($manifest.tasks|Where-Object{$_.status -in @("ready","in_progress")}|Sort-Object priority)){
  if($TaskId -and $t.id -ne $TaskId){continue}
- if($openIds -contains [string]$t.id){continue}
+ if($openIds -contains [string]$t.id -or $activeWorktreeIds -contains [string]$t.id){continue}
  $ready=$true
  foreach($d in @($t.depends_on)){$dep=@($manifest.tasks|Where-Object{$_.id -eq $d})|Select-Object -First 1;if(-not $dep -or $dep.status -ne "completed"){$ready=$false;break}}
- if($ready){$eligible+=$t}
+ if(-not $ready){continue}
+ $scopePaths=Get-TaskScopePaths $t
+ if(Test-ScopeOverlap $scopePaths $openFiles){Write-Host "[QUEUE] Deferred $($t.id): scope overlaps an open PR.";continue}
+ if(Test-ScopeOverlap $scopePaths $acceptedScopes){Write-Host "[QUEUE] Deferred $($t.id): scope overlaps another selected task.";continue}
+ $eligible+=$t;$acceptedScopes+= $scopePaths
 }
 if(-not $eligible.Count){Write-Host "No runnable tasks. Open-PR, dependency, and external gates remain enforced.";exit 0}
 $stateDir=[IO.Path]::GetFullPath($StateRoot);New-Item -ItemType Directory -Force -Path $stateDir|Out-Null
@@ -159,6 +196,12 @@ $queue=[Collections.Generic.Queue[object]]::new()
 foreach($t in @($eligible|Select-Object -First $MaxTasks)){
  $prior=$state.tasks[[string]$t.id]
  if($prior -and $prior.status -eq "draft_pr_created"){continue}
+ if($prior -and $prior.retry_after_utc){
+  $retryAt=[DateTime]::MinValue
+  if([DateTime]::TryParse([string]$prior.retry_after_utc,[ref]$retryAt) -and $retryAt -gt [DateTime]::UtcNow){
+   Write-Host "[QUEUE] Deferred $($t.id): retry backoff until $($retryAt.ToString('o')).";continue
+  }
+ }
  if($prior -and $prior.status -eq "running"){
   if(Test-LeaseHeld ([string]$t.id) $stateDir){continue}
   Set-State $statePath ([string]$t.id) "failed" "Recovered stale running state; previous worker lease is no longer held."
