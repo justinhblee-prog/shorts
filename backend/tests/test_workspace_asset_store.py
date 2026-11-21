@@ -3,6 +3,8 @@ import io
 import os
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from pathlib import Path
 
 from workspace_store import WorkspaceStore, WorkspaceDenied
@@ -20,7 +22,7 @@ class WorkspaceAssetStoreTests(unittest.TestCase):
         self.workspaces.create("Studio", "alice", "ws_studio")
         self.store = WorkspaceAssetStore(
             self.db_path, str(self.root / "private-media"), self.workspaces,
-            max_asset_bytes=32,
+            max_asset_bytes=32, max_workspace_bytes=40,
         )
 
     def tearDown(self):
@@ -74,6 +76,66 @@ class WorkspaceAssetStoreTests(unittest.TestCase):
             self.store.register_stream(
                 "ws_studio", "alice", io.BytesIO(b"x"), "../escape.mp4"
             )
+
+    def test_workspace_quota_counts_existing_assets(self):
+        self.store.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"a" * 25), "first.mp4"
+        )
+        with self.assertRaisesRegex(AssetError, "workspace storage quota"):
+            self.store.register_stream(
+                "ws_studio", "alice", io.BytesIO(b"b" * 16), "second.mp4"
+            )
+        with self.store.db() as db:
+            total = db.execute("""
+                SELECT COALESCE(SUM(byte_size),0) AS total
+                FROM workspace_media_assets
+                WHERE workspace_id='ws_studio' AND status='active'
+            """).fetchone()["total"]
+        self.assertEqual(total, 25)
+
+    def test_concurrent_uploads_cannot_overcommit_workspace_quota(self):
+        barrier = Barrier(2)
+        class SynchronizedStream(io.BytesIO):
+            def __init__(self, payload):
+                super().__init__(payload)
+                self.first_read = True
+            def read(self, size=-1):
+                if self.first_read:
+                    self.first_read = False
+                    barrier.wait(timeout=5)
+                return super().read(size)
+
+        def upload(name):
+            return self.store.register_stream(
+                "ws_studio", "alice",
+                SynchronizedStream(b"x" * 24), name
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [pool.submit(upload, "parallel-a.mp4"),
+                       pool.submit(upload, "parallel-b.mp4")]
+            outcomes = []
+            for future in futures:
+                try:
+                    outcomes.append(future.result(timeout=10))
+                except AssetError as exc:
+                    outcomes.append(exc)
+        self.assertEqual(sum(isinstance(item, dict) for item in outcomes), 1)
+        self.assertEqual(sum(isinstance(item, AssetError) for item in outcomes), 1)
+        with self.store.db() as db:
+            total = db.execute("""
+                SELECT COALESCE(SUM(byte_size),0) AS total
+                FROM workspace_media_assets
+                WHERE workspace_id='ws_studio' AND status='active'
+            """).fetchone()["total"]
+            reservations = db.execute("""
+                SELECT COUNT(*) AS total FROM workspace_asset_upload_reservations
+                WHERE workspace_id='ws_studio'
+            """).fetchone()["total"]
+        self.assertEqual(total, 24)
+        self.assertEqual(reservations, 0)
+        blobs = list((self.root / "private-media" / "ws_studio").glob("*.blob"))
+        self.assertEqual(len(blobs), 1)
 
     def test_rejects_duplicate_workspace_content_and_cleans_staging(self):
         self.store.register_stream(

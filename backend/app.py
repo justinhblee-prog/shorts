@@ -122,6 +122,7 @@ asset_store=WorkspaceAssetStore(
     os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"), private_media_root,
     workspace_store,
     max_asset_bytes=int(os.getenv("NEXUS_MAX_ASSET_BYTES","500000000")),
+    max_workspace_bytes=int(os.getenv("NEXUS_MAX_WORKSPACE_ASSET_BYTES","2147483648")),
 )
 workspace_asset_store = asset_store
 
