@@ -603,3 +603,8 @@ Production jobs can be cancelled only before review handoff. A running productio
 ### BUILD-00138 — metrics collector lease ownership
 
 The YouTube Data API, YouTube Analytics and TikTok metrics collectors use renewable, token-fenced leases. Snapshot and collection-state writes verify the active owner/token in the same SQLite transaction, so results arriving after lease replacement or expiry are rejected. The heartbeat is checked before and after provider work. Configure `NEXUS_METRICS_LEASE_SECONDS` (default 300 seconds) for YouTube Data API/TikTok and `YOUTUBE_ANALYTICS_LEASE_SECONDS` (default 900 seconds) for Analytics. Restart the metrics-collector service after deploying the SQLite lease-token migration.
+
+
+### Backup staging disk-space guard
+
+Before creating a backup, the process inventories media and checks free space on the backup output volume. It reserves a conservative estimate for the media/database snapshot, a worst-case uncompressed-size tarball and the additional encrypted copy, plus `NEXUS_BACKUP_MIN_FREE_BYTES` (default 1 GiB). Set the reserve to a non-negative byte count for the deployment. The check fails closed before staging if free space is insufficient or cannot be inspected. It is a preflight estimate, not a filesystem quota or a guarantee against concurrent disk consumers; monitor the volume and isolate backup storage from production media where possible.
