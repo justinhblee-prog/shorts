@@ -47,6 +47,14 @@ Draft PR #470 adds optional whole-millisecond `project_duration_ms`, black initi
 
 Exact crossfade code head `f336a1c2019c8732d5f0e196d970174f0fa24039` passed Backend [run 44884777926](https://github.com/justinhblee-prog/shorts/actions/runs/44884777926) (**925 tests plus Playwright browser smoke**) and Compose [run 44884777927](https://github.com/justinhblee-prog/shorts/actions/runs/44884777927) (real FFmpeg crossfade render, worker isolation, authenticated API E2E, review/private preview and encrypted backup/isolated restore). This is generated-fixture CI evidence, not representative customer-media or target-host validation.
 
+## Embedded source-audio transition follow-up
+
+Video clips may opt in to embedded source audio with `include_source_audio: true`. The renderer reuses the same hash-verified staged video asset, probes for an audio stream and trims audio to the clip's source in/out points. A request fails closed if the source video has no audio stream.
+
+For each declared video crossfade, the source clip's audio is faded out over the transition duration and the destination clip's audio is faded in over the same duration. Both fades begin at the video crossfade's timeline start, so source audio and picture transition together. Source audio is mixed with any explicit audio-bed tracks using the existing bounded shell-free audio mixer. The combined source-audio plus audio-bed count is limited to eight. Legacy EDL v1 jobs remain unchanged when the optional field is omitted.
+
+This is tracked in Draft PR #471, stacked on #470. Exact latest code head `4f216cb6942a2ed258842ea6039061aa1923530d` passed Backend [run 44885345510](https://github.com/justinhblee-prog/shorts/actions/runs/44885345510) (**928 tests plus Playwright browser smoke**) and Compose [run 44885345520](https://github.com/justinhblee-prog/shorts/actions/runs/44885345520) (real FFmpeg video+source-audio crossfade, worker isolation, authenticated API E2E, review/private preview and encrypted backup/isolated restore). This proves the generated-media integration path, not arbitrary customer media or target-host behavior.
+
 ## Render artifact storage guard
 
 - `NEXUS_RENDER_ARTIFACT_MAX_BYTES` defaults to 20 GiB and caps the installation-wide sum of indexed adopted render artifacts. The aggregate is checked inside the SQLite write transaction immediately before adoption, preventing concurrent workers from exceeding the logical indexed-artifact cap.

@@ -77,10 +77,12 @@ def main():
                 "id": "video-a", "type": "video", "start_ms": 0,
                 "end_ms": 2000, "asset_id": asset["asset_id"],
                 "source_in_ms": 0, "source_out_ms": 2000,
+                "include_source_audio": True,
             }, {
                 "id": "video-b", "type": "video", "start_ms": 1500,
                 "end_ms": 3500, "asset_id": asset["asset_id"],
                 "source_in_ms": 0, "source_out_ms": 2000,
+                "include_source_audio": True,
             }, {
                 "id": "title", "type": "title", "start_ms": 0,
                 "end_ms": 3500, "text": "Integrated real crossfade render smoke",

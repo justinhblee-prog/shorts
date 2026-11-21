@@ -40,8 +40,10 @@ def validate_edl(payload: Any) -> dict:
 
     Supported payload shape: schema, version, timebase='milliseconds', clips[].
     Each clip has id, type ('video'|'title'), start_ms, end_ms, and for video
-    clips an opaque asset_id plus source_in_ms/source_out_ms. Browser paths,
-    URLs, filters, transitions and arbitrary renderer directives are rejected.
+    clips an opaque asset_id plus source_in_ms/source_out_ms. Video clips may
+    opt in to embedded source audio. Adjacent overlaps require a separately
+    declared bounded crossfade for rendering. Browser paths, URLs, arbitrary
+    filters and renderer directives are rejected.
     """
     if not isinstance(payload, dict):
         raise EDLValidationError("EDL must be a JSON object")
@@ -65,8 +67,11 @@ def validate_edl(payload: Any) -> dict:
             raise EDLValidationError(f"{prefix} must be an object")
         kind = raw.get("type")
         common = {"id", "type", "start_ms", "end_ms"}
-        expected = common | ({"asset_id", "source_in_ms", "source_out_ms"}
-                             if kind == "video" else {"text"} if kind == "title" else set())
+        expected = common | (
+            {"asset_id", "source_in_ms", "source_out_ms"}
+            | ({"include_source_audio"} if isinstance(raw, dict) and "include_source_audio" in raw else set())
+            if kind == "video" else {"text"} if kind == "title" else set()
+        )
         if kind not in ("video", "title") or set(raw) != expected:
             raise EDLValidationError(f"{prefix} has unsupported type or fields")
         clip_id = raw.get("id")
@@ -89,6 +94,10 @@ def validate_edl(payload: Any) -> dict:
             if not math.isclose(end - start, source_out - source_in, abs_tol=1.0):
                 raise EDLValidationError(f"{prefix} timeline and source durations differ")
             item.update(asset_id=asset_id, source_in_ms=source_in, source_out_ms=source_out)
+            if "include_source_audio" in raw:
+                if not isinstance(raw["include_source_audio"], bool):
+                    raise EDLValidationError(f"{prefix}.include_source_audio must be boolean")
+                item["include_source_audio"] = raw["include_source_audio"]
         else:
             title = raw["text"]
             if not isinstance(title, str) or not title.strip() or len(title) > MAX_TITLE_LENGTH:
@@ -147,6 +156,13 @@ def validate_edl(payload: Any) -> dict:
             "source_in_ms": source_in, "source_out_ms": source_out,
             "gain": gain, "fade_in_ms": fade_in, "fade_out_ms": fade_out,
         })
+    source_audio_count = sum(
+        1 for item in normalized
+        if item["type"] == "video" and item.get("include_source_audio", False)
+    )
+    if source_audio_count + len(audio_tracks) > 8:
+        raise EDLValidationError("combined source-audio and audio-bed tracks cannot exceed 8")
+
     if has_project_duration and any(
             track["start_ms"] + track["source_out_ms"] - track["source_in_ms"] > project_duration_ms
             for track in audio_tracks):

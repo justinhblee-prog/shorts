@@ -1,8 +1,8 @@
 """Lease-cancellable, argv-only EDL v1 renderer for private local media assets.
 
-The renderer supports ordered non-overlapping video clips, black timeline gaps,
-bounded timed title overlays, explicit project duration and optional audio tracks.
-Overlaps/transitions remain unsupported. Title text is staged as UTF-8 text files
+The renderer supports ordered video clips, black timeline gaps, bounded timed
+title overlays, explicit project duration, optional audio beds and opt-in embedded
+source audio aligned to declared video crossfades. Title text is staged as UTF-8 text files
 and rendered with a trusted configured font. All source media is resolved by a
 trusted workspace asset callback; arbitrary paths and URLs never come from the EDL.
 """
@@ -298,6 +298,8 @@ class TimelineFFmpegRenderer:
                 source = source_metadata[clip["asset_id"]]
                 if not source["has_video"]:
                     raise TimelineRenderError("video source has no video stream")
+                if clip.get("include_source_audio", False) and not source["has_audio"]:
+                    raise TimelineRenderError("source audio was requested but the video asset has no audio stream")
                 if clip["source_out_ms"] > source["duration_ms"] + 1:
                     raise TimelineRenderError("video source trim exceeds probed media duration")
                 argv.extend(["-protocol_whitelist", "file,pipe", "-i", str(staged)])
@@ -398,37 +400,63 @@ class TimelineFFmpegRenderer:
             ])
             self._run(argv, stop_event)
 
+            prepared_audio = []
+            incoming_fades = {
+                item["to_clip_id"]: int(item["duration_ms"])
+                for item in edl.get("transitions", [])
+            }
+            outgoing_fades = {
+                item["from_clip_id"]: int(item["duration_ms"])
+                for item in edl.get("transitions", [])
+            }
+            for index, clip in enumerate(video_clips):
+                if not clip.get("include_source_audio", False):
+                    continue
+                source = source_metadata[clip["asset_id"]]
+                if not source["has_audio"]:
+                    raise TimelineRenderError("source audio was requested but the video asset has no audio stream")
+                prepared_audio.append({
+                    "path": str(staged_video[index]),
+                    "start_ms": int(clip["start_ms"]),
+                    "source_in_ms": int(clip["source_in_ms"]),
+                    "duration_ms": int(clip["source_out_ms"] - clip["source_in_ms"]),
+                    "gain": 1.0,
+                    "fade_in_ms": incoming_fades.get(clip["id"], 0),
+                    "fade_out_ms": outgoing_fades.get(clip["id"], 0),
+                })
+
             audio_tracks = edl["audio_tracks"]
-            if audio_tracks:
-                prepared_audio = []
-                for index, track in enumerate(audio_tracks, start=len(staged_video)):
-                    if track["start_ms"] + track["source_out_ms"] - track["source_in_ms"] > duration_ms:
-                        raise TimelineRenderError("audio track extends beyond the video timeline")
-                    staged, size = self._stage_asset(
-                        workspace_id, principal_id, track["asset_id"], job_dir, index,
-                        self.max_input_bytes - total_input_bytes,
-                    )
-                    total_input_bytes += size
-                    if track["asset_id"] not in source_metadata:
-                        try:
-                            source_metadata[track["asset_id"]] = probe_source_media(
-                                staged, self.ffprobe_path, max_bytes=self.max_input_bytes,
-                                timeout_seconds=min(self.timeout_seconds, 60),
-                            )
-                        except FFprobeValidationError as exc:
-                            raise TimelineRenderError("audio source failed bounded ffprobe validation") from exc
-                    source = source_metadata[track["asset_id"]]
-                    if not source["has_audio"]:
-                        raise TimelineRenderError("audio source has no audio stream")
-                    if track["source_out_ms"] > source["duration_ms"] + 1:
-                        raise TimelineRenderError("audio source trim exceeds probed media duration")
-                    prepared_audio.append({
-                        "path": str(staged), "start_ms": int(track["start_ms"]),
-                        "source_in_ms": int(track["source_in_ms"]),
-                        "duration_ms": int(track["source_out_ms"] - track["source_in_ms"]),
-                        "gain": track["gain"], "fade_in_ms": int(track["fade_in_ms"]),
-                        "fade_out_ms": int(track["fade_out_ms"]),
-                    })
+            for index, track in enumerate(audio_tracks, start=len(staged_video)):
+                if track["start_ms"] + track["source_out_ms"] - track["source_in_ms"] > duration_ms:
+                    raise TimelineRenderError("audio track extends beyond the video timeline")
+                staged, size = self._stage_asset(
+                    workspace_id, principal_id, track["asset_id"], job_dir, index,
+                    self.max_input_bytes - total_input_bytes,
+                )
+                total_input_bytes += size
+                if track["asset_id"] not in source_metadata:
+                    try:
+                        source_metadata[track["asset_id"]] = probe_source_media(
+                            staged, self.ffprobe_path, max_bytes=self.max_input_bytes,
+                            timeout_seconds=min(self.timeout_seconds, 60),
+                        )
+                    except FFprobeValidationError as exc:
+                        raise TimelineRenderError("audio source failed bounded ffprobe validation") from exc
+                source = source_metadata[track["asset_id"]]
+                if not source["has_audio"]:
+                    raise TimelineRenderError("audio source has no audio stream")
+                if track["source_out_ms"] > source["duration_ms"] + 1:
+                    raise TimelineRenderError("audio source trim exceeds probed media duration")
+                prepared_audio.append({
+                    "path": str(staged), "start_ms": int(track["start_ms"]),
+                    "source_in_ms": int(track["source_in_ms"]),
+                    "duration_ms": int(track["source_out_ms"] - track["source_in_ms"]),
+                    "gain": track["gain"], "fade_in_ms": int(track["fade_in_ms"]),
+                    "fade_out_ms": int(track["fade_out_ms"]),
+                })
+
+            has_audio_output = bool(prepared_audio)
+            if has_audio_output:
                 audio_argv = build_audio_mix_argv(
                     prepared_audio, str(audio_path), ffmpeg_path=self.ffmpeg_path,
                     output_duration_ms=duration_ms,
@@ -455,7 +483,7 @@ class TimelineFFmpegRenderer:
             probe = probe_media(
                 final_path, self.ffprobe_path,
                 max_duration_ms=min(duration_ms + 1000, 3_600_000),
-                max_bytes=self.max_output_bytes, require_audio=bool(audio_tracks),
+                max_bytes=self.max_output_bytes, require_audio=has_audio_output,
             )
             if abs(probe["duration_ms"] - duration_ms) > 1500:
                 raise TimelineRenderError("rendered output duration does not match the EDL")
