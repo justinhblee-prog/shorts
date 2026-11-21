@@ -276,3 +276,9 @@ Automated CI and Compose smoke do not prove:
 - Provider documentation/task-ledger head `7575d24fd058b1a8b615e8ce4bee4268c77ee9cd` passed Backend [44890149253](https://github.com/justinhblee-prog/shorts/actions/runs/44890149253) and Compose [44890149269](https://github.com/justinhblee-prog/shorts/actions/runs/44890149269).
 - Latest validation-record/task-ledger head `bead8802c7e6d2207586cde5c05c276c05dabcf9`: Backend [44890304610](https://github.com/justinhblee-prog/shorts/actions/runs/44890304610) and Compose [44890304622](https://github.com/justinhblee-prog/shorts/actions/runs/44890304622) are running.
 - No live provider HTTPS or customer-account test occurred. OAuth stores remain global/singleton; workspace-owned provider credentials and legal/spend approvals are prerequisites. PR #475 remains Draft/open/unmerged.
+
+
+## 5.12. Provider validation-record head completed
+
+- PR #475 latest validation-record/task-ledger head `bead8802c7e6d2207586cde5c05c276c05dabcf9` passed Backend [44890304610](https://github.com/justinhblee-prog/shorts/actions/runs/44890304610) and Compose [44890304622](https://github.com/justinhblee-prog/shorts/actions/runs/44890304622). Both workflows completed successfully; backend validation/Playwright and generated-media Compose integration/backup restore passed.
+- All current PR #474/#475 code and documentation heads are CI-validated. PRs remain Draft/open/unmerged. No live provider calls, customer-media checks, target-host tests, deployments, external uploads or publishes were performed.
