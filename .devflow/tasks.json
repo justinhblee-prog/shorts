@@ -76,16 +76,21 @@
         "Preview session cookie path and generated preview URL now use the actual artifact/workspace identifiers; native video preview accepts scoped cookie auth",
         "Compose render-worker CPU quota smoke accepts either Docker CpuQuota or NanoCpus while preserving the two-CPU assertion",
         "Authenticated Compose HTTP E2E creates isolated operator workspaces, uploads and quarantines a generated MP4, proves cross-workspace denial, submits an idempotent EDL render through the API, waits for the separate Compose worker to render/adopt, records artifact-bound approval and fetches the private preview through its short-lived cookie",
-        "Initial authenticated API-to-worker E2E verified in Compose run 44798390154 and backend run 44798390156 on commit e9f1c124dc545a348dd40c3bd08ae559927878a8. A follow-up CI revision starts freshclam and verifies real ClamAV clean-MP4 plus EICAR rejection; this scanner-backed run is pending."
+        "Initial authenticated API-to-worker E2E verified in Compose run 44798390154 and backend run 44798390156 on commit e9f1c124dc545a348dd40c3bd08ae559927878a8. A follow-up CI revision starts freshclam and verifies real ClamAV clean-MP4 plus EICAR rejection; this scanner-backed run is pending.",
+        "Bounded timed title overlays rendered from per-job UTF-8 text files with expansion disabled and a trusted configured font; video gaps and overlaps are explicitly rejected",
+        "Real-media Compose smoke generates a fixture video and verifies title overlay, audio mix, ffprobe output, lease-fenced artifact adoption, pending review and immutable artifact-hash approval",
+        "CI fault-injection coverage verifies process-generation lease loss cancels rendering, discards staged output, allows queue recovery/reclaim, and removes only expired generated staging files",
+        "Timeline render worker is opt-in behind the Compose render profile; Compose CI asserts it is absent from the default profile and enabled explicitly for integration smoke"
       ],
       "remaining": [
         "Validate representative customer media on the target runtime, including uncommon codecs, variable frame rates and long-duration inputs",
-        "Run crash/restart and lease-loss fault injection against the target persistent filesystem",
+        "Run crash/restart and lease-loss fault injection against the target persistent filesystem; CI regression tests now cover process-generation loss, staging cleanup and lease reclaim in isolated test storage",
         "Configure and validate ClamAV signature freshness and fail-closed scanning before enabling production uploads",
         "Schedule and monitor artifact orphan reconciliation and retention cleanup in the production worker service",
         "Run end-to-end authenticated API upload → current ClamAV signature scan → render queue → worker adoption → review preview using production-like storage; CI API E2E uses a generated fixture and trusted test-harness scan attestation, not ClamAV",
         "Measure production workload resource usage and enforce disk quota/network egress policy on the target host",
-        "Implement EDL overlap transitions and explicit project-duration/trailing-gap semantics"
+        "Implement EDL overlap transitions and explicit project-duration/trailing-gap semantics",
+        "Define indexed artifact retention/deletion policy and disk quotas; current worker reconciliation removes orphaned staging and unindexed artifact files only"
       ]
     },
     {

@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import time
 import uuid
 from datetime import datetime, timezone
@@ -223,6 +224,58 @@ class RenderArtifactStore:
         }
 
 
+
+
+    def reconcile_orphaned_staging(self, grace_seconds=7200):
+        """Remove crash-left staging outputs older than the maximum render timeout.
+
+        The enforced two-hour minimum exceeds the renderer's one-hour maximum
+        process timeout, so a healthy bounded render cannot be collected.
+        """
+        if (isinstance(grace_seconds, bool)
+                or not isinstance(grace_seconds, (int, float))
+                or grace_seconds < 7200):
+            raise ValueError("staging grace_seconds must be at least 7200")
+        cutoff = time.time() - grace_seconds
+        removed_files = removed_dirs = removed_bytes = 0
+        output_pattern = re.compile(r"^render_[a-f0-9]{32}\.mp4$")
+        for path in self.staging_root.iterdir():
+            if path.is_symlink():
+                continue
+            try:
+                stat = path.stat()
+                if stat.st_mtime > cutoff:
+                    continue
+                if path.is_file() and output_pattern.fullmatch(path.name):
+                    removed_bytes += stat.st_size
+                    path.unlink()
+                    removed_files += 1
+                elif path.is_dir() and path.name.startswith(".render-"):
+                    shutil.rmtree(path)
+                    removed_dirs += 1
+            except FileNotFoundError:
+                continue
+        return {
+            "removed_files": removed_files,
+            "removed_directories": removed_dirs,
+            "removed_bytes": removed_bytes,
+        }
+
+    def discard_staged(self, staged_path):
+        """Delete a failed or lease-abandoned staged output inside the private root."""
+        candidate = Path(staged_path)
+        if candidate.is_symlink():
+            raise ArtifactAdoptionError("refusing to discard a staged symlink")
+        try:
+            source = candidate.resolve(strict=False)
+            source.relative_to(self.staging_root)
+        except (OSError, ValueError) as exc:
+            raise ArtifactAdoptionError("staged cleanup path escaped the private staging root") from exc
+        if source.exists() and source.is_file():
+            source.unlink()
+            return True
+        return False
+
     def reconcile_orphaned_files(self, grace_seconds=3600):
         """Remove unindexed generated files after a crash-safe grace period.
 
@@ -259,12 +312,37 @@ class RenderArtifactStore:
             db.commit()
         return {"removed": removed, "removed_bytes": removed_bytes}
 
+    def list_pending(self, workspace_id, limit=50):
+        """List only review-pending artifacts for one already-authorized workspace."""
+        if not isinstance(workspace_id, str) or not workspace_id:
+            raise ValueError("workspace_id is required")
+        if isinstance(limit, bool) or not isinstance(limit, int):
+            raise ValueError("limit must be an integer")
+        limit = max(1, min(limit, 200))
+        with self.queue.db() as db:
+            rows = db.execute("""
+                SELECT a.artifact_id,a.job_id,a.workspace_id,a.snapshot_id,a.snapshot_sha256,
+                       a.artifact_sha256,a.byte_size,a.media_suffix,a.duration_ms,
+                       a.video_width,a.video_height,a.audio_streams,a.created_at,
+                       j.status AS status
+                FROM render_artifacts a
+                JOIN pipeline_jobs j ON j.id=a.job_id AND j.workspace_id=a.workspace_id
+                LEFT JOIN timeline_render_reviews r
+                  ON r.snapshot_id=a.snapshot_id AND r.workspace_id=a.workspace_id
+                WHERE a.workspace_id=? AND j.status='review_pending' AND r.id IS NULL
+                ORDER BY a.created_at DESC,a.artifact_id DESC LIMIT ?
+            """, (workspace_id, limit)).fetchall()
+        return [dict(row) for row in rows]
+
     def get(self, artifact_id, workspace_id):
         if not isinstance(artifact_id, str) or not _ARTIFACT_ID.fullmatch(artifact_id):
             raise ValueError("invalid artifact ID")
         with self.queue.db() as db:
             row = db.execute(
-                "SELECT * FROM render_artifacts WHERE artifact_id=? AND workspace_id=?",
+                """SELECT a.*,j.status AS status
+                   FROM render_artifacts a
+                   JOIN pipeline_jobs j ON j.id=a.job_id AND j.workspace_id=a.workspace_id
+                   WHERE a.artifact_id=? AND a.workspace_id=?""",
                 (artifact_id, workspace_id),
             ).fetchone()
         if row is None:

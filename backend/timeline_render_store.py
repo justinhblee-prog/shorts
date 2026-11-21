@@ -106,8 +106,16 @@ class TimelineRenderStore:
             metadata = self.assets.get_asset(workspace_id, principal_id, clip["asset_id"])
             if metadata["scan_status"] != "clean":
                 raise SnapshotError("all referenced assets must pass malware scanning")
-            if clip["source_out_ms"] > metadata.get("duration_ms", float("inf")):
+            source_duration = metadata.get("duration_ms")
+            if source_duration is not None and clip["source_out_ms"] > source_duration:
                 raise EDLValidationError("source trim exceeds registered media duration")
+        for track in normalized["audio_tracks"]:
+            metadata = self.assets.get_asset(workspace_id, principal_id, track["asset_id"])
+            if metadata["scan_status"] != "clean":
+                raise SnapshotError("all referenced audio assets must pass malware scanning")
+            source_duration = metadata.get("duration_ms")
+            if source_duration is not None and track["source_out_ms"] > source_duration:
+                raise EDLValidationError("audio source trim exceeds registered media duration")
 
         serialized = json.dumps(normalized, ensure_ascii=False, sort_keys=True,
                                 separators=(",", ":"), allow_nan=False)
