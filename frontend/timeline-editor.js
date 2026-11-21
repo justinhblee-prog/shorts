@@ -33,15 +33,22 @@
     }catch(error){say("작업공간 생성 실패 · "+error.message,"error");}
     finally{button.disabled=false;}
   }
-  async function uploadAsset(file,workspaceId){
-    const url=pathFor(workspaceId,"/assets")+"?filename="+encodeURIComponent(file.name);
-    const result=await api().request(url,{method:"POST",body:file,headers:{"Content-Type":file.type||"application/octet-stream"}});
-    let asset=result;
-    if(asset.scan_status!=="clean"||asset.renderable!==true){
+  async function uploadAsset(file,workspaceId,existingAssetId=""){
+    let asset;
+    if(existingAssetId){
+      const stored=await api().request("/api/workspaces/"+encodeURIComponent(workspaceId)+"/assets/"+encodeURIComponent(existingAssetId));
+      asset=stored.asset||stored;
+      asset.asset_id=asset.asset_id||asset.id||existingAssetId;
+    }else{
+      const url=pathFor(workspaceId,"/assets")+"?filename="+encodeURIComponent(file.name);
+      asset=await api().request(url,{method:"POST",body:file,headers:{"Content-Type":file.type||"application/octet-stream"}});
+    }
+    if(asset.scan_status!=="clean"){
       const rescan=await api().request(pathFor(workspaceId,"/assets/"+encodeURIComponent(asset.asset_id)+"/scan"),{method:"POST"});
       asset={...asset,...rescan};
     }
-    if(asset.scan_status!=="clean"||asset.renderable!==true){
+    const renderable=asset.renderable===true||(asset.renderable==null&&asset.scan_status==="clean"&&!!asset.media_metadata);
+    if(asset.scan_status!=="clean"||!renderable){
       throw new Error(file.name+" · 서버 보안/미디어 검사가 통과되지 않았습니다 ("+(asset.scanner_status||asset.scan_status||"unknown")+")");
     }
     return asset;
@@ -53,7 +60,7 @@
       if(!clip.file)throw new Error(clip.name+" · 원본 파일이 브라우저 메모리에 없습니다. 파일을 다시 불러오세요.");
       if(!clip.assetId||clip.uploadedWorkspaceId!==workspaceId){
         say("비공개 미디어 업로드 및 서버 검사 중 · "+clip.name);
-        const asset=await uploadAsset(clip.file,workspaceId);
+        const asset=await uploadAsset(clip.file,workspaceId,clip.assetId);
         clip.assetId=asset.asset_id;clip.uploadedWorkspaceId=workspaceId;
         clip.serverDurationMs=Number(asset.media_metadata?.duration_ms||0);
         if(!clip.serverDurationMs)throw new Error(clip.name+" · 서버가 영상 길이를 확인하지 못했습니다.");
@@ -69,7 +76,7 @@
     if(!state.audio.file)throw new Error("오디오 원본 파일을 다시 선택하세요.");
     if(!state.audio.assetId||state.audio.uploadedWorkspaceId!==workspaceId){
       say("오디오 업로드 및 서버 검사 중 · "+state.audio.file.name);
-      const asset=await uploadAsset(state.audio.file,workspaceId);
+      const asset=await uploadAsset(state.audio.file,workspaceId,state.audio.assetId);
       state.audio.assetId=asset.asset_id;state.audio.uploadedWorkspaceId=workspaceId;
       state.audio.serverDurationMs=Number(asset.media_metadata?.duration_ms||0);
       if(!state.audio.serverDurationMs)throw new Error("서버가 오디오 길이를 확인하지 못했습니다.");
