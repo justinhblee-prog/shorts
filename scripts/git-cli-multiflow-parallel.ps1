@@ -169,6 +169,10 @@ function Test-ScopeOverlap([string[]]$Left,[string[]]$Right){
 $activeWorktreeText=& git -C $root worktree list --porcelain
 if($LASTEXITCODE -ne 0){throw "Cannot inspect active worktrees; refusing overlapping dispatch."}
 $activeWorktreeIds=@([regex]::Matches(($activeWorktreeText -join "`n"),'(?i)BUILD-[0-9]{5}')|ForEach-Object{$_.Value}|Sort-Object -Unique)
+$activeWorktreeScopes=@()
+foreach($activeTask in @($manifest.tasks|Where-Object{$activeWorktreeIds -contains [string]$_.id})){
+ $activeWorktreeScopes+=Get-TaskScopePaths $activeTask
+}
 $openFiles=@()
 foreach($pr in $openPrs){
  if($supervisorBranch -and [string]$pr.headRefName -eq $supervisorBranch){continue}
@@ -189,6 +193,7 @@ foreach($t in @($manifest.tasks|Where-Object{$_.status -in @("ready","in_progres
  if(-not $ready){continue}
  $scopePaths=Get-TaskScopePaths $t
  if(Test-ScopeOverlap $scopePaths $openFiles){Write-Host "[QUEUE] Deferred $($t.id): scope overlaps an open PR.";continue}
+ if(Test-ScopeOverlap $scopePaths $activeWorktreeScopes){Write-Host "[QUEUE] Deferred $($t.id): scope overlaps an active worktree.";continue}
  if(Test-ScopeOverlap $scopePaths $acceptedScopes){Write-Host "[QUEUE] Deferred $($t.id): scope overlaps another selected task.";continue}
  $eligible+=$t;$acceptedScopes+= $scopePaths
 }
