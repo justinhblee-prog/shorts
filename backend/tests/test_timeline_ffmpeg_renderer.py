@@ -275,6 +275,7 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
                 requested, stop_event=threading.Event(),
                 workspace_id="ws_demo", principal_id="alice",
             )
+        self.assertEqual(self.commands, [])
 
     def test_renders_title_overlay_from_bounded_utf8_text_file(self):
         titled = json.loads(json.dumps(self.payload))
