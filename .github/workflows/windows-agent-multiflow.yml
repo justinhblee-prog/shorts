@@ -63,6 +63,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Agent CLI preflight failed." }
           Write-Host "PASS: self-hosted Windows runner, GitHub auth, clean checkout and Agent CLI configuration."
 
+      - name: Verify detached supervisor polling and failure recovery
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          & "$PWD/scripts/test-devflow-detached-supervisor.ps1"
+          if ($LASTEXITCODE -ne 0) { throw "Detached supervisor regression failed with exit code $LASTEXITCODE." }
+
       - name: Run isolated real Agent CLI smoke test
         if: github.event_name == 'workflow_dispatch' && inputs.agent_smoke_test
         shell: pwsh
