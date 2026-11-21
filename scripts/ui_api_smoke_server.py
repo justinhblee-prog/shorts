@@ -32,6 +32,10 @@ def main() -> None:
     sys.path.insert(0, str(BACKEND))
 
     import app  # noqa: E402 - environment and DB path must be set first
+    from fastapi.staticfiles import StaticFiles
+
+    # Match the Vercel static root: CSS/JS/preview files are served from /, not only /assets/.
+    app.app.mount("/", StaticFiles(directory=str(ROOT / "frontend"), html=True), name="frontend-root")
 
     app.workspace_store.create("Browser Smoke Workspace", "legacy-operator")
 
