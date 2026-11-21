@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - fix/devflow-detached-supervisor-2026-11-20
+      - fix/devflow-supervisor-poll-loop-2026-11-21
     paths:
       - .devflow/tasks.json
       - .github/workflows/windows-agent-multiflow.yml
@@ -36,14 +37,14 @@ concurrency:
 
 jobs:
   run-agent:
-    if: github.ref == 'refs/heads/fix/devflow-detached-supervisor-2026-11-20'
+    if: github.ref == 'refs/heads/fix/devflow-supervisor-poll-loop-2026-11-21'
     runs-on: [self-hosted, Windows, X64, shorts-agent]
     timeout-minutes: 360
     steps:
       - name: Checkout approved automation branch
         uses: actions/checkout@v4
         with:
-          ref: fix/devflow-detached-supervisor-2026-11-20
+          ref: ${{ github.ref_name }}
           clean: true
 
       - name: Verify Windows execution environment
