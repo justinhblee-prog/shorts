@@ -35,6 +35,18 @@ GitHub Actions on the integrated Draft PR #467:
 - Compose integration smoke passed: current ClamAV database readiness and EICAR rejection, service readiness, render-worker isolation/resource limits, real FFmpeg/ffprobe fixture render and artifact adoption/review, authenticated API upload → separate worker render → approval → private preview, and scheduled encrypted backup plus isolated restore.
 - The authenticated E2E uses generated MP4 media and isolated Docker volumes. It proves the Compose integration path, not arbitrary customer-media compatibility, physical-device QA, target-host persistence/quotas, or live YouTube/TikTok provider validation.
 
+## EDL gap and crossfade validation increment
+
+Draft PR #470 adds optional whole-millisecond `project_duration_ms`, black initial/internal/trailing timeline gaps and bounded adjacent video crossfades.
+
+- Crossfades use EDL v1 `transitions[]` entries with unique IDs, exact adjacent clip references and whole-millisecond durations from 100 to 5000 ms.
+- A declared transition must exactly match the overlap; undeclared overlaps are still rejected by the timeline renderer. Incoming plus outgoing transition durations cannot exceed the clip's available timeline duration.
+- The FFmpeg graph normalizes clip streams and uses `xfade=transition=fade` with a deterministic absolute timeline offset.
+- Audio-bed tracks remain positioned on the same timeline and are muxed to the final project duration. Embedded source-audio crossfades are not implemented by this increment.
+- The Compose real-media smoke now renders two overlapping clips through the actual FFmpeg worker, lease-fenced artifact adoption and review handoff.
+
+Exact crossfade code head `f336a1c2019c8732d5f0e196d970174f0fa24039` passed Backend [run 44884777926](https://github.com/justinhblee-prog/shorts/actions/runs/44884777926) (**925 tests plus Playwright browser smoke**) and Compose [run 44884777927](https://github.com/justinhblee-prog/shorts/actions/runs/44884777927) (real FFmpeg crossfade render, worker isolation, authenticated API E2E, review/private preview and encrypted backup/isolated restore). This is generated-fixture CI evidence, not representative customer-media or target-host validation.
+
 ## Render artifact storage guard
 
 - `NEXUS_RENDER_ARTIFACT_MAX_BYTES` defaults to 20 GiB and caps the installation-wide sum of indexed adopted render artifacts. The aggregate is checked inside the SQLite write transaction immediately before adoption, preventing concurrent workers from exceeding the logical indexed-artifact cap.
