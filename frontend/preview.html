@@ -16,13 +16,13 @@ button:hover{border-color:#9c87ff;background:#292448}button[aria-pressed=true]{b
 .toolbar .spacer{flex:1}.open-app{color:#c8bcff;text-decoration:none;font-size:12px;font-weight:700}.open-app:hover{text-decoration:underline}
 .stage{flex:1;min-height:0;padding:20px;display:flex;flex-direction:column;align-items:center;gap:12px}
 .stage-meta{width:min(100%,1440px);display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:11px}
-.device-wrap{flex:1;min-height:560px;width:100%;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:4px 4px 24px}
-.device{height:min(78vh,900px);min-height:560px;width:100%;border:1px solid #514a78;border-radius:14px;background:#070711;overflow:hidden;box-shadow:0 24px 80px #0009;transition:width .22s ease,border-radius .22s ease;flex:none}
-.device.mobile{width:min(390px,100%);height:min(820px,78vh);min-height:560px;border-radius:28px;border:5px solid #34304d;box-shadow:0 0 0 1px #8f7df455,0 24px 80px #000a}
-.device.tablet{width:min(820px,100%);height:min(78vh,900px);border-radius:20px;border:4px solid #34304d}
-.device.desktop{width:min(1440px,100%);height:min(82vh,1000px)}
-.device.landscape.mobile{width:min(844px,100%);height:min(560px,70vh);min-height:420px}
-.device.landscape.tablet{width:min(1180px,100%);height:min(680px,76vh)}
+.device-wrap{flex:1;min-height:560px;width:100%;display:flex;justify-content:flex-start;align-items:flex-start;overflow:auto;padding:4px 4px 24px}
+.device{height:min(78vh,900px);min-height:560px;width:100%;border:1px solid #514a78;border-radius:14px;background:#070711;overflow:hidden;box-shadow:0 24px 80px #0009;transition:width .22s ease,border-radius .22s ease;flex:none;margin-inline:auto}.device.auto{width:100%}
+.device.mobile{width:390px;height:min(820px,78vh);min-height:560px;border-radius:28px;border:5px solid #34304d;box-shadow:0 0 0 1px #8f7df455,0 24px 80px #000a}
+.device.tablet{width:820px;height:min(78vh,900px);border-radius:20px;border:4px solid #34304d}
+.device.desktop{width:1440px;height:min(82vh,1000px)}
+.device.landscape.mobile{width:844px;height:min(560px,70vh);min-height:420px}
+.device.landscape.tablet{width:1180px;height:min(680px,76vh)}
 iframe{display:block;width:100%;height:100%;border:0;background:#090916}
 .hint{color:#8581a4;font-size:10px;text-align:center;max-width:850px;line-height:1.6}
 @media(max-width:700px){.toolbar{padding:10px;gap:9px}.brand{width:100%}.divider{display:none}.group{gap:4px}.group-label{font-size:10px}button{padding:7px 9px;font-size:11px}.toolbar .spacer{display:none}.open-app{margin-left:auto}.stage{padding:12px 8px}.stage-meta{padding:0 4px}.device-wrap{min-height:0;padding-bottom:12px}.device{height:calc(100dvh - 210px);min-height:460px}.device.mobile{height:calc(100dvh - 210px);min-height:460px}.device.landscape.mobile{height:calc(100dvh - 210px);min-height:360px}}
