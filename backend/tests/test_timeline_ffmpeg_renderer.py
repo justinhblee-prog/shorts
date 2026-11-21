@@ -223,6 +223,51 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
                 workspace_id="ws_demo", principal_id="alice",
             )
 
+    def test_renders_internal_black_gap_between_adjacent_video_clips(self):
+        with_gap = json.loads(json.dumps(self.payload))
+        with_gap["edl"]["clips"] = [
+            {
+                "id": "clip1", "type": "video", "start_ms": 0,
+                "end_ms": 5000, "asset_id": "asset_video",
+                "source_in_ms": 1000, "source_out_ms": 6000,
+            },
+            {
+                "id": "clip2", "type": "video", "start_ms": 5500,
+                "end_ms": 9500, "asset_id": "asset_video",
+                "source_in_ms": 6000, "source_out_ms": 10000,
+            },
+        ]
+        with_gap["edl"]["gaps"] = [{
+            "after_clip_id": "clip1", "before_clip_id": "clip2",
+            "duration_ms": 500,
+        }]
+        with_gap["edl"]["audio_tracks"] = []
+        self._rehash(with_gap)
+        probe = {
+            "duration_ms": 9500, "byte_size": 23,
+            "video_streams": [{"width": 720, "height": 1280, "codec": "h264"}],
+            "audio_streams": 0, "audio_codecs": [],
+        }
+        with patch("timeline_ffmpeg_renderer.probe_media", return_value=probe):
+            result = self.renderer(
+                with_gap, stop_event=threading.Event(),
+                workspace_id="ws_demo", principal_id="alice",
+            )
+        self.assertEqual(result["duration_ms"], 9500)
+        graph = self.commands[0][self.commands[0].index("-filter_complex") + 1]
+        self.assertIn("color=c=black:s=720x1280:r=30:d=0.500", graph)
+        self.assertIn("concat=n=2:v=1:a=0[vblackjoin1]", graph)
+        self.assertNotIn("xfade=", graph)
+
+        unsafe = json.loads(json.dumps(with_gap))
+        unsafe["edl"].pop("gaps")
+        self._rehash(unsafe)
+        with self.assertRaisesRegex(TimelineRenderError, "explicit crossfade overlap or black-gap interval"):
+            self.renderer(
+                unsafe, stop_event=threading.Event(),
+                workspace_id="ws_demo", principal_id="alice",
+            )
+
     def test_renders_explicit_trailing_black_gap_and_audio_to_project_end(self):
         extended = json.loads(json.dumps(self.payload))
         extended["edl"]["project_duration_ms"] = 8000
