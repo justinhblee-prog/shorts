@@ -1173,3 +1173,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Refresh the top-level validation checkpoint to the latest verified BUILD-00140 CI run.
 - Replace the stale 408-test summary with the current 466-test result and link to the exact GitHub Actions run.
 - Keep all live-provider, account, deployment and revenue limitations explicit.
+
+
+## BUILD-00362 — scheduled abandoned media-part cleanup
+
+- The scheduler's lease holder periodically invokes the existing narrowly scoped `.nexus-*.part` pruner.
+- Default retention is 24 hours and sweep interval is one hour; lower bounds are one hour and five minutes respectively.
+- Completed media artifacts are not targeted; confirmed-upload cleanup remains a separate guarded operation.
+- Filesystem failures are logged without interrupting scheduled-job dispatch. Cleanup runs only while the scheduler holds its leader lease.
