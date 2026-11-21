@@ -88,7 +88,7 @@ class MediaStagerTests(unittest.TestCase):
         except (OSError, NotImplementedError):
             self.skipTest("symlinks are unavailable")
         result = self.stager.prune_temporary_files(older_than_seconds=3600, now=10000)
-        self.assertEqual(result["count"], 0)
+        self.assertEqual(result["count"], 1)
         self.assertTrue(os.path.exists(recent_part))
         self.assertTrue(os.path.exists(target))
         self.assertFalse(os.path.lexists(linked_part))
