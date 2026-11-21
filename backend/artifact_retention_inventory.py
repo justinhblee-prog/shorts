@@ -148,7 +148,7 @@ class RetentionInventory:
                     "created_at": row["created_at"],
                     "asset_status": row["status"],
                     "scan_status": row["scan_status"],
-                    "reference_check_complete": snapshot_inventory_complete,
+                    "reference_check_complete": False,
                     "active_reference_count": refs["active"] if snapshot_inventory_complete else None,
                     "snapshot_reference_count": refs["snapshots"] if snapshot_inventory_complete else None,
                     "legal_hold": None,
@@ -194,7 +194,7 @@ class RetentionInventory:
                     "data_class": "render_artifact",
                     "created_at": row["created_at"],
                     "review_status": review_status,
-                    "reference_check_complete": job_known,
+                    "reference_check_complete": False,
                     "active_reference_count": 1 if job_active else 0 if job_known else None,
                     # The immutable EDL snapshot remains linked to the artifact's render job.
                     "snapshot_reference_count": 1,
@@ -232,6 +232,8 @@ class RetentionInventory:
             "candidates": candidates,
             "truncated": assets_truncated or artifacts_truncated or snapshot_truncated,
             "snapshot_reference_inventory_complete": snapshot_inventory_complete,
+            "reference_check_complete": False,
+            "reference_snapshot_consistency": "non_atomic",
             "read_only": True,
             "destructive_action_performed": False,
         }
