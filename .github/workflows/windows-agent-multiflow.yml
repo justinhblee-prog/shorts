@@ -6,6 +6,7 @@ on:
       - fix/devflow-detached-supervisor-2026-11-20
     paths:
       - .devflow/tasks.json
+      - .github/workflows/windows-agent-multiflow.yml
   workflow_dispatch:
     inputs:
       max_tasks:
@@ -89,6 +90,14 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($rawCount)) { $rawCount = "3" }
           $count = [int]$rawCount
           if ($count -lt 1 -or $count -gt 3) { throw "max_tasks must be between 1 and 3." }
+          # Worker processes execute from isolated task worktrees. Anchor the shared
+          # Ollama agent script to this runner checkout so relative paths do not break.
+          $python = (Get-Command python -ErrorAction Stop).Source
+          $agentScript = Join-Path $PWD "scripts/ollama-agent.py"
+          if (-not (Test-Path -LiteralPath $agentScript)) { throw "Local Ollama agent script is missing: $agentScript" }
+          $env:DEVFLOW_AGENT_COMMAND = $python
+          $env:DEVFLOW_AGENT_ARGS_JSON = ConvertTo-Json -Compress -InputObject @($agentScript, "--prompt-file", "{prompt_file}", "--model", "qwen2.5-coder:7b")
+          Write-Host "Using runner-checkout Agent script with isolated worker prompt files."
           & "$PWD/scripts/start-devflow-autopilot.ps1" -Run -MaxTasks $count
           if ($LASTEXITCODE -ne 0) { throw "Real Agent multi-flow run failed with exit code $LASTEXITCODE." }
 
