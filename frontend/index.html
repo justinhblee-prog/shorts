@@ -5,10 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0b18">
   <title>NEXUS STUDIO PRO — AI Short-form Content Workspace</title>
-  <link rel="stylesheet" href="/assets/styles.css">
-  <link rel="stylesheet" href="/assets/cyber-magic.css">
-  <link rel="stylesheet" href="/assets/nexus-premium.css">
-  <link rel="stylesheet" href="/assets/nexus-approved-design.css">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/cyber-magic.css">
+  <link rel="stylesheet" href="/nexus-premium.css">
+  <link rel="stylesheet" href="/nexus-approved-design.css">
+  <link rel="stylesheet" href="/studio-workbench.css">
+  <link rel="stylesheet" href="/timeline-editor.css">
 </head>
 <body>
   <a class="skip-link" href="#home">본문으로 건너뛰기</a>
@@ -58,6 +60,35 @@
       <article class="metric-card"><span class="metric-label">누적 수익 장부</span><strong id="metricRevenue">—</strong><small>실제 기록 데이터 기준</small></article>
     </section>
 
+    <section class="studio-floor" id="workbench" aria-label="콘텐츠 제작 워크벤치">
+      <div class="studio-floor-head"><div><div class="eyebrow">STUDIO FLOOR / LIVE PRODUCTION</div><h2>콘텐츠 제작 워크벤치</h2><p>시장 발견부터 실제 렌더·검수까지 하나의 제작 흐름으로 관리합니다.</p></div><a class="button button-primary" href="#timelineEditor">타임라인 편집 시작 <span>↗</span></a></div>
+      <div class="studio-floor-grid">
+        <article class="studio-canvas">
+          <div class="canvas-toolbar"><div><span class="panel-kicker">PRODUCTION TIMELINE</span><h3>제작 파이프라인</h3></div><span class="canvas-live"><i></i> LIVE STATUS</span></div>
+          <div class="stage-rail">
+            <a class="stage-node" href="#trendList"><span class="stage-index">01</span><b>DISCOVER</b><small>시장·주제 발굴</small><strong id="stageDiscover">—</strong></a>
+            <a class="stage-node" href="#timelineEditor"><span class="stage-index">02</span><b>CREATE</b><small>영상 편집·렌더</small><strong id="stageCreate">—</strong></a>
+            <a class="stage-node" href="#reviewList"><span class="stage-index">03</span><b>REVIEW</b><small>사람의 검수 대기</small><strong id="stageReview">—</strong></a>
+            <a class="stage-node" href="#analyticsHistory"><span class="stage-index">04</span><b>MEASURE</b><small>성과 측정</small><strong id="stageMeasure">—</strong></a>
+          </div>
+          <div class="canvas-foot"><span id="studioStageNote">인증 후 실제 API 데이터를 표시합니다.</span><a href="#queueDetails">운영 세부 정보 ↗</a></div>
+        </article>
+        <article class="studio-media">
+          <div class="canvas-toolbar"><div><span class="panel-kicker">MEDIA SPOTLIGHT</span><h3>최근 검수 미디어</h3></div><a href="#reviewList" class="media-open">검수 센터 ↗</a></div>
+          <div id="studioMediaSpotlight" class="studio-media-body"><div class="media-placeholder"><span>▶</span><b>검수 대기 영상이 여기에 표시됩니다.</b><small>실제 검수 미디어가 있을 때만 미리보기를 표시합니다.</small></div></div>
+        </article>
+        <aside class="studio-rail">
+          <div class="rail-heading"><span class="panel-kicker">LIVE WORK QUEUE</span><span class="rail-pulse"></span></div>
+          <div class="rail-stat"><span>대기 작업</span><b id="railQueued">—</b></div>
+          <div class="rail-stat"><span>실행 중</span><b id="railRunning">—</b></div>
+          <div class="rail-stat"><span>검수 대기</span><b id="railReview">—</b></div>
+          <div class="rail-divider"></div>
+          <div class="rail-safety"><span class="safety-shield">◇</span><div><b>Human approval gate</b><small>승인 전 공개 게시 차단</small></div></div>
+          <a class="rail-action" href="#reviewList">검수 작업 확인 <span>→</span></a>
+        </aside>
+      </div>
+    </section>
+
     <section class="cyber-calendar panel" aria-labelledby="cyberCalendarTitle">
       <div class="cyber-calendar-head"><div><span class="panel-kicker">PUBLISHING WORKSPACE</span><h2 id="cyberCalendarTitle">Content Calendar</h2><p>등록된 반복 제작 일정의 다음 실행 시각입니다. 실제 게시 예약과는 구분됩니다.</p></div><span class="tag">SCHEDULED PRODUCTION</span></div>
       <div id="cyberCalendarGrid" class="cyber-calendar-grid"><div class="empty-state">API 인증 후 예약 일정을 불러옵니다.</div></div>
@@ -100,8 +131,12 @@
               <button type="button" class="button button-primary" id="timelineSubmitRender">서버 렌더 제출</button>
               <button type="button" class="button button-outline" id="timelineCheckRender" disabled>렌더 상태 확인</button>
             </div>
+            <div class="timeline-server-controls">
+              <div class="timeline-workspace-create"><label>새 작업공간<input id="timelineWorkspaceName" maxlength="120" placeholder="브랜드 캠페인 / Shorts 프로젝트"></label><button type="button" class="button button-outline button-small" id="timelineCreateWorkspace">워크스페이스 생성</button><small>상단 워크스페이스 선택기에서 활성 공간을 지정합니다.</small></div>
+              <div class="timeline-audio-control"><label class="button button-outline timeline-upload">오디오 추가<input id="timelineAudioInput" type="file" accept="audio/*" hidden></label><span id="timelineAudioStatus">선택 오디오 없음</span><label>Gain <input id="timelineAudioGain" type="number" min="0" max="4" step="0.1" value="1"></label><label>Fade in <input id="timelineAudioFadeIn" type="number" min="0" max="60" step="0.1" value="0"></label><label>Fade out <input id="timelineAudioFadeOut" type="number" min="0" max="60" step="0.1" value="0"></label></div>
+            </div>
             <div class="timeline-workspace">
-              <div class="timeline-preview"><div class="timeline-video-stage"><video id="timelinePreview" controls playsinline preload="metadata" aria-label="선택한 영상 미리보기"></video><div id="timelineTitleOverlay" class="timeline-title-overlay" hidden></div></div><div id="timelinePreviewEmpty" class="empty-state">영상을 불러오면 미리보기가 표시됩니다.</div><div class="timeline-server-output"><b>서버 렌더 결과</b><video id="timelineServerPreview" controls playsinline preload="metadata" hidden aria-label="서버에서 생성한 MP4 결과"></video></div><p id="timelineStatus" role="status" aria-live="polite">클립을 추가해 편집 순서를 구성하세요.</p></div>
+              <div class="timeline-preview"><div class="timeline-video-stage"><video id="timelinePreview" controls playsinline preload="metadata" aria-label="선택한 영상 미리보기"></video><div id="timelineTitleOverlay" class="timeline-title-overlay" hidden></div></div><div id="timelinePreviewEmpty" class="empty-state">영상을 불러오면 미리보기가 표시됩니다.</div><div class="timeline-server-output"><b>서버 렌더 결과 · 검수 전용</b><video id="timelineServerPreview" controls playsinline preload="metadata" hidden aria-label="서버에서 생성한 MP4 결과"></video><div id="timelineRenderReview" class="timeline-render-review" hidden><label>검수 의견<textarea id="timelineDecisionComment" maxlength="2000" placeholder="품질·정책·권리 검수 의견"></textarea></label><div><button type="button" class="button button-primary button-small" id="timelineApproveRender">검수 승인</button><button type="button" class="button button-outline button-small" id="timelineRevisionRender">수정 요청</button><button type="button" class="button button-quiet button-small" id="timelineRejectRender">반려</button></div><small>승인은 렌더 산출물에 대한 검수 기록이며, 플랫폼 업로드·공개 게시를 실행하지 않습니다.</small></div></div><p id="timelineStatus" role="status" aria-live="polite">클립을 추가해 편집 순서를 구성하세요.</p></div>
               <div class="timeline-tracks"><div class="timeline-track-heading"><b>VIDEO / TITLE TRACK</b><span><span id="timelineClipCount">0 CLIPS</span> · <span id="timelineTotalDuration">0.0s</span></span></div><div id="timelineClipList" class="timeline-clip-list"><div class="empty-state">영상 파일 또는 타이틀을 추가하세요.</div></div></div>
             </div>
             <div class="timeline-inspector" id="timelineInspector" hidden>
@@ -185,6 +220,7 @@
   <dialog id="settingsDialog" class="settings-dialog">
     <form method="dialog" class="dialog-close"><button class="icon-button" aria-label="닫기">×</button></form>
     <div class="eyebrow">SECURE API ACCESS</div><h2>운영 인증 설정</h2><p>서버의 <code>NEXUS_REVIEW_TOKEN</code>과 일치하는 토큰을 입력하세요. 토큰은 브라우저 메모리에만 보관하며 새로고침하면 초기화됩니다.</p>
+    <label>백엔드 API 주소<input id="apiOriginInput" type="url" inputmode="url" placeholder="https://api.example.com"><small>Vercel 미리보기에서 실제 백엔드에 연결할 때 입력합니다. HTTPS 주소만 허용하며 주소만 저장됩니다.</small></label>
     <label>API 토큰<input id="tokenInput" type="password" autocomplete="off" placeholder="NEXUS_REVIEW_TOKEN"></label>
     <label>검수자 ID<input id="reviewerInput" value="operator" maxlength="128"></label>
     <div class="dialog-actions"><button type="button" class="button button-outline" id="clearToken">초기화</button><button type="button" class="button button-primary" id="saveToken">연결</button></div>
@@ -192,6 +228,8 @@
   </dialog>
   <button class="floating-settings" id="openSettings" aria-label="API 인증 설정">⚙</button>
   <div id="toast" class="toast" role="status"></div>
-  <script src="/assets/app.js" defer></script>
+  <script src="/app.js" defer></script>
+  <script src="/studio-workbench.js" defer></script>
+  <script src="/timeline-editor.js" defer></script>
 </body>
 </html>
