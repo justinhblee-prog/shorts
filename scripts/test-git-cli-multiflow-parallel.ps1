@@ -6,6 +6,7 @@ if($PSVersionTable.PSVersion.Major -lt 7){throw "PowerShell 7+ required."}
 $repoRoot=(git rev-parse --show-toplevel 2>$null)
 if($LASTEXITCODE -ne 0 -or -not $repoRoot){throw "Run from the repository checkout."}
 $engineSource=Join-Path $repoRoot "scripts/git-cli-multiflow-parallel.ps1"
+$agentProcessHelper=Join-Path $repoRoot "scripts/devflow-agent-process.ps1"
 $temp=Join-Path ([IO.Path]::GetTempPath()) ("devflow-parallel-test-"+[guid]::NewGuid().ToString("N"))
 $origin=Join-Path $temp "origin.git";$seed=Join-Path $temp "seed";$checkout=Join-Path $temp "checkout"
 $bin=Join-Path $temp "bin";$state=Join-Path $temp "state"
@@ -17,13 +18,15 @@ try{
  & git -C $seed config user.email "multiflow-test@example.invalid"
  New-Item -ItemType Directory -Force -Path (Join-Path $seed "scripts"),(Join-Path $seed ".devflow")|Out-Null
  Copy-Item $engineSource (Join-Path $seed "scripts/git-cli-multiflow-parallel.ps1")
+ Copy-Item $agentProcessHelper (Join-Path $seed "scripts/devflow-agent-process.ps1")
  Set-Content (Join-Path $seed "scripts/devflow.py") "raise SystemExit(0)" -Encoding utf8
  $manifest=@{
-  policy=@{default_base="main";max_parallel_worktrees=2;auto_merge=$false;auto_deploy=$false}
+  policy=@{default_base="main";max_parallel_worktrees=3;auto_merge=$false;auto_deploy=$false}
   tasks=@(
    @{id="BUILD-99001";title="parallel fixture A";status="ready";priority=1;depends_on=@();scope=@("write an isolated marker");acceptance=@("marker exists")},
    @{id="BUILD-99002";title="parallel fixture B";status="ready";priority=2;depends_on=@();scope=@("write an isolated marker");acceptance=@("marker exists")},
-   @{id="BUILD-99003";title="dependent fixture C";status="ready";priority=3;depends_on=@("BUILD-99001");scope=@("must remain gated");acceptance=@("must not run before dependency completion")}
+   @{id="BUILD-99003";title="parallel fixture C";status="ready";priority=3;depends_on=@();scope=@("write an isolated marker");acceptance=@("marker exists")},
+   @{id="BUILD-99004";title="dependent fixture D";status="ready";priority=4;depends_on=@("BUILD-99001");scope=@("must remain gated");acceptance=@("must not run before dependency completion")}
   )
  }
  $manifest|ConvertTo-Json -Depth 20|Set-Content (Join-Path $seed ".devflow/tasks.json") -Encoding utf8
@@ -64,32 +67,32 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  Push-Location $checkout
  try{
   $timer=[Diagnostics.Stopwatch]::StartNew()
-  & pwsh -NoProfile -File (Join-Path $checkout "scripts/git-cli-multiflow-parallel.ps1") -StateRoot $state -MaxParallel 2 -MaxTasks 2 -TaskTimeoutSeconds 60
+  & pwsh -NoProfile -File (Join-Path $checkout "scripts/git-cli-multiflow-parallel.ps1") -StateRoot $state -MaxParallel 3 -MaxTasks 3 -TaskTimeoutSeconds 60
   if($LASTEXITCODE -ne 0){throw "Parallel engine exited with $LASTEXITCODE."}
   $timer.Stop()
  }finally{Pop-Location}
  $events=@(Get-Content $log|ForEach-Object{$p=$_.Split('|');[pscustomobject]@{kind=$p[0];ms=[long]$p[1];pid=$p[2]}})
  $starts=@($events|Where-Object kind -eq "start")
  $ends=@($events|Where-Object kind -eq "end")
- if($starts.Count -ne 2 -or $ends.Count -ne 2){throw "Expected two complete fake-agent runs; got starts=$($starts.Count), ends=$($ends.Count)."}
+ if($starts.Count -ne 3 -or $ends.Count -ne 3){throw "Expected three complete fake-agent runs; got starts=$($starts.Count), ends=$($ends.Count)."}
  $delta=[Math]::Abs($starts[0].ms-$starts[1].ms)
- if($delta -gt 2500){throw "Workers did not overlap; start delta was $($delta)ms."}
- if($timer.Elapsed.TotalSeconds -gt 12){throw "Parallel run took too long ($($timer.Elapsed.TotalSeconds)s), expected overlapping workers."}
+ if($delta -gt 2500){throw "Three workers did not overlap; start spread was $($delta)ms."}
+ if($timer.Elapsed.TotalSeconds -gt 25){throw "Parallel run took too long ($($timer.Elapsed.TotalSeconds)s), expected overlapping workers; worker start-time overlap is asserted separately."}
  $stateData=Get-Content (Join-Path $state "state.json") -Raw|ConvertFrom-Json
- foreach($id in @("BUILD-99001","BUILD-99002")){
+ foreach($id in @("BUILD-99001","BUILD-99002","BUILD-99003")){
   if($stateData.tasks.$id.status -ne "draft_pr_created"){throw "Unexpected final state for ${id}: $($stateData.tasks.$id.status)"}
  }
  $remoteBranches=@(& git --git-dir=$origin branch --list "autopilot/*")
- if($remoteBranches.Count -ne 2){throw "Expected exactly two independent worker branches; dependency-gated task must not run."}
+ if($remoteBranches.Count -ne 3){throw "Expected exactly three independent worker branches; dependency-gated task must not run."}
  Push-Location $checkout
  try{
-  & pwsh -NoProfile -File (Join-Path $checkout "scripts/git-cli-multiflow-parallel.ps1") -StateRoot $state -MaxParallel 2 -MaxTasks 3 -TaskTimeoutSeconds 60
+  & pwsh -NoProfile -File (Join-Path $checkout "scripts/git-cli-multiflow-parallel.ps1") -StateRoot $state -MaxParallel 3 -MaxTasks 4 -TaskTimeoutSeconds 60
   if($LASTEXITCODE -ne 0){throw "Idempotent rerun exited with $LASTEXITCODE."}
  }finally{Pop-Location}
  $branchesAfterRerun=@(& git --git-dir=$origin branch --list "autopilot/*")
- if($branchesAfterRerun.Count -ne 2){throw "Completed Draft PR tasks were dispatched again on rerun."}
- if($stateData.tasks."BUILD-99003"){throw "Dependency-gated task unexpectedly entered worker state."}
- Write-Host "PASS: two fake agents overlapped (start delta $($delta)ms), produced Draft PR states, and pushed isolated branches."
+ if($branchesAfterRerun.Count -ne 3){throw "Completed Draft PR tasks were dispatched again on rerun."}
+ if($stateData.tasks."BUILD-99004"){throw "Dependency-gated task unexpectedly entered worker state."}
+ Write-Host "PASS: three fake agents overlapped (start spread $($delta)ms), produced Draft PR states, and pushed isolated branches."
 }finally{
  $env:PATH=$originalPath
  Remove-Item Env:DEVFLOW_TEST_LOG,Env:DEVFLOW_AGENT_COMMAND,Env:DEVFLOW_AGENT_ARGS_JSON -ErrorAction SilentlyContinue

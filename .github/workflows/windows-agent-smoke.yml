@@ -1,0 +1,65 @@
+name: Windows self-hosted Agent CLI smoke
+
+on:
+  push:
+    branches:
+      - fix/devflow-detached-supervisor-2026-11-20
+    paths:
+      - .github/workflows/windows-agent-smoke.yml
+      - scripts/test-real-agent-cli.ps1
+      - scripts/devflow-agent-process.ps1
+      - scripts/git-cli-agent-config.ps1
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-agent-cli-smoke
+  cancel-in-progress: false
+
+jobs:
+  agent-smoke:
+    runs-on: [self-hosted, Windows, X64, shorts-agent]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout automation branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/devflow-detached-supervisor-2026-11-20
+          clean: true
+
+      - name: Verify Windows runner, Ollama and Agent configuration
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ($PSVersionTable.PSVersion.Major -lt 7) { throw "PowerShell 7+ is required." }
+          foreach ($tool in @("git", "gh", "python", "pwsh")) {
+            if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { throw "Missing required tool: $tool" }
+          }
+          gh auth status
+          $ollama = Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -TimeoutSec 10
+          if (-not ($ollama.models | Where-Object { $_.name -eq "qwen2.5-coder:7b" })) {
+            throw "Required local Ollama model qwen2.5-coder:7b is not available."
+          }
+          & "$PWD/scripts/git-cli-agent-config.ps1" -Check
+          if ($LASTEXITCODE -ne 0) { throw "Agent CLI preflight failed." }
+          Write-Host "PASS: self-hosted Windows runner, local Ollama model and Agent CLI configuration."
+
+      - name: Execute one real Agent CLI request
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $log = Join-Path $env:RUNNER_TEMP "agent-cli-smoke.log"
+          & "$PWD/scripts/test-real-agent-cli.ps1" -TimeoutSeconds 300 6>&1 2>&1 | Tee-Object -FilePath $log
+          if ($LASTEXITCODE -ne 0) { throw "Real Agent CLI smoke test failed with exit code $LASTEXITCODE." }
+
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-agent-cli-smoke-${{ github.run_id }}
+          path: ${{ runner.temp }}/agent-cli-smoke.log
+          if-no-files-found: warn
+          retention-days: 14

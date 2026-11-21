@@ -6,7 +6,9 @@ param(
  [ValidateRange(1,20)][int]$MaxTasks=20
 )
 $ErrorActionPreference="Stop"
+$env:DEVFLOW_VALIDATOR_PATH=Join-Path $PSScriptRoot "devflow.py"
 if($PSVersionTable.PSVersion.Major -lt 7){throw "PowerShell 7 or newer is required."}
+. (Join-Path $PSScriptRoot "devflow-agent-process.ps1")
 function Read-State([string]$Path){
  if(-not(Test-Path $Path)){return @{schema_version=1;tasks=@{}}}
  return (Get-Content -LiteralPath $Path -Raw -Encoding UTF8|ConvertFrom-Json -AsHashtable)
@@ -45,6 +47,15 @@ if($Worker){
   $argsJson=$env:DEVFLOW_AGENT_ARGS_JSON;$command=$env:DEVFLOW_AGENT_COMMAND
   if(-not $command -or -not $argsJson){throw "Agent CLI configuration missing."}
   $agentArgs=ConvertFrom-Json -InputObject $argsJson;if($agentArgs -isnot [array]){$agentArgs=@($agentArgs)}
+  # Resolve runner-provided Agent script paths before changing process cwd to an isolated worktree.
+  # Older per-user configurations may still contain a relative scripts/ollama-agent.py path.
+  if($agentArgs.Count -gt 0 -and -not [IO.Path]::IsPathRooted([string]$agentArgs[0])){
+   $runnerRoot=$env:GITHUB_WORKSPACE
+   if(-not $runnerRoot){$runnerRoot=(git -C $PSScriptRoot rev-parse --show-toplevel 2>$null)}
+   if($runnerRoot){$candidate=[IO.Path]::GetFullPath((Join-Path $runnerRoot ([string]$agentArgs[0])))
+    if(Test-Path -LiteralPath $candidate -PathType Leaf){$agentArgs[0]=$candidate}
+   }
+  }
   $filePlaceholderCount=@($agentArgs|Where-Object{$_ -eq "{prompt_file}"}).Count
   $textPlaceholderCount=@($agentArgs|Where-Object{$_ -eq "{prompt_text}"}).Count
   if(($filePlaceholderCount + $textPlaceholderCount) -ne 1){throw "Agent args must include exactly one {prompt_file} or {prompt_text} placeholder."}
@@ -55,8 +66,7 @@ if($Worker){
    if($textPlaceholderCount -eq 1){$value=$value.Replace("{prompt_text}",$promptText)}
    $value.Replace("{task_id}",$id).Replace("{worktree}",$taskData.worktree)
   }
-  $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName=$command;$psi.WorkingDirectory=$taskData.worktree;$psi.UseShellExecute=$false;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
-  foreach($a in $expanded){[void]$psi.ArgumentList.Add($a)}
+  $psi=New-DevflowAgentProcessStartInfo -Command $command -Arguments @($expanded) -WorkingDirectory $taskData.worktree
   $agent=[Diagnostics.Process]::new();$agent.StartInfo=$psi
   if(-not $agent.Start()){throw "Agent did not start."}
   $stdout=$agent.StandardOutput.ReadToEndAsync();$stderr=$agent.StandardError.ReadToEndAsync()
@@ -68,13 +78,16 @@ if($Worker){
   Remove-Item -LiteralPath $taskData.prompt -Force -ErrorAction SilentlyContinue
   if(& git -C $taskData.worktree status --porcelain -- .devflow/tasks.json){throw "Protected task manifest was modified."}
   if(-not(& git -C $taskData.worktree status --porcelain)){throw "Agent produced no changes."}
-  & python (Join-Path $taskData.worktree "scripts/devflow.py") validate;if($LASTEXITCODE -ne 0){throw "Validation failed."}
+  $validator=$env:DEVFLOW_VALIDATOR_PATH;if(-not $validator -or -not(Test-Path -LiteralPath $validator)){$validator=Join-Path $taskData.worktree "scripts/devflow.py"};if(-not(Test-Path -LiteralPath $validator)){throw "DevFlow validator is unavailable in runner checkout and task worktree."};& python $validator validate;if($LASTEXITCODE -ne 0){throw "Validation failed."}
   foreach($n in @(".env",".env.local","credentials.json","secrets.json")){
    $secret=Get-ChildItem $taskData.worktree -Force -Recurse -File -Filter $n -ErrorAction SilentlyContinue|Where-Object{$_.FullName -notmatch '[\\/](\.git|node_modules|\.venv)[\\/]'}
    if($secret){throw "Potential secret file: $n"}
   }
   & git -C $taskData.worktree add -A;if($LASTEXITCODE -ne 0){throw "git add failed."}
   & git -C $taskData.worktree diff --cached --check;if($LASTEXITCODE -ne 0){throw "git diff check failed."}
+  # Configure identity only inside this isolated worker worktree; never alter user-global Git config.
+  & git -C $taskData.worktree config user.name "github-actions[bot]";if($LASTEXITCODE -ne 0){throw "worktree Git author name configuration failed."}
+  & git -C $taskData.worktree config user.email "41898282+github-actions[bot]@users.noreply.github.com";if($LASTEXITCODE -ne 0){throw "worktree Git author email configuration failed."}
   & git -C $taskData.worktree commit -m "BUILD: $id - $($taskData.title)";if($LASTEXITCODE -ne 0){throw "commit failed."}
   & git -C $taskData.worktree push -u origin $taskData.branch;if($LASTEXITCODE -ne 0){throw "push failed."}
   & gh pr create --draft --base $taskData.base --head $taskData.branch --title "BUILD: $id - $($taskData.title)" --body "Task $id validated by isolated worker. Draft only; no merge, deployment, publishing, or dependency completion."
@@ -117,6 +130,7 @@ foreach($t in @($eligible|Select-Object -First $MaxTasks)){
  $queue.Enqueue($t)
 }
 $active=[Collections.Generic.List[object]]::new()
+$workerFailures=[Collections.Generic.List[string]]::new()
 while($queue.Count -gt 0 -or $active.Count -gt 0){
  while($queue.Count -gt 0 -and $active.Count -lt $MaxParallel){
   $t=$queue.Dequeue();$id=[string]$t.id;$stamp=Get-Date -Format "yyyyMMdd-HHmmssfff"
@@ -124,7 +138,7 @@ while($queue.Count -gt 0 -or $active.Count -gt 0){
   $wt=Join-Path $wtRoot "$($id.ToLowerInvariant())-$stamp";$branch="autopilot/$($id.ToLowerInvariant())-$stamp"
   New-Item -ItemType Directory -Force -Path $wtRoot|Out-Null
   & git -C $root fetch origin --prune;if($LASTEXITCODE -ne 0){throw "git fetch failed."}
-   $baseBranch=if($Base){$Base}else{[string]$manifest.policy.default_base}
+   $baseBranch=if($Base){$Base}elseif($t.base_branch){[string]$t.base_branch}else{[string]$manifest.policy.default_base}
   & git -C $root worktree add -b $branch $wt "origin/$baseBranch";if($LASTEXITCODE -ne 0){throw "worktree creation failed for $id."}
   $prompt=Join-Path $wt ".devflow-agent-task.md"
   $lines=@("# $id - $($t.title)","Scope:")+@($t.scope|ForEach-Object{"- $_"})+@("Acceptance:")+@($t.acceptance|ForEach-Object{"- $_"})+@("Do not edit task manifest, bypass gates, merge, deploy, publish, or change credentials.")
@@ -132,24 +146,29 @@ while($queue.Count -gt 0 -or $active.Count -gt 0){
   $taskPath=Join-Path $stateDir "$id-$stamp.json"
   @{id=$id;title=$t.title;worktree=$wt;branch=$branch;base=$baseBranch;prompt=$prompt;timeout_seconds=$TaskTimeoutSeconds}|ConvertTo-Json|Set-Content -LiteralPath $taskPath -Encoding utf8
   Set-State $statePath $id "queued" "branch=$branch"
-  $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName=(Get-Command pwsh).Source;$psi.WorkingDirectory=$root;$psi.UseShellExecute=$false
+  $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName=(Get-Command pwsh).Source;$psi.WorkingDirectory=$root;$psi.UseShellExecute=$false;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true
   foreach($a in @("-NoProfile","-File",$PSCommandPath,"-Worker","-TaskFile",$taskPath,"-StateRoot",$stateDir,"-TaskTimeoutSeconds",[string]$TaskTimeoutSeconds)){[void]$psi.ArgumentList.Add($a)}
   $workerProcess=[Diagnostics.Process]::new();$workerProcess.StartInfo=$psi
   if(-not $workerProcess.Start()){throw "Could not start worker for $id."}
-  $active.Add([pscustomobject]@{id=$id;process=$workerProcess;started=[DateTime]::UtcNow;worktree=$wt})
+  $workerStdout=$workerProcess.StandardOutput.ReadToEndAsync();$workerStderr=$workerProcess.StandardError.ReadToEndAsync()
+  $active.Add([pscustomobject]@{id=$id;process=$workerProcess;stdout=$workerStdout;stderr=$workerStderr;started=[DateTime]::UtcNow;worktree=$wt})
   Write-Host "[MULTIFLOW] Started $id on $branch"
  }
  Start-Sleep -Seconds 2
  for($i=$active.Count-1;$i -ge 0;$i--){
   $item=$active[$i];$item.process.Refresh()
   if($item.process.HasExited){
-   if($item.process.ExitCode -ne 0){Write-Warning "$($item.id) failed; worktree retained at $($item.worktree)."}
+   if($item.stdout.Result){Write-Output $item.stdout.Result}
+   if($item.stderr.Result){Write-Warning "$($item.id) stderr: $($item.stderr.Result)"}
+   if($item.process.ExitCode -ne 0){$workerFailures.Add("$($item.id): worker exit $($item.process.ExitCode)");Write-Warning "$($item.id) failed (exit $($item.process.ExitCode)); worktree retained at $($item.worktree)."}
    $active.RemoveAt($i)
   }elseif(([DateTime]::UtcNow-$item.started).TotalSeconds -gt $TaskTimeoutSeconds+90){
    try{$item.process.Kill($true)}catch{}
    Set-State $statePath $item.id "timed_out" "worker process tree terminated; worktree retained"
+   $workerFailures.Add("$($item.id): worker timed out")
    $active.RemoveAt($i)
   }
  }
 }
 Write-Host "[MULTIFLOW] All workers exited. State: $statePath. Draft PRs only; no merge/deploy."
+if($workerFailures.Count -gt 0){Write-Error ("Multi-flow worker failures: "+($workerFailures -join "; "));exit 1}

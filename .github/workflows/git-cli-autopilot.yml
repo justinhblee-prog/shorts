@@ -7,8 +7,16 @@ on:
       - "scripts/git-cli-multiflow.ps1"
       - "scripts/git-cli-multiflow-parallel.ps1"
       - "scripts/test-git-cli-multiflow-parallel.ps1"
+      - "scripts/test-devflow-detached.ps1"
+      - "scripts/test-devflow-detached-e2e.ps1"
       - "scripts/git-cli-agent-config.ps1"
       - "scripts/start-devflow-autopilot.ps1"
+      - "scripts/start-devflow-detached.ps1"
+      - "scripts/devflow-agent-process.ps1"
+      - "scripts/ollama-agent.py"
+      - "scripts/test_ollama_tool_protocol.py"
+      - "scripts/test_ollama_agent_protocol.py"
+      - "scripts/test_ollama_agent.py"
       - "scripts/devflow.py"
       - ".github/workflows/git-cli-autopilot.yml"
   workflow_dispatch:
@@ -39,8 +47,12 @@ jobs:
             "scripts/git-cli-multiflow.ps1",
             "scripts/git-cli-multiflow-parallel.ps1",
             "scripts/test-git-cli-multiflow-parallel.ps1",
+            "scripts/test-devflow-detached.ps1",
+            "scripts/test-devflow-detached-e2e.ps1",
             "scripts/git-cli-agent-config.ps1",
-            "scripts/start-devflow-autopilot.ps1"
+            "scripts/start-devflow-autopilot.ps1",
+            "scripts/start-devflow-detached.ps1",
+            "scripts/devflow-agent-process.ps1"
           )
           foreach ($file in $files) {
             $tokens = $null
@@ -75,7 +87,7 @@ jobs:
           $failed = $false
           try { & "$PWD/scripts/git-cli-agent-config.ps1" -ValidateOnly -AgentCommand "fixture-agent" -AgentArgsJson '["--token","fake-secret","{prompt_file}"]' } catch { $failed = $true }
           if (-not $failed) { throw "Credential-like Agent CLI arguments were not rejected." }
-      - name: Exercise two isolated workers concurrently
+      - name: Exercise three isolated workers concurrently
         shell: pwsh
         run: |
           & "$PWD/scripts/test-git-cli-multiflow-parallel.ps1"
@@ -87,6 +99,26 @@ jobs:
           $env:DEVFLOW_AGENT_COMMAND = 'agent-that-is-not-installed'
           & "$PWD/scripts/start-devflow-autopilot.ps1" -Plan -MaxTasks 3
           if (-not $?) { throw "Launcher plan smoke failed with agent env configured." }
+      - name: Exercise detached Windows supervisor lifecycle
+        shell: pwsh
+        run: |
+          & "$PWD/scripts/test-devflow-detached.ps1"
+          if ($LASTEXITCODE -ne 0) { throw "Detached supervisor integration harness failed." }
+      - name: Exercise detached supervisor end-to-end worker lifecycle
+        shell: pwsh
+        run: |
+          & "$PWD/scripts/test-devflow-detached-e2e.ps1"
+          if ($LASTEXITCODE -ne 0) { throw "Detached supervisor end-to-end test failed." }
+      - name: Verify detached supervisor safety contract
+        shell: pwsh
+        run: |
+          $script = Get-Content "scripts/start-devflow-detached.ps1" -Raw
+          foreach ($required in @("Start-Process", "WindowStyle Hidden", "scheduler.lock", "FileShare]::None", "stdout_log", "stderr_log", "status_file")) {
+            if ($script -notmatch [regex]::Escape($required)) { throw "Detached supervisor contract missing: $required" }
+          }
+          if ($script -match "(?i)codex|bypass-permissions|dangerously-skip-permissions") {
+            throw "Detached supervisor must not add Codex or permission-bypass behavior."
+          }
       - name: Confirm Codex is not referenced by launcher
         shell: pwsh
         run: |
@@ -114,8 +146,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Compile helper
-        run: python -m py_compile scripts/devflow.py
+      - name: Compile helpers and local Ollama Agent
+        run: python -m py_compile scripts/devflow.py scripts/ollama-agent.py scripts/test_ollama_tool_protocol.py
+      - name: Run offline Ollama tool protocol regression tests
+        if: hashFiles('scripts/test_ollama_agent_protocol.py') != ''
+        run: python -m unittest scripts.test_ollama_agent_protocol -v
+      - name: Run isolated local Ollama Agent safety tests
+        if: hashFiles('scripts/test_ollama_agent.py') != ''
+        run: python -m unittest scripts.test_ollama_agent -v
       - name: Validate task manifest
         run: |
           python - <<'PY'

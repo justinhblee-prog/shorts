@@ -2,7 +2,7 @@
   "schema_version": 1,
   "policy": {
     "max_parallel_worktrees": 3,
-    "default_base": "feat/engineering-orchestrator-2026-11-20",
+    "default_base": "fix/devflow-detached-supervisor-2026-11-20",
     "pull_requests": "draft",
     "auto_merge": false,
     "auto_deploy": false,
@@ -45,7 +45,8 @@
         "Use real pinned FFmpeg and ffprobe binaries in an isolated worker container",
         "Enforce CPU, memory, disk, network and process-count quotas outside this Python module",
         "Add actual audio-mix support and real-media integration tests"
-      ]
+      ],
+      "notes": "Existing Draft PRs #435-#439 require integration review before any merge. #435 and #436 are individually clean against the shared base; #437 and #439 are divergent FFmpeg renderer implementations with GitHub mergeable_state=dirty and overlapping backend/timeline_ffmpeg_renderer.py; #438 is based on #437. Tests passed for #435-#438; #439 currently has no check runs. Do not merge automatically; consolidate duplicate renderer paths and validate before review."
     },
     {
       "id": "BUILD-00353",
@@ -96,6 +97,137 @@
         "Target host access and deployment authorization",
         "YouTube OAuth and explicit private-test authorization"
       ]
+    },
+    {
+      "id": "BUILD-00355",
+      "title": "Add isolated safety and tool-contract tests for the local Ollama coding agent",
+      "priority": 4,
+      "status": "completed",
+      "depends_on": [],
+      "base_branch": "fix/devflow-detached-supervisor-2026-11-20",
+      "scope": [
+        "scripts/ollama-agent.py",
+        "scripts/test_ollama_agent.py"
+      ],
+      "acceptance": [
+        "Add standard-library unit tests for repository path traversal and protected-file write rejection",
+        "Verify blocked secret/config directories and file-size limits for reads and writes",
+        "Verify only the documented run_check allowlist executes and unknown tools are rejected",
+        "Mock subprocess and local Ollama HTTP calls so tests require no live model, network service, credentials, or paid API",
+        "Run the new tests and Python compilation successfully",
+        "Do not modify .devflow/tasks.json or unrelated project files"
+      ],
+      "external_gates": [],
+      "notes": "Implemented and submitted as Draft PR #441. Verified 16 standard-library safety/tool-contract tests and Python compilation in GitHub Actions. No merge or deployment."
+    },
+    {
+      "id": "BUILD-00356",
+      "title": "Add offline regression tests for Ollama tool-call protocol",
+      "priority": 5,
+      "status": "completed",
+      "depends_on": [],
+      "base_branch": "fix/devflow-detached-supervisor-2026-11-20",
+      "scope": [
+        "scripts/ollama-agent.py",
+        "scripts/test_ollama_agent_protocol.py"
+      ],
+      "acceptance": [
+        "Add standard-library offline unit tests for fenced JSON tool-call parsing, raw JSON parsing, malformed responses, and unknown tool rejection",
+        "Mock urllib.request.urlopen and verify the local Ollama endpoint, model, tools payload, and absence of forced JSON response format",
+        "Tests must not require a live Ollama service, network access, credentials, or paid API",
+        "Run Python compilation and inspect the final diff; do not claim unit tests passed unless actually executed",
+        "Do not modify .devflow/tasks.json or unrelated project files"
+      ],
+      "external_gates": [],
+      "notes": "Real Windows Runner/Ollama worker generated and committed the offline protocol regression suite in Draft PR #442. Completed suite and scoped-patch sandbox coverage verified in stacked Draft PR #443: 8 tests passed; Git CLI automation checks and backend/UI CI passed. No merge or deployment."
+    },
+    {
+      "id": "BUILD-00357",
+      "title": "Add browser-level regression coverage for the read-only development monitor",
+      "priority": 6,
+      "status": "ready",
+      "depends_on": [],
+      "base_branch": "feat/dev-orch-008-readonly-dashboard-2026-11-21",
+      "scope": [
+        "scripts/ui_development_monitor_smoke.mjs",
+        "scripts/ui_development_monitor_smoke_server.py",
+        "docs"
+      ],
+      "acceptance": [
+        "Create a disposable fixture API server that exposes only the read-only development monitor endpoints and deterministic job, event and worker fixtures.",
+        "Use the repository's existing Chromium smoke conventions; do not add paid services, live credentials, production DB access or external network calls.",
+        "Verify authenticated dashboard loading, summary counts, status filtering, job selection and event-history switching.",
+        "Verify lease tokens, runner hostnames and private event details are never rendered in the browser.",
+        "Verify missing/invalid API authentication shows a safe error state and no write or mutation request is issued.",
+        "Run the smoke test and record the exact command and result; keep screenshots/artifacts where existing conventions support them."
+      ],
+      "external_gates": [],
+      "notes": "Independent UI/QA lane stacked on Draft PR #445. Do not modify backend source or PR #445 files; tests and fixture only."
+    },
+    {
+      "id": "BUILD-00358",
+      "title": "Expand read-only development monitor API contract and security regressions",
+      "priority": 7,
+      "status": "ready",
+      "depends_on": [],
+      "base_branch": "feat/dev-orch-008-readonly-dashboard-2026-11-21",
+      "scope": [
+        "backend/tests/test_development_job_api.py"
+      ],
+      "acceptance": [
+        "Add API-level tests for status filtering, bounded pagination/limits and deterministic event-history ordering.",
+        "Verify every monitor route remains GET-only and requires development.read authorization.",
+        "Verify response serialization excludes lease tokens, worker hostnames and private event details across summary, list, detail, events and worker endpoints.",
+        "Verify missing jobs return 404, invalid filters/limits return 422, and missing/unavailable/incomplete DB configuration fails closed without creating a database.",
+        "Verify read-only monitor requests do not mutate job, lease, worker or event state.",
+        "Run the focused test module and full scripts/validate.sh; do not claim unexecuted checks."
+      ],
+      "external_gates": [],
+      "notes": "Independent Core/QA lane stacked on Draft PR #445. Modify only this test file; do not change backend implementation or task manifest."
+    },
+    {
+      "id": "BUILD-00359",
+      "title": "Strengthen development monitor API pagination and multi-event ordering regressions",
+      "priority": 8,
+      "status": "ready",
+      "depends_on": [],
+      "base_branch": "autopilot/build-00358-20261121-123745786",
+      "scope": [
+        "backend/tests/test_development_job_api.py"
+      ],
+      "acceptance": [
+        "Create multiple ready jobs and prove the API limit truncates results rather than merely returning one item for limit=1.",
+        "Verify the maximum permitted page size is enforced and invalid limits return 422.",
+        "Create at least three events with deliberately distinct timestamps and verify stable chronological ordering across the returned event history.",
+        "Keep the tests isolated, deterministic, and read-only; do not change backend implementation or other test files.",
+        "Run the focused API test module and scripts/validate.sh; record exact results."
+      ],
+      "external_gates": [],
+      "notes": "Follow-up QA lane stacked on Draft PR #447. It closes concrete coverage gaps found during review. Do not merge or deploy."
+    },
+    {
+      "id": "BUILD-00360",
+      "title": "Improve live UI preview accessibility and mobile interaction quality",
+      "priority": 9,
+      "status": "ready",
+      "depends_on": [],
+      "base_branch": "ui/nexus-live-preview-2026-11-21",
+      "scope": [
+        "frontend/index.html",
+        "frontend/styles.css",
+        "frontend/preview-mode.js",
+        "scripts/ui_preview_accessibility_smoke.mjs",
+        "docs"
+      ],
+      "acceptance": [
+        "Audit the visual-only preview banner and floating screen-feedback panel for keyboard access, visible focus, accessible names and semantic status announcements.",
+        "Improve mobile layout and touch interaction at 390px and 320px without changing the existing visual design direction.",
+        "Add a deterministic browser smoke for keyboard navigation, feedback-panel open/close, copy-feedback fallback and mobile overflow.",
+        "Verify preview mode remains disconnected from operational APIs and does not enable publishing, scheduling, ledger submission or credential actions.",
+        "Run the new smoke and scripts/validate.sh; record exact commands and results."
+      ],
+      "external_gates": [],
+      "notes": "Independent UI lane stacked on Draft PR #451. Do not modify backend or Vercel deployment configuration; visual-only staging remains isolated."
     }
   ]
 }
