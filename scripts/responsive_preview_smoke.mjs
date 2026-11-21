@@ -47,7 +47,7 @@ async function waitForServer() {
     assert.equal(await app.locator(".topbar").evaluate(el => getComputedStyle(el).position), "fixed");
     assert.equal(await app.locator(".topbar").evaluate(el => Math.round(el.getBoundingClientRect().width)), 258);
     assert.equal(await app.locator(".hero-visual").evaluate(el => getComputedStyle(el).display), "grid");
-    assert.equal(await app.locator(".button-primary").evaluate(el => getComputedStyle(el).backgroundImage.includes("linear-gradient")), true);
+    assert.equal(await app.locator(".button-primary").first().evaluate(el => getComputedStyle(el).backgroundImage.includes("linear-gradient")), true);
     await frame.waitFor();
     await page.waitForFunction(() => {
       const frame = document.querySelector("iframe");
