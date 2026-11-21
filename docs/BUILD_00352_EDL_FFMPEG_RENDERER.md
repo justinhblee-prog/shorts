@@ -22,16 +22,14 @@ Transitions, subtitles, arbitrary filters, URL inputs, arbitrary file paths, tim
 - The authenticated operator API supports bounded private uploads, quarantine/rescan, render submission/status, pending artifact listing, download and review decisions.
 - ClamAV and ffprobe failures leave media quarantined. `NEXUS_MEDIA_SCAN_ENABLED` must be enabled and trusted ClamAV signatures available before uploads can become renderable; the default is fail-closed/pending.
 - The Compose render worker is isolated with no network, read-only root filesystem, dropped Linux capabilities, no-new-privileges, bounded tmpfs, CPU/memory/PID limits and graceful shutdown.
+- The render worker periodically reconciles crash-left staging outputs and unindexed adopted-artifact files every five minutes with a two-hour grace period. The current follow-up adds structured removal counts and failure-type logs; this is orphan cleanup only, not indexed artifact retention/deletion or a hard disk quota.
 
 ## Validation evidence
 
-GitHub Actions on the integrated Draft PR:
-- 910 backend tests passed.
-- UI browser smoke passed, including desktop/mobile, keyboard navigation and authenticated API checks.
-- Real FFmpeg/ffprobe smoke generated a two-second MP4 with a title overlay and audio track, validated the output, adopted the artifact under the live worker lease, exposed it for review and recorded an approval bound to the artifact hash.
-- Compose smoke verified worker isolation/resource limits and encrypted backup/restore.
-
-The smoke uses generated fixture media. It does not establish production compatibility across arbitrary user media or prove a malware-signature update on the deployment host.
+GitHub Actions on the integrated Draft PR #467:
+- Exact code head `6b81e697c3537d81aa5051eb6208f8db2ce2defb): **914 backend tests passed**; UI browser smoke passed, including authenticated Korean rendering, desktop/mobile, keyboard search, workspace isolation, review approval/audit, analytics pagination/CSV and partial API failure handling.
+- Compose integration smoke passed: current ClamAV database readiness and EICAR rejection, service readiness, render-worker isolation/resource limits, real FFmpeg/ffprobe fixture render and artifact adoption/review, authenticated API upload → separate worker render → approval → private preview, and scheduled encrypted backup plus isolated restore.
+- The authenticated E2E uses generated MP4 media and isolated Docker volumes. It proves the Compose integration path, not arbitrary customer-media compatibility, physical-device QA, target-host persistence/quotas, or live YouTube/TikTok provider validation.
 
 ## Remaining production gates
 
