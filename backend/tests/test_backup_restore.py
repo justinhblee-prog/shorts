@@ -85,6 +85,29 @@ class BackupRestoreTests(unittest.TestCase):
         self.assertIn("media/clip.mp4", names)
         self.assertIn("media/nested/caption.srt", names)
 
+    def test_restore_checks_target_volume_space_before_staging_replacement(self):
+        (self.media / "clip.mp4").write_bytes(b"restore-media")
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        self._create_db("current")
+        ample = type("DiskUsage", (), {"free": 10**12})()
+        low = type("DiskUsage", (), {"free": 0})()
+        with patch("backup_restore.shutil.disk_usage", side_effect=[ample, low]):
+            with patch.dict(os.environ, {"NEXUS_RESTORE_MIN_FREE_BYTES": "0"}):
+                with self.assertRaisesRegex(BackupRestoreError, "Insufficient free disk space for restore staging"):
+                    restore_backup(backup, self.db, self.media, self.backups, confirm_restore=True)
+        self.assertEqual(self._db_value(), "current")
+        self.assertEqual((self.media / "clip.mp4").read_bytes(), b"restore-media")
+        self.assertFalse(Path(self.backups).glob("nexus-backup-*.tar.gz"))
+        self.assertFalse(list(self.root.glob("nexus-restore-*")))
+
+    def test_restore_rejects_invalid_minimum_free_space_setting(self):
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        with patch.dict(os.environ, {"NEXUS_RESTORE_MIN_FREE_BYTES": "-1"}):
+            with self.assertRaisesRegex(BackupRestoreError, "NEXUS_RESTORE_MIN_FREE_BYTES"):
+                restore_backup(backup, self.db, self.media, self.backups, confirm_restore=True)
+        self.assertEqual(self._db_value(), "before")
+        self.assertFalse(list(self.root.glob("nexus-restore-*")))
+
     def test_restore_requires_explicit_confirmation_and_creates_pre_restore_backup(self):
         (self.media / "clip.mp4").write_bytes(b"old")
         backup = create_backup(self.db, self.media, self.backups)["backup_path"]
