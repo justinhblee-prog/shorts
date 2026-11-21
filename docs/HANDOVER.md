@@ -1548,3 +1548,24 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Exact-head Actions validation pending.
 
 - BUILD-00351 exact checkpoint `1dbd12852bf41c9c58c11a801a30d9d3000daffa` passed 725 backend tests and the health-aware five-service Compose integration: [backend 44506538368](https://github.com/justinhblee-prog/shorts/actions/runs/44506538368), [Compose 44506538484](https://github.com/justinhblee-prog/shorts/actions/runs/44506538484). Worker, scheduler, metrics collector and backup reported healthy; backup success marker and encrypted isolated restore were verified.
+
+
+## BUILD-00361 — authenticated timeline editor integration — 2026-11-21
+
+- The UI branch feat/nexus-timeline-editor-2026-11-21 is based on the exact BUILD-00352 renderer integration head a3c61e146c660c73eb74cd952d614de581a3e950; it preserves the fixed sidebar, workspace selector, keyboard search and workspace-scoped API headers.
+- The production floor adds live Discover/Create/Review/Measure indicators, a private review-video spotlight and the persistent queue rail.
+- The existing browser-local timeline remains non-destructive and retains source preview, trim, reorder, title overlay and JSON export. The new authenticated render controls create workspaces, upload source video/audio to private workspace storage, require server-side ClamAV/ffprobe clean attestation, validate EDL v1, submit an idempotent render, poll status, download the integrity-checked review artifact and record an artifact-bound human decision.
+- EDL v1 client subset: sequential video clips, timed title overlays and one optional audio bed with gain/fades. No transitions, gaps, overlaps, arbitrary paths/URLs or public publishing.
+- .devflow/tasks.json tracks BUILD-00361 as in progress. Exact-head validation passed on branch head abcfd823edefdc3d4044a45a99385577cc38053c: run 44901290376 passed backend validation, the authenticated timeline editor API-contract Playwright flow and responsive workbench smoke; run 44901290337 passed the real-media Compose FFmpeg/ClamAV upload-render-review-private-preview integration.
+- External validation remains: point the Vercel preview at a reachable API built from BUILD-00352, use an operator token with workspace.read and media.manage, and validate target-host ClamAV signatures, ffprobe, worker and persistent storage with representative media.
+
+
+## BUILD-00361 — Timeline editor integration update (2026-11-21)
+
+- Exact PR head `c0e4168544a56faafc5c999fa577af5e498651e3` passed backend/browser run `44901102049` and Compose integration run `44901102137`.
+- Browser CI covers authenticated workspace upload → EDL v1 validation → idempotent render submission/status → authenticated private artifact blob preview → artifact-bound human decision, plus responsive workbench layout. This path uses browser API interception; it is a contract/UI test, not a live hosted API test.
+- Compose CI independently verifies real generated-media FFmpeg/ffprobe rendering, private artifact adoption/review and authenticated API-to-worker flow on isolated test storage.
+- BUILD-00361 remains in progress: validate against a reachable live API, target-host ClamAV/ffprobe/worker/persistent storage and representative customer media. Multiple audio tracks and explicit project-duration controls remain future editor work.
+- PR #480 remains Draft/open/unmerged. Vercel deployment is being created for this exact head; no production deploy or public publishing.
+
+- The static Vercel preview is deployed from b91db13d3c71c5f0ae28583da471b9ffbe5874b8 at https://nexus-studio-pro-ui-preview-j7gg655lv-justinhblee-9540.vercel.app/preview.html. It exposes an API-origin field in Settings; the API host must allow this preview origin via CORS. The operator token stays in page memory, not localStorage.

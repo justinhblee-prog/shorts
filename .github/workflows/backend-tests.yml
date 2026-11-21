@@ -35,7 +35,10 @@ jobs:
           node-version: "22"
       - run: npm install --no-save playwright@1.56.1
       - run: npx playwright install chromium
-      - run: node scripts/ui_browser_smoke.mjs
+      - name: Verify authenticated timeline editor and EDL API contract
+        run: node scripts/ui_browser_smoke.mjs
+      - name: Verify responsive studio workbench layout
+        run: node scripts/responsive_preview_smoke.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -96,3 +96,18 @@ The eight mandatory launch gates remain at **1/8**. CI and synthetic fixtures do
 - Announce result counts through a polite status region and retain the query across queue refreshes.
 - Add source and Chromium browser regressions for zero-result and matching-result behavior.
 - Exact-head validation passed in the same UI checkpoint: [run 44505738015](https://github.com/justinhblee-prog/shorts/actions/runs/44505738015), 730 tests and Playwright Chromium.
+
+
+## BUILD-00361 — timeline editor UI/API integration
+
+- **Frontend workstream:** preserve the approved fixed-sidebar workspace shell and connect the local timeline editor to authenticated private workspace upload and EDL v1 render APIs.
+- **Backend dependency:** BUILD-00352 provides workspace isolation, quarantined media upload/scan, EDL validation, immutable snapshots, durable queue submission, lease-fenced FFmpeg render, private artifact preview/download and artifact-bound review decisions.
+- **Safety:** render artifacts remain private and review-pending. The editor records approve/reject/revision decisions only; it does not publish to YouTube/TikTok or make content public.
+- **Validation boundary:** browser tests use API contract mocks; backend Compose integration separately exercises real generated MP4/FFmpeg/ffprobe and artifact adoption. Target-host/provider validation remains external.
+
+
+## BUILD-00361 validation status — 2026-11-21
+
+- Exact-head browser + responsive CI: `44901102049` passed on `c0e4168544a56faafc5c999fa577af5e498651e3`.
+- Exact-head Compose real-media render/API integration: `44901102137` passed on the same commit.
+- Browser API interception and Compose real backend tests are separate evidence; neither substitutes for validation against the target hosted API, target persistent storage, fresh target ClamAV signatures or customer media.

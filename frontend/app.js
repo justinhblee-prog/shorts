@@ -3,6 +3,7 @@
   let token = "";
   let reviewer = "operator";
   let activeWorkspaceId = localStorage.getItem("nexusWorkspaceId") || "";
+  let apiOrigin = "";
   let brands = [];
   let toastTimer;
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -38,15 +39,38 @@
   const money = (n,c="USD") => new Intl.NumberFormat("en-US",{style:"currency",currency:c,maximumFractionDigits:2}).format(Number(n||0));
   function toast(message){$("toast").textContent=message;$("toast").classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>$("toast").classList.remove("show"),2800);}
   function msg(id,text,error=false){const el=$(id);el.textContent=text;el.classList.toggle("error",!!error);}
+  function normalizeApiOrigin(value){
+    const raw=String(value||"").trim();
+    if(!raw)return "";
+    let url;
+    try{url=new URL(raw);}catch{throw new Error("API 주소는 https:// 도메인 형식으로 입력하세요.");}
+    const localHost=["localhost","127.0.0.1","[::1]"].includes(url.hostname);
+    if((url.protocol!=="https:"&&!(url.protocol==="http:"&&localHost))||url.username||url.password||url.search||url.hash||url.pathname!=="/")
+      throw new Error("API 주소는 HTTPS 도메인 또는 localhost 주소만 허용됩니다.");
+    return url.origin;
+  }
+  try{apiOrigin=normalizeApiOrigin(localStorage.getItem("nexusApiOrigin")||"");}catch{localStorage.removeItem("nexusApiOrigin");apiOrigin="";}
   async function api(path,options={}){
     const headers={"Content-Type":"application/json",...(options.headers||{})};
     if(token) headers["X-Review-Token"]=token;
     if(activeWorkspaceId) headers["X-Nexus-Workspace-Id"]=activeWorkspaceId;
-    const response=await fetch(path,{...options,headers});
+    const response=await fetch((apiOrigin||window.location.origin)+path,{...options,headers});
     const raw=await response.text();let data={};
     try{data=raw?JSON.parse(raw):{};}catch{data={detail:raw};}
     if(!response.ok) throw new Error(typeof data.detail==="string"?data.detail:JSON.stringify(data.detail||data));
     return data;
+  }
+  async function apiBlob(path,options={}){
+    const headers={...(options.headers||{})};
+    if(token)headers["X-Review-Token"]=token;
+    if(activeWorkspaceId)headers["X-Nexus-Workspace-Id"]=activeWorkspaceId;
+    const response=await fetch((apiOrigin||window.location.origin)+path,{...options,headers});
+    if(!response.ok){
+      const raw=await response.text();let data={};
+      try{data=raw?JSON.parse(raw):{};}catch{data={detail:raw};}
+      throw new Error(typeof data.detail==="string"?data.detail:JSON.stringify(data.detail||data));
+    }
+    return response.blob();
   }
   async function loadWorkspaces(){
     const selector=$("workspaceSelector");
@@ -80,6 +104,7 @@
     if(activeWorkspaceId)localStorage.setItem("nexusWorkspaceId",activeWorkspaceId);
     else localStorage.removeItem("nexusWorkspaceId");
     await refreshAll();
+    window.dispatchEvent(new CustomEvent("nexus:workspace-changed",{detail:{workspaceId:activeWorkspaceId}}));
     toast(activeWorkspaceId?"워크스페이스가 전환되었습니다.":"기본 공간으로 전환되었습니다.");
   });
   function setConnection(connected,label){$("connection").classList.toggle("connected",connected);$("connection").innerHTML='<i></i> '+esc(label);}
@@ -916,15 +941,21 @@
   }
 
   $("saveToken").addEventListener("click",async()=>{
+    try{
+      apiOrigin=normalizeApiOrigin($("apiOriginInput")?.value||"");
+      if(apiOrigin)localStorage.setItem("nexusApiOrigin",apiOrigin);else localStorage.removeItem("nexusApiOrigin");
+    }catch(error){msg("tokenMessage",error.message,true);return;}
     token=$("tokenInput").value.trim();reviewer=$("reviewerInput").value.trim()||"operator";
     try{
       await api("/api/queue/stats");
       await loadWorkspaces();
       $("settingsDialog").close();msg("tokenMessage","인증 성공");
       await refreshAll();
+      window.dispatchEvent(new Event("nexus:auth-changed"));
+      window.dispatchEvent(new CustomEvent("nexus:workspace-changed",{detail:{workspaceId:activeWorkspaceId}}));
     }catch(e){token="";msg("tokenMessage",e.message,true);}
   });
-  $("clearToken").addEventListener("click",()=>{token="";$("tokenInput").value="";setConnection(false,"인증 필요");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");});
+  $("clearToken").addEventListener("click",()=>{token="";$("tokenInput").value="";setConnection(false,"인증 필요");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");window.dispatchEvent(new Event("nexus:auth-changed"));});
   $("refreshAll").addEventListener("click",refreshAll);
   $("loadReviews").addEventListener("click",()=>loadReviews().catch(e=>toast(e.message)));
   $("reviewSearch").addEventListener("input",filterReviewCards);
@@ -1363,7 +1394,10 @@
     }
     function render(){
       $id("timelineClipCount").textContent=state.clips.length+" CLIPS";
-      $id("timelineTotalDuration").textContent=state.clips.reduce((sum,c)=>sum+Math.max(0,c.outPoint-c.inPoint),0).toFixed(1)+"s";
+      const videoDuration=state.clips.filter(c=>c.kind==="video").reduce((sum,c)=>sum+Math.max(0,c.outPoint-c.inPoint),0);
+      state.clips.filter(c=>c.kind==="title").forEach(c=>{c.duration=Math.max(0.1,videoDuration||60);if(c.outPoint>c.duration)c.outPoint=c.duration;});
+      const displayDuration=videoDuration>0?videoDuration:state.clips.reduce((sum,c)=>sum+Math.max(0,c.outPoint-c.inPoint),0);
+      $id("timelineTotalDuration").textContent=displayDuration.toFixed(1)+"s";
       if(!state.clips.length){list.innerHTML='<div class="empty-state">영상 파일 또는 타이틀을 추가하세요.</div>';inspector.hidden=true;setPreview(null);return;}
       list.replaceChildren();
       state.clips.forEach((clip,index)=>{
@@ -1380,7 +1414,7 @@
         if(!file.type.startsWith("video/")){say(file.name+" 파일은 동영상 형식이 아닙니다.");continue;}
         if(file.size>512*1024*1024){say(file.name+" 파일이 512MB 제한을 초과합니다.");continue;}
         if(state.clips.length>=20){say("한 프로젝트에는 최대 20개 클립까지 추가할 수 있습니다.");break;}
-        const url=URL.createObjectURL(file),clip={id:"clip-"+Math.random().toString(36).slice(2),kind:"video",name:file.name,url,mimeType:file.type,sizeBytes:file.size,duration:0,inPoint:0,outPoint:0};
+        const url=URL.createObjectURL(file),clip={id:"clip-"+Math.random().toString(36).slice(2),kind:"video",name:file.name,url,file,mimeType:file.type,sizeBytes:file.size,duration:0,inPoint:0,outPoint:0};
         state.clips.push(clip);state.selected=clip.id;
         const probe=document.createElement("video");probe.preload="metadata";probe.src=url;
         probe.addEventListener("loadedmetadata",()=>{clip.duration=seconds(probe.duration);clip.outPoint=clip.duration;render();say(file.name+" 메타데이터를 불러왔습니다.");},{once:true});
@@ -1391,7 +1425,7 @@
     });
     $id("timelineAddTitle").addEventListener("click",()=>{
       const text=$id("timelineTitleInput").value.trim();if(!text){say("타이틀 문구를 입력하세요.");return;}
-      const clip={id:"title-"+Math.random().toString(36).slice(2),kind:"title",name:text,duration:5,inPoint:0,outPoint:5,text};
+      const clip={id:"title-"+Math.random().toString(36).slice(2),kind:"title",name:text,duration:60,inPoint:0,outPoint:5,text};
       state.clips.push(clip);state.selected=clip.id;$id("timelineTitleInput").value="";render();say("타이틀 클립을 추가했습니다.");
     });
     $id("timelineApplyTrim").addEventListener("click",()=>{
@@ -1404,7 +1438,7 @@
     $id("timelineMoveUp").addEventListener("click",()=>move(-1));
     $id("timelineMoveDown").addEventListener("click",()=>move(1));
     $id("timelineRemove").addEventListener("click",()=>{const clip=selected();if(!clip)return;if(clip.url)URL.revokeObjectURL(clip.url);state.clips=state.clips.filter(c=>c.id!==clip.id);state.selected=state.clips[0]?.id||null;render();const next=selected();setPreview(next);say("선택한 클립을 제거했습니다.");});
-    $id("timelinePlaySelected").addEventListener("click",async()=>{const clip=selected();if(!clip){say("먼저 클립을 선택하세요.");return;}if(clip.kind==="title"){overlay.textContent=clip.text;overlay.hidden=false;say("타이틀 미리보기는 영상 위 렌더링 대상이 아닙니다. 구성표에 포함됩니다.");return;}if(preview.src!==clip.url)setPreview(clip);if(preview.currentTime<clip.inPoint||preview.currentTime>=clip.outPoint)preview.currentTime=clip.inPoint;try{await preview.play();say("선택한 구간을 재생합니다.");}catch{say("브라우저에서 영상 재생을 시작하지 못했습니다.");}});
+    $id("timelinePlaySelected").addEventListener("click",async()=>{const clip=selected();if(!clip){say("먼저 클립을 선택하세요.");return;}if(clip.kind==="title"){overlay.textContent=clip.text;overlay.hidden=false;say("타이틀 미리보기 · 서버 렌더에서 지정한 시간에 영상 위로 합성됩니다.");return;}if(preview.src!==clip.url)setPreview(clip);if(preview.currentTime<clip.inPoint||preview.currentTime>=clip.outPoint)preview.currentTime=clip.inPoint;try{await preview.play();say("선택한 구간을 재생합니다.");}catch{say("브라우저에서 영상 재생을 시작하지 못했습니다.");}});
     preview.addEventListener("play",()=>{const clip=selected();if(clip?.kind==="video"&&preview.currentTime<clip.inPoint)preview.currentTime=clip.inPoint;});
     preview.addEventListener("timeupdate",()=>{const clip=selected();if(clip?.kind==="video"&&preview.currentTime>=clip.outPoint){preview.pause();preview.currentTime=clip.outPoint;say("선택한 클립 구간 재생이 끝났습니다.");}});
     $id("timelineExport").addEventListener("click",()=>{
@@ -1414,6 +1448,24 @@
     preview.addEventListener("loadedmetadata",()=>{empty.hidden=true;});
     window.addEventListener("beforeunload",()=>{for(const clip of state.clips){if(clip.url)URL.revokeObjectURL(clip.url);}});
     render();
+    window.NexusLocalTimeline={state,render,say,selected};
   })();
+  if($("apiOriginInput"))$("apiOriginInput").value=apiOrigin;
   loadBrands().then(()=>{setConnection(false,"API 인증 필요");}).catch(e=>setConnection(false,"API 연결 실패: "+e.message));
+  window.NexusStudioApi={
+    request:api,
+    requestBlob:apiBlob,
+    hasToken:()=>Boolean(token),
+    getWorkspaceId:()=>activeWorkspaceId,
+    getApiOrigin:()=>apiOrigin,
+    refreshWorkspaces:loadWorkspaces,
+    selectWorkspace:async id=>{
+      activeWorkspaceId=String(id||"");
+      if(activeWorkspaceId)localStorage.setItem("nexusWorkspaceId",activeWorkspaceId);
+      else localStorage.removeItem("nexusWorkspaceId");
+      await loadWorkspaces();
+      await refreshAll();
+      window.dispatchEvent(new CustomEvent("nexus:workspace-changed",{detail:{workspaceId:activeWorkspaceId}}));
+    }
+  };
 })();

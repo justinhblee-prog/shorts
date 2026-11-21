@@ -40,3 +40,8 @@ The smoke uses generated fixture media. It does not establish production compati
 - Configure host-level disk quotas and retention limits for private assets, staging and adopted artifacts.
 - Validate on the actual target host and representative customer media before production use.
 - No provider API, upload to social platforms, public publishing or production deployment is included.
+
+
+## Frontend integration — BUILD-00361
+
+The existing browser timeline now submits only the supported EDL v1 subset through the authenticated operator API. Video clips are uploaded to the active workspace and must receive a clean ClamAV/ffprobe attestation before EDL validation. The UI maps sequential video source trims into contiguous timeline ranges, title clips into timed overlays, and one optional audio bed into a bounded gain/fade track. It then submits an idempotent immutable snapshot, polls the worker-owned render status, fetches the integrity-checked private review artifact, and records an artifact-bound human decision. This is not a public publishing flow. The client does not expose arbitrary URLs, paths, filters, transitions, overlaps or timeline gaps.

@@ -291,8 +291,8 @@ class FrontendPortalTests(unittest.TestCase):
     def test_cyber_magic_theme_is_loaded_after_base_styles(self):
         html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
         css = (ROOT / "frontend" / "cyber-magic.css").read_text(encoding="utf-8")
-        self.assertIn('/assets/cyber-magic.css', html)
-        self.assertLess(html.index('/assets/styles.css'), html.index('/assets/cyber-magic.css'))
+        self.assertIn('/cyber-magic.css', html)
+        self.assertLess(html.index('/styles.css'), html.index('/cyber-magic.css'))
         self.assertIn('aria-label="작업공간 메뉴"', html)
         self.assertIn('AI Content Studio', html)
         self.assertIn('Approvals & Publishing', html)
@@ -384,8 +384,8 @@ class PremiumVisualSystemTests(unittest.TestCase):
         frontend = ROOT / "frontend"
         html = (frontend / "index.html").read_text(encoding="utf-8")
         css = (frontend / "nexus-premium.css").read_text(encoding="utf-8")
-        self.assertIn('/assets/nexus-premium.css', html)
-        self.assertLess(html.index('/assets/cyber-magic.css'), html.index('/assets/nexus-premium.css'))
+        self.assertIn('/nexus-premium.css', html)
+        self.assertLess(html.index('/cyber-magic.css'), html.index('/nexus-premium.css'))
         self.assertIn('"Noto Sans KR"', css)
         self.assertIn('"Malgun Gothic"', css)
         self.assertIn('font-synthesis:none', css)
