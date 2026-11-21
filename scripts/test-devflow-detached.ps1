@@ -61,7 +61,7 @@ try{
   $after=@(Get-ChildItem $logPath -Filter "*.run.json" -ErrorAction SilentlyContinue).Count
   if($after -ne $before){throw "Supervisor was spawned despite missing Agent executable."}
   $env:DEVFLOW_AGENT_COMMAND=(Get-Command pwsh -ErrorAction Stop).Source
-  $output=& pwsh -NoProfile -File (Join-Path $repo "scripts/start-devflow-detached.ps1") -MaxTasks 1 2>&1
+  $output=& pwsh -NoProfile -File (Join-Path $repo "scripts/start-devflow-detached.ps1") -MaxTasks 1 -MaxCycles 1 2>&1
   if($LASTEXITCODE -ne 0){throw "Detached launcher failed: $($output -join [Environment]::NewLine)"}
  }finally{Pop-Location}
  $logRoot=Join-Path (Split-Path $repo -Parent) "shorts-fixture-multiflow-logs"
