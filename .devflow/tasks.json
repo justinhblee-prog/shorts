@@ -251,7 +251,8 @@
         "Visual VIDEO lane now shortens total duration for crossfades, shifts subsequent clips left by the overlap duration and displays a labeled crossfade marker at each join.",
         "Added a black-gap clip-connection mode alongside hard cut and crossfade; timeline shows a distinct BLACK marker and places following clips after the configured interval.",
         "Video shelf thumbnails now use IntersectionObserver with a bounded prefetch margin and preload=none, so only visible or near-visible cards initiate media metadata/decode work; browsers without IntersectionObserver retain a safe eager fallback.",
-        "Exact corrected executable head e0eade2946006f3a47c86113cc614c3a46c6da2e passed scripts/validate.sh, authenticated timeline editor/EDL Playwright smoke and responsive workbench smoke in Actions run 44917087034; a documentation-only PR update follows."
+        "Exact corrected executable head e0eade2946006f3a47c86113cc614c3a46c6da2e passed scripts/validate.sh, authenticated timeline editor/EDL Playwright smoke and responsive workbench smoke in Actions run 44917087034; a documentation-only PR update follows.",
+        "Thumbnail lifecycle cleanup pauses and detaches loaded media sources from discarded shelf cards on rerender, releasing browser decoder/media resources; Playwright verifies old detached cards are paused and no longer retain src."
       ],
       "remaining": [
         "Validate thumbnail extraction with representative real customer codecs and large files"
