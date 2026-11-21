@@ -97,7 +97,8 @@ class ClamAVScannerTests(unittest.TestCase):
             scanner.scan(self.path)
 
     def test_future_dated_signatures_fail_closed(self):
-        future = 2_000_000_000
+        import time
+        future = time.time() + 600
         scanner = ClamAVScanner(database_dir=self.database, clock=lambda: future - 600, runner=lambda *args, **kwargs: None)
         os.utime(os.path.join(self.database, "main.cvd"), (future, future))
         with self.assertRaisesRegex(MediaScanError, "future"):
