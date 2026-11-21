@@ -366,6 +366,16 @@ async function waitForServer() {
       state.selected="clip-smoke";
       window.NexusLocalTimeline.render();
     });
+    await page.locator("#timelineAudioInput").setInputFiles([
+      {name:"music-bed.wav",mimeType:"audio/wav",buffer:makeWavFixture()},
+      {name:"voice-over.wav",mimeType:"audio/wav",buffer:makeWavFixture()},
+    ]);
+    await page.waitForFunction(() => document.querySelectorAll("#timelineAudioTracks .timeline-audio-track").length === 2);
+    const audioRows=page.locator("#timelineAudioTracks .timeline-audio-track");
+    await audioRows.nth(0).locator('input[aria-label="music-bed.wav Gain"]').fill("0.7");
+    await audioRows.nth(0).locator('input[aria-label="music-bed.wav Gain"]').dispatchEvent("change");
+    await audioRows.nth(1).locator('input[aria-label="voice-over.wav 시작(s)"]').fill("1.5");
+    await audioRows.nth(1).locator('input[aria-label="voice-over.wav 시작(s)"]').dispatchEvent("change");
     await page.locator("#timelineSubmitRender").click();
     await page.waitForFunction(() => { const video=document.querySelector("#timelineServerPreview"); return video && !video.hidden && (video.getAttribute("src")||"").startsWith("blob:"); }, { timeout: 20000 }).catch(async error => { const debug=await page.locator("#timelineServerPreview").evaluate(el=>({hidden:el.hidden,src:el.getAttribute("src"),reviewHidden:document.querySelector("#timelineRenderReview")?.hidden,status:document.querySelector("#timelineStatus")?.textContent})); throw new Error(error.message+" · private preview state "+JSON.stringify(debug)); });
     await page.locator("#timelineRenderReview").waitFor({state:"visible",timeout:5000});
@@ -374,6 +384,9 @@ async function waitForServer() {
     assert.equal(capturedTimelineEdl.clips.filter(clip=>clip.type==="video").length,1);
     assert.equal(capturedTimelineEdl.clips.find(clip=>clip.type==="video").asset_id,"asset-smoke");
     assert.equal(capturedTimelineEdl.clips.find(clip=>clip.type==="title").text,"Render smoke");
+    assert.equal(capturedTimelineEdl.audio_tracks.length,2,"two independent audio tracks must be submitted");
+    assert.equal(capturedTimelineEdl.audio_tracks[0].gain,0.7);
+    assert.equal(capturedTimelineEdl.audio_tracks[1].start_ms,1500);
     assert.equal(await page.locator("#timelineMediaShelf .timeline-media-card").count(),2,"local media shelf should show the uploaded video and title overlay");
     assert.equal(await page.locator("#timelineVisualTrack .timeline-visual-lane").count(),3,"visual timeline should render video, title and audio lanes");
     assert.equal(await page.locator("#timelineVisualTrack .timeline-segment.is-video").count(),1);
