@@ -1268,3 +1268,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Operational blockers remain: no OS-level sandbox, dedicated low-privilege Windows account/VM, verified ACL and outbound egress policy, secret inventory audit, real Windows self-hosted execution, actual Ollama generation, multi-run LocalAppData SQLite persistence, and a disposable Draft PR publication/recovery round-trip.
 - Do not dispatch, enable schedule, change runner/secrets/repository settings, merge or deploy without explicit authorization. Keep PR #416 Draft.
 - Security details: `docs/DEVELOPMENT_WORKER_SECURITY_REVIEW.md`.
+
+
+## 2026-11-21 — PR #416 permission-review correction
+
+- Reinspection found the recovery permission split was already implemented in the workflow at head `7cd1941074315ce715c8d1fcb86592f9df21e747`: separate `recover-reviews` job is read-only (`contents: read`, `pull-requests: read`), while the development job alone has the three required write scopes. The previous handover note describing this as an outstanding gap was incorrect and is superseded.
+- Added YAML-parsed exact permission-map contract test in `backend/tests/test_development_worker_workflow_contract.py` (commit `71adeb3ed0c85b0f54ee86714217d4bfd170fdd1`). Security review correction is in `docs/DEVELOPMENT_WORKER_SECURITY_REVIEW.md`.
+- Documentation/test follow-up commit: `78ec6bd4b95254f9a64b89c24d4d6d37f1877521`; exact-head CI is being checked. Do not treat the new test as passed until the exact-head run succeeds.
+- Both CI runs for prior head `7cd1941074315ce715c8d1fcb86592f9df21e747` completed successfully: push run `44657256271` and PR run `44657261511`. These hosted runs do not validate Windows self-hosted execution or Ollama.
+- Activation remains blocked on OS-level isolation, runner identity/ACL/egress and secret audit, actual Windows/Ollama run, multi-run SQLite persistence, and disposable Draft PR recovery round-trip. No dispatch, activation, runner/secret change, merge or deployment was performed.
