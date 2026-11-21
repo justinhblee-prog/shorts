@@ -26,6 +26,15 @@ The inventory is exposed through `GET /api/operator/workspaces/{workspace_id}/re
 - API errors do not disclose database paths or underlying exception details. The endpoint is GET-only and delegates to the same SQLite `query_only` read transaction.
 - This endpoint does not authorize or perform a deletion. Even an eligible-for-review assessment is only an input to a separately approved future workflow.
 
+## Per-object integrity and storage observations
+
+- Original assets use `WorkspaceAssetStore.verify_integrity`: it authorizes workspace membership, opens the private object without following symlinks, requires a regular file and compares byte size plus SHA-256 with the registered metadata. The path and digest are not returned by the inventory endpoint.
+- Render artifacts use `RenderArtifactStore.get`, which resolves the indexed object within the configured private artifact root and verifies its current SHA-256 and byte size against immutable index metadata. The endpoint reports only a verified/unverified status and evidence source.
+- These filesystem observations run after the single SQLite read transaction. Reference counts and metadata are transaction-consistent; file integrity is a point-in-time observation and can change after the check. Any missing file, mismatch, permission error or provider exception remains unverified and blocks review eligibility.
+- Aggregate `integrity_observations` counts verified and unverified candidates. No storage path, storage key, raw digest, media bytes or exception detail is exposed.
+- The current backup subsystem creates an archive manifest containing media-file hashes and a database hash, and validates them during restore. It does not maintain an authoritative per-object backup/replica registry that can be joined to each candidate. Therefore `backup_state_known` remains false for every object and `backup_implications_unknown` continues to block eligibility.
+- Legal-hold state also has no authoritative provider and remains unknown. No retention inventory action prunes backups or deletes assets/artifacts.
+
 ## Deliberately unknown state
 
 The current schema has no legal-hold provider or per-object backup/replica inventory. This read-only layer also does not hash media files or stat storage paths. Therefore it supplies:
@@ -60,3 +69,7 @@ The atomic read-snapshot revision at head `130dd2e9d9392880418e21aa3253defcfb466
 ## Authenticated API follow-up
 
 Draft PR #474 adds the workspace-scoped GET endpoint and API authorization/configuration regression tests. Exact-head Backend and Compose CI are pending for the endpoint increment; prior inventory-only head `49d5e6c9ceeb3ed4baa58bed736277c50efd290c` passed Backend [run 44887364377](https://github.com/justinhblee-prog/shorts/actions/runs/44887364377) and Compose [run 44887364444](https://github.com/justinhblee-prog/shorts/actions/runs/44887364444). Do not claim the new endpoint validated until its own exact-head checks pass.
+
+## Integrity provider increment
+
+Draft PR #474 now reads per-object integrity evidence from the existing asset and render-artifact stores. Exact-head CI is pending; the prior endpoint head `367b62d` passed Backend [44888131768](https://github.com/justinhblee-prog/shorts/actions/runs/44888131768) and Compose [44888131774](https://github.com/justinhblee-prog/shorts/actions/runs/44888131774). The new integrity increment must pass its own exact-head Backend and Compose runs before it is marked validated.
