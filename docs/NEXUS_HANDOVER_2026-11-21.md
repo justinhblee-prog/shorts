@@ -128,6 +128,15 @@ Automated CI and Compose smoke do not prove:
 - This is not indexed artifact retention/deletion, durable metrics/alerts or a hard storage quota. Target persistent filesystem validation remains required.
 - Exact-head Backend [run `44882746096`](https://github.com/justinhblee-prog/shorts/actions/runs/44882746096) passed **915 tests** plus Playwright browser smoke; Compose [run `44882746102`](https://github.com/justinhblee-prog/shorts/actions/runs/44882746102) passed full FFmpeg/API/ClamAV/backup-restore integration and emitted `timeline_render_artifact_reconciliation_completed` with removal counters.
 
+## 5.2. Render artifact storage capacity follow-up
+
+- Draft PR [#469](https://github.com/justinhblee-prog/shorts/pull/469) is stacked on #468 via branch `feat/build-00352-render-artifact-cap-2026-11-21`, latest head `41e7410`.
+- Adds a 20 GiB default installation-wide logical cap for indexed render artifacts, checked under the SQLite adoption write lock, and a 1 GiB default free-space reserve on the artifact filesystem.
+- Zero reserve disables the free-space inspection; inability to inspect capacity fails closed when the reserve is enabled. Existing indexed artifacts are never automatically deleted.
+- Adds regression tests for aggregate cross-workspace accounting, low/unavailable free space and the zero-reserve bypass.
+- This logical cap is not an OS/container hard quota and excludes temporary staging/unindexed files. Retention/deletion and target-host quotas remain open.
+- Exact-head Backend [run `44883306345`](https://github.com/justinhblee-prog/shorts/actions/runs/44883306345) and Compose [run `44883306353`](https://github.com/justinhblee-prog/shorts/actions/runs/44883306353) are in progress.
+
 ## 6. Immediate next actions
 
 1. Keep all Draft PRs open and unmerged; preserve dependency ordering (#452 before #456/#453).
