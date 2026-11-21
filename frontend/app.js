@@ -1,7 +1,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   let token = "";
-  let apiOrigin = localStorage.getItem("nexusApiOrigin") || "";
+  let apiOrigin = "";
   let reviewer = "operator";
   let brands = [];
   let toastTimer;
@@ -446,7 +446,7 @@
     try{await api("/api/queue/stats");$("settingsDialog").close();msg("tokenMessage","인증 성공");await refreshAll();}
     catch(e){token="";msg("tokenMessage",e.message,true);}
   });
-  $("apiOriginInput").value=apiOrigin;
+  try{apiOrigin=normalizeApiOrigin(localStorage.getItem("nexusApiOrigin")||"");}catch{localStorage.removeItem("nexusApiOrigin");apiOrigin="";}\n  $("apiOriginInput").value=apiOrigin;
   $("clearToken").addEventListener("click",()=>{token="";$("tokenInput").value="";setConnection(false,"인증 필요");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");});
   $("refreshAll").addEventListener("click",refreshAll);
   $("loadReviews").addEventListener("click",()=>loadReviews().catch(e=>toast(e.message)));
@@ -786,5 +786,5 @@
   const youtubeOAuthResult=new URLSearchParams(window.location.search).get("youtube_oauth");
   if(youtubeOAuthResult==="connected")toast("YouTube OAuth 승인 및 암호화 토큰 저장 완료 · 실계정 API 검증은 별도입니다.");
   else if(youtubeOAuthResult==="error"||youtubeOAuthResult==="denied")toast("YouTube OAuth 연결이 완료되지 않았습니다. 설정과 동의 권한을 확인하세요.");
-  loadBrands().then(()=>{setConnection(false,"API 인증 필요");}).catch(e=>setConnection(false,"API 연결 실패: "+e.message));
+  loadBrands().then(()=>{setConnection(true,"API 연결됨 · 인증 필요");}).catch(e=>setConnection(false,"API 연결 실패: "+e.message));
 })();
