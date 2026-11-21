@@ -208,16 +208,14 @@ class DevelopmentJobApiTests(unittest.TestCase):
             datetime(2023, 4, 3, tzinfo=timezone.utc),
         ])
         with mock.patch.object(development_jobs_module, "_now", side_effect=lambda: next(timestamps)):
+            event_job = self.store.create(title="Chronological event fixture")
             claimed = self.store.claim_ready("runner-visible-id")
-            self.store.heartbeat(self.job["id"], "runner-visible-id", claimed["lease_token"])
-            # The store creates three immutable events with deliberately distinct timestamps.
-            # The initial created event uses the fixture setup clock; replace the event clock
-            # sequence below with deterministic ascending timestamps for this assertion.
-        events = self.store.events(self.job["id"], limit=20)
-        self.assertGreaterEqual(len(events), 3)
+            self.store.heartbeat(event_job["id"], "runner-visible-id", claimed["lease_token"])
+        events = self.store.events(event_job["id"], limit=20)
+        self.assertEqual([event["event_type"] for event in events], ["created", "claimed", "heartbeat"])
         event_timestamps = [event["created_at"] for event in events]
         self.assertEqual(event_timestamps, sorted(event_timestamps))
-        self.assertEqual(len(set(event_timestamps)), len(event_timestamps))
+        self.assertEqual(len(set(event_timestamps)), 3)
 
 
 if __name__ == "__main__":
