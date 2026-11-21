@@ -102,7 +102,8 @@
         "Reference checks are marked complete only when the bounded snapshot scan is untruncated and all snapshot payload/job states are understood; malformed or unknown state remains incomplete",
         "Exact atomic retention inventory head 130dd2e passed Backend CI 44887197433 (944 tests plus Playwright browser smoke) and Compose CI 44887197535 (service isolation, real FFmpeg render/adoption/review, authenticated API E2E, encrypted backup and isolated restore)",
         "Exposed workspace-scoped GET retention inventory endpoint guarded by operations.read and resolved workspace membership; policy is read from explicit NEXUS_RETENTION_POLICY_JSON and malformed configuration fails closed",
-        "Added API regression tests for authorization, workspace scope, explicit policy parsing, sanitized storage errors and read-only response semantics"
+        "Added API regression tests for authorization, workspace scope, explicit policy parsing, sanitized storage errors and read-only response semantics",
+        "Exact authenticated retention inventory API head 4cdc962 passed Backend CI 44887993545 (backend validation and Playwright browser smoke) and Compose CI 44887993469 (real FFmpeg integration, authenticated API E2E, encrypted backup and isolated restore)"
       ],
       "remaining": [
         "Validate representative customer media on the target runtime, including uncommon codecs, variable frame rates and long-duration inputs",
