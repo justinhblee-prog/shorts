@@ -160,13 +160,14 @@
         "TikTok status polling now rejects falsey non-list video IDs, non-string/blank video IDs and non-string failure reasons before state mutation; omitted/null video IDs remain a valid no-ID result",
         "Added offline regressions asserting malformed status identity/failure fields do not change publication status, video ID or audit-event count",
         "TikTok API error envelope now accepts only omitted/null, string, or object with non-empty string code; malformed arrays, scalar types and malformed error objects fail closed",
-        "Added offline fake-transport regressions for malformed TikTok error envelope arrays and non-string nested error codes"
+        "Added offline fake-transport regressions for malformed TikTok error envelope arrays and non-string nested error codes",
+        "Exact full provider source/test/docs/task-ledger head 2e47ec503441530093a3292ebb9068c9067210c6 passed Backend CI 44893080562 (repository validation, font fallback, Playwright browser smoke) and Compose CI 44893080568 (ClamAV readiness, worker isolation, real generated-media FFmpeg render/adoption/review, authenticated API upload-to-worker/private-preview E2E, encrypted backup and isolated restore; cleanup completed)"
       ],
       "remaining": [
-        "Run exact-head Backend and Compose CI after latest TikTok status and error-envelope source/test/docs/task-ledger changes",
         "Verify configured providers against actual HTTPS contracts only after operator credentials, spend ceiling, licensing and data-processing approval are supplied",
         "Complete workspace-owned provider connections before enabling independent B2B tenant credentials",
-        "Generate and inspect real script, voice track and MP4 with cost/latency/failure/provenance evidence after live gates are approved"
+        "Generate and inspect real script, voice track and MP4 with cost/latency/failure/provenance evidence after live gates are approved",
+        "Continue offline provider contract review only for additional demonstrable response-boundary gaps; live HTTPS acceptance remains externally blocked"
       ]
     },
     {
