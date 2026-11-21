@@ -32,8 +32,17 @@
     type:$("timelineTransitionType")?.value||"none",
     durationMs:Math.max(100,Math.min(5000,Math.round(Number($("timelineTransitionDuration")?.value)||500)))
   });
+  let mediaShelfObserver=null;
+  const loadMediaThumbnail = video => {
+    const source=video?.dataset.thumbnailSrc;
+    if(!source)return;
+    delete video.dataset.thumbnailSrc;
+    video.src=source;
+    video.load();
+  };
   function renderMediaShelf(){
     const shelf=$("timelineMediaShelf");if(!shelf)return;
+    mediaShelfObserver?.disconnect();mediaShelfObserver=null;
     const clips=local()?.state.clips||[];
     const query=($("timelineMediaFilter")?.value||"").trim().toLocaleLowerCase();
     const visible=clips.filter(clip=>(clip.name+" "+clip.kind).toLocaleLowerCase().includes(query));
@@ -44,6 +53,16 @@
       empty.textContent=clips.length?"검색 결과가 없습니다.":"동영상을 추가하면 썸네일이 여기에 표시됩니다.";
       shelf.append(empty);
     }
+    if("IntersectionObserver" in window){
+      mediaShelfObserver=new IntersectionObserver(entries=>{
+        entries.forEach(entry=>{
+          if(!entry.isIntersecting)return;
+          const video=entry.target.querySelector("video[data-thumbnail-src]");
+          if(video)loadMediaThumbnail(video);
+          mediaShelfObserver?.unobserve(entry.target);
+        });
+      },{root:shelf,rootMargin:"96px 0px",threshold:0.01});
+    }
     for(const clip of visible){
       const selected=local()?.state.selected===clip.id;
       const card=document.createElement("button");card.type="button";
@@ -51,9 +70,10 @@
       card.setAttribute("aria-pressed",String(Boolean(selected)));
       card.setAttribute("aria-label",clip.name+" 미디어 선택");
       const thumb=document.createElement("span");thumb.className="timeline-media-thumb";
+      let thumbnailVideo=null;
       if(clip.kind==="video"&&clip.url){
-        const video=document.createElement("video");video.src=clip.url;video.muted=true;video.playsInline=true;video.preload="metadata";
-        video.setAttribute("aria-hidden","true");
+        const video=document.createElement("video");video.muted=true;video.playsInline=true;video.preload="none";
+        video.dataset.thumbnailSrc=clip.url;video.setAttribute("aria-hidden","true");thumbnailVideo=video;
         video.addEventListener("loadedmetadata",()=>{
           const mediaDuration=Number.isFinite(video.duration)?video.duration:0;
           const target=Math.min(Math.max(0,clip.inPoint+0.12),Math.max(0,mediaDuration-0.08));
@@ -79,6 +99,10 @@
       body.append(name,meta,status);card.append(thumb,body);
       card.addEventListener("click",()=>{local()?.selectClip?.(clip.id);});
       shelf.append(card);
+      if(thumbnailVideo){
+        if(mediaShelfObserver)mediaShelfObserver.observe(card);
+        else loadMediaThumbnail(thumbnailVideo);
+      }
     }
     const selected=local()?.state.clips.find(clip=>clip.id===local()?.state.selected);
     const details=$("timelineSelectedMeta");
