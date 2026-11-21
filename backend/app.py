@@ -836,6 +836,10 @@ async def upload_workspace_asset(
         except (MediaScanError,AssetError,OSError,ValueError):
             # Preserve the asset ID so an operator can retry; it remains quarantined.
             scan_error="scan_not_cleared"
+    # Keep the public upload response shape stable whether the scanner
+    # returns the registration record (asset_id) or its persisted DB row (id).
+    if "asset_id" not in result and isinstance(result.get("id"), str):
+        result["asset_id"] = result["id"]
     renderable=result["scan_status"]=="clean"
     return {
         "asset":result,"scan_required":not renderable,
