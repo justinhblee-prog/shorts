@@ -150,9 +150,9 @@ def main():
             "clips": [
                 {"id": "title", "type": "title", "start_ms": 0,
                  "end_ms": 500, "text": "Authenticated API E2E"},
-                {"id": "video", "type": "video", "start_ms": 500,
+                {"id": "video", "type": "video", "start_ms": 0,
                  "end_ms": 2500, "asset_id": asset_id,
-                 "source_in_ms": 0, "source_out_ms": 2000},
+                 "source_in_ms": 0, "source_out_ms": 2500},
             ],
         }
         idempotency = "api-e2e-render-20261121-001"
