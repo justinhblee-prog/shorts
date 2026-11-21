@@ -44,3 +44,13 @@ No credentials, account connections, provider scopes, external uploads or public
 - Draft PR #475 exact head `eca95fc3da429b7ffd117436af68bf413a7794f1` passed Backend [run 44888635179](https://github.com/justinhblee-prog/shorts/actions/runs/44888635179): 949 tests and Playwright browser smoke.
 - Compose [run 44888635188](https://github.com/justinhblee-prog/shorts/actions/runs/44888635188) passed service isolation, ClamAV readiness, real FFmpeg render/adoption/review, authenticated upload/review/private preview and encrypted backup/isolated restore.
 - These are offline contract and generated-fixture CI checks only; they do not verify live provider HTTPS endpoints or customer account credentials.
+
+
+## Nested TikTok publishing response hardening
+
+- TikTok creator-info and video-init responses now require an object-valued `data` member before provider fields are accessed.
+- The initialization `publish_id` must be a non-empty string within the existing 64-character bound; arrays and other JSON types are rejected.
+- Malformed creator-info data fails before a publish-init request. Malformed initialization data occurs after the remote request boundary and therefore keeps the attempt in `reconciliation_required`; it does not permit an automatic duplicate retry.
+- Added fake-transport regression tests for non-object creator data, non-object init data and non-string publish IDs. No live HTTP calls or credentials are used.
+- Exact code/test head `ee5e563330d9e4e1956f24b3ba710fc19ebb048f`: Backend [run 44889554706](https://github.com/justinhblee-prog/shorts/actions/runs/44889554706) passed repository validation and Playwright browser smoke; Compose [run 44889554618](https://github.com/justinhblee-prog/shorts/actions/runs/44889554618) passed ClamAV readiness, worker isolation, real FFmpeg render/adoption/review, authenticated API upload-to-worker/private-preview E2E, encrypted backup and isolated restore.
+- These results validate offline fake-transport contract tests and generated fixture media only. Live Google/YouTube/TikTok provider compatibility remains blocked by credentials, spend ceiling, legal/provider review and authorized private accounts.
