@@ -1173,3 +1173,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Refresh the top-level validation checkpoint to the latest verified BUILD-00140 CI run.
 - Replace the stale 408-test summary with the current 466-test result and link to the exact GitHub Actions run.
 - Keep all live-provider, account, deployment and revenue limitations explicit.
+
+
+## BUILD-00363 — render worker scratch lifecycle and Compose wiring (2026-11-21)
+
+- Each claimed production job receives a private mode-0700 scratch directory on the persistent application data volume. Python temporary files are routed to that directory for the job lifetime and the prior process temp configuration is restored on exit.
+- Queue heartbeat refreshes the scratch lease marker. Cleanup is permitted only while the job/worker/lease-token hashes still match; startup pruning removes only valid, expired direct-child job directories after the configured grace period.
+- Missing, malformed, replaced or symlinked ownership markers fail closed. Provider-owned scratch, completed media, logs and unrelated filesystem consumers are outside this cleanup scope.
+- Docker Compose explicitly configures `/app/data/worker-scratch` and `NEXUS_WORKER_SCRATCH_GRACE_SECONDS` (default 3600); `.env.example` already carries the matching defaults.
+- CI run [44873298422](https://github.com/justinhblee-prog/shorts/actions/runs/44873298422) passed after the Compose wiring commit. The run executes the backend workflow; physical volume quota enforcement and live provider behavior remain deployment-level checks.
