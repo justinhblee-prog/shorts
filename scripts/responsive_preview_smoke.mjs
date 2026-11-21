@@ -94,9 +94,18 @@ async function waitForServer() {
         availableWidth: wrap.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
       };
     });
+    const previewGeometryAt1600 = await page.evaluate(() =>
+      ["body", ".stage", ".device-wrap", "#device"].map(selector => {
+        const el = document.querySelector(selector);
+        const rect = el.getBoundingClientRect();
+        return { selector, width: rect.width, cssWidth: getComputedStyle(el).width, className: el.className };
+      })
+    );
+    console.log("Auto preview geometry:", JSON.stringify(previewGeometryAt1600));
     assert.ok(
-      Math.abs(autoMeasurementsAt1600.deviceWidth - autoMeasurementsAt1600.availableWidth) <= 2,
-      "Auto mode must fill the available preview width: " + JSON.stringify(autoMeasurementsAt1600)
+      Math.abs(autoMeasurementsAt1600.deviceWidth - autoMeasurementsAt1600.availableWidth) <= 2 &&
+      autoMeasurementsAt1600.deviceWidth > 1000,
+      "Auto mode must fill the wide preview viewport: " + JSON.stringify({ autoMeasurementsAt1600, previewGeometryAt1600 })
     );
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.waitForFunction(() => {
