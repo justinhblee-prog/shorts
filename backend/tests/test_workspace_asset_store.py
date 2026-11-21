@@ -93,6 +93,60 @@ class WorkspaceAssetStoreTests(unittest.TestCase):
             """).fetchone()["total"]
         self.assertEqual(total, 25)
 
+    def test_streaming_upload_reserves_quota_before_staging_bytes(self):
+        from threading import Event
+
+        first_chunk_written = Event()
+        continue_upload = Event()
+
+        class PausedStream:
+            def __init__(self):
+                self.calls = 0
+            def read(self, size=-1):
+                self.calls += 1
+                if self.calls == 1:
+                    return b"a" * 12
+                if self.calls == 2:
+                    first_chunk_written.set()
+                    if not continue_upload.wait(timeout=5):
+                        raise RuntimeError("test upload release timed out")
+                    return b"b" * 10
+                return b""
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(
+                self.store.register_stream,
+                "ws_studio", "alice", PausedStream(), "paused.mp4"
+            )
+            self.assertTrue(first_chunk_written.wait(timeout=5))
+            with self.store.db() as db:
+                reservation = db.execute("""
+                    SELECT byte_size FROM workspace_asset_upload_reservations
+                    WHERE workspace_id='ws_studio'
+                """).fetchone()
+            self.assertIsNotNone(reservation)
+            self.assertEqual(reservation["byte_size"], 12)
+            staged = list((self.root / "private-media" / "ws_studio").glob(".upload-*"))
+            self.assertEqual(len(staged), 1)
+            self.assertEqual(staged[0].stat().st_size, 12)
+
+            with self.assertRaisesRegex(AssetError, "workspace storage quota"):
+                self.store.register_stream(
+                    "ws_studio", "alice", io.BytesIO(b"x" * 32), "over-quota.mp4"
+                )
+            continue_upload.set()
+            result = future.result(timeout=10)
+
+        self.assertEqual(result["size_bytes"], 22)
+        with self.store.db() as db:
+            reservations = db.execute("""
+                SELECT COUNT(*) AS total FROM workspace_asset_upload_reservations
+                WHERE workspace_id='ws_studio'
+            """).fetchone()["total"]
+        self.assertEqual(reservations, 0)
+        blobs = list((self.root / "private-media" / "ws_studio").glob("*.blob"))
+        self.assertEqual(len(blobs), 1)
+
     def test_concurrent_uploads_cannot_overcommit_workspace_quota(self):
         barrier = Barrier(2)
         class SynchronizedStream(io.BytesIO):
