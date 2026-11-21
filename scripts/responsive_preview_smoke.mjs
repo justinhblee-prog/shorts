@@ -36,7 +36,15 @@ async function waitForServer() {
 
     await page.goto(baseUrl + "/preview.html", { waitUntil: "networkidle" });
     fs.mkdirSync("artifacts", { recursive: true });
+
     assert.match(await page.title(), /NEXUS STUDIO PRO.*Responsive Preview/);
+    assert.equal(await page.locator('link[href="/cyber-magic.css"]').count(), 1);
+    await page.waitForFunction(() => getComputedStyle(document.querySelector("body")).getPropertyValue("--nexus-accent").trim() === "#a78bfa");
+    assert.equal(await page.locator(".topbar").evaluate(el => getComputedStyle(el).position), "fixed");
+    assert.equal(await page.locator(".topbar").evaluate(el => Math.round(el.getBoundingClientRect().width)), 258);
+    assert.equal(await page.locator(".hero-visual").evaluate(el => getComputedStyle(el).display), "grid");
+    assert.equal(await page.locator(".button-primary").evaluate(el => getComputedStyle(el).backgroundImage.includes("linear-gradient")), true);
+
 
     const device = page.locator("#device");
     const frame = page.locator("iframe");
