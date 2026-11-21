@@ -11,7 +11,7 @@
     const review = number($("metricReview"));
     const approved = $("approvedList")?.querySelectorAll(".review-card").length ?? 0;
     const trendList = $("trendList");
-    const trends = trendList && !trendList.querySelector(".empty-state") ? trendList.querySelectorAll(".data-item").length : null;
+    const trends = trendList && !trendList.querySelector(".empty-state") ? (trendList.querySelectorAll(".trend-card,.trend-item,.data-item").length || trendList.children.length) : null;
     const set = (id, value) => { if ($(id)) $(id).textContent = value == null ? "—" : value.toLocaleString(); };
     set("stageDiscover", trends);
     set("stageCreate", queued == null || running == null ? null : queued + running);
@@ -27,7 +27,7 @@
       ?"인증 후 실제 API 데이터를 표시합니다."
       :"API 실측 · 대기 "+queued+" · 실행 "+(running??0)+" · 검수 "+review+" · 승인 콘텐츠 "+approved;
     const spotlight=$("studioMediaSpotlight");
-    const first=document.querySelector("#reviewList .review-media-preview video");
+    const first=document.querySelector("#reviewList video.timeline-render-preview");
     const source=first?.currentSrc||first?.src||"";
     if(spotlight&&first&&spotlight.dataset.source!==source){
       const card=first.closest(".review-card");
