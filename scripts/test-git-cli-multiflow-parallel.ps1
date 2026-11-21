@@ -19,7 +19,7 @@ try{
  New-Item -ItemType Directory -Force -Path (Join-Path $seed "scripts"),(Join-Path $seed ".devflow")|Out-Null
  Copy-Item $engineSource (Join-Path $seed "scripts/git-cli-multiflow-parallel.ps1")
  Copy-Item $agentProcessHelper (Join-Path $seed "scripts/devflow-agent-process.ps1")
- Set-Content (Join-Path $seed "scripts/devflow.py") "raise SystemExit(0)" -Encoding utf8
+ Set-Content (Join-Path $seed "scripts/devflow.py") "from pathlib import Path; Path(__file__).resolve().parents[1].joinpath('.validator-ran').write_text('ok', encoding='utf-8')" -Encoding utf8
  $manifest=@{
   policy=@{default_base="main";max_parallel_worktrees=3;auto_merge=$false;auto_deploy=$false}
   tasks=@(
@@ -52,6 +52,7 @@ try{
  $agentCode=@'
 param([string]$Prompt)
 $log=$env:DEVFLOW_TEST_LOG
+if($env:GH_TOKEN){Add-Content -LiteralPath $log -Value "credential-leak"}else{Add-Content -LiteralPath $log -Value "credential-isolated"}
 $start=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
 Add-Content -LiteralPath $log -Value "start|$start|$PID"
 Start-Sleep -Seconds 5
@@ -92,11 +93,16 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  }finally{Pop-Location}
  $branchesAfterRerun=@(& git --git-dir=$origin branch --list "autopilot/*")
  if($branchesAfterRerun.Count -ne 3){throw "Completed Draft PR tasks were dispatched again on rerun."}
+ if($events.Count -lt 3 -or ($events|Where-Object kind -eq "credential-leak").Count -gt 0){throw "Supervisor GitHub credentials leaked into an Agent process."}
+ $workerRoots=@(Get-ChildItem -LiteralPath (Join-Path (Split-Path $checkout -Parent) "checkout-worktrees") -Directory -ErrorAction SilentlyContinue)
+ $validated=@($workerRoots|Where-Object{Test-Path (Join-Path $_.FullName ".validator-ran")})
+ if($validated.Count -ne 3){throw "Expected task-worktree validators to execute in all three isolated worktrees; got $($validated.Count)."}
  if($stateData.tasks."BUILD-99004"){throw "Dependency-gated task unexpectedly entered worker state."}
  if($stateData.tasks."BUILD-99005"){throw "Task with an open PR body reference was unexpectedly dispatched."}
  Write-Host "PASS: three fake agents overlapped (start spread $($delta)ms), produced Draft PR states, and pushed isolated branches."
 }finally{
  $env:PATH=$originalPath
+ if($null -eq $oldGhToken){Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue}else{$env:GH_TOKEN=$oldGhToken}
  Remove-Item Env:DEVFLOW_TEST_LOG,Env:DEVFLOW_AGENT_COMMAND,Env:DEVFLOW_AGENT_ARGS_JSON -ErrorAction SilentlyContinue
  if($temp -and (Test-Path $temp)){Remove-Item -LiteralPath $temp -Recurse -Force}
 }
