@@ -58,6 +58,9 @@ async function waitForServer() {
     assert.equal(await app.locator("#timelineCreateWorkspace").count(), 1);
     assert.equal(await app.locator("#timelineAudioInput").count(), 1);
     assert.equal(await app.locator("#timelineRenderReview").count(), 1);
+    assert.equal(await app.locator("#timelineMediaShelf").count(), 1);
+    assert.equal(await app.locator("#timelineVisualTrack").count(), 1);
+    assert.equal(await app.locator("#timelineSelectedMeta").count(), 1);
     assert.equal(await app.locator(".button-primary").first().evaluate(el => getComputedStyle(el).backgroundImage.includes("linear-gradient")), true);
     await frame.waitFor();
     await page.waitForFunction(() => {
