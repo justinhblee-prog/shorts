@@ -54,3 +54,8 @@ No credentials, account connections, provider scopes, external uploads or public
 - Added fake-transport regression tests for non-object creator data, non-object init data and non-string publish IDs. No live HTTP calls or credentials are used.
 - Exact code/test head `ee5e563330d9e4e1956f24b3ba710fc19ebb048f`: Backend [run 44889554706](https://github.com/justinhblee-prog/shorts/actions/runs/44889554706) passed repository validation and Playwright browser smoke; Compose [run 44889554618](https://github.com/justinhblee-prog/shorts/actions/runs/44889554618) passed ClamAV readiness, worker isolation, real FFmpeg render/adoption/review, authenticated API upload-to-worker/private-preview E2E, encrypted backup and isolated restore.
 - These results validate offline fake-transport contract tests and generated fixture media only. Live Google/YouTube/TikTok provider compatibility remains blocked by credentials, spend ceiling, legal/provider review and authorized private accounts.
+
+
+## Latest exact-head validation
+
+The latest provider implementation and tests at `ee5e563330d9e4e1956f24b3ba710fc19ebb048f` passed Backend [run 44889554706](https://github.com/justinhblee-prog/shorts/actions/runs/44889554706) and Compose [run 44889554618](https://github.com/justinhblee-prog/shorts/actions/runs/44889554618). Backend validation and Playwright browser smoke passed; Compose exercised ClamAV readiness, worker isolation, generated-media FFmpeg render/adoption/review, authenticated API E2E, encrypted backup and isolated restore. This follow-up changes only documentation/task-ledger evidence; exact-head reruns are required.
