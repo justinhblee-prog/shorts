@@ -1,0 +1,37 @@
+name: DevFlow detached supervisor regression
+
+on:
+  push:
+    branches:
+      - fix/devflow-supervisor-poll-loop-2026-11-21
+    paths:
+      - scripts/start-devflow-detached.ps1
+      - scripts/test-devflow-detached-supervisor.ps1
+      - .github/workflows/devflow-supervisor-regression.yml
+  pull_request:
+    branches:
+      - fix/devflow-detached-supervisor-2026-11-20
+    paths:
+      - scripts/start-devflow-detached.ps1
+      - scripts/test-devflow-detached-supervisor.ps1
+      - .github/workflows/devflow-supervisor-regression.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  detached-supervisor:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify PowerShell detached scheduler retry behavior
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          & "$PWD/scripts/test-devflow-detached-supervisor.ps1"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Detached supervisor regression failed with exit code $LASTEXITCODE."
+          }
