@@ -186,7 +186,7 @@ Automated CI and Compose smoke do not prove:
 - The endpoint requires `operations.read` and authenticated workspace membership. It reads an explicit versioned policy from `NEXUS_RETENTION_POLICY_JSON`; missing policy blocks candidates and malformed JSON fails closed with a sanitized error.
 - The inventory uses bounded workspace-filtered SELECT queries in a single SQLite `query_only` read transaction. It exposes safe metadata and reason codes only; no storage paths, keys, bytes or secrets.
 - It never writes, tombstones, schedules cleanup or deletes. Legal hold, per-object integrity/storage and backup/replica state remain unknown and continue to block all candidates.
-- Latest known API head `4cdc96286cc6468760c8339c0ebe7dfc34aea47c`; Backend [run 44887993545](https://github.com/justinhblee-prog/shorts/actions/runs/44887993545) and Compose [run 44887993469](https://github.com/justinhblee-prog/shorts/actions/runs/44887993469) are running. Do not mark the endpoint validated until both exact-head checks pass.
+- Exact API head `4cdc96286cc6468760c8339c0ebe7dfc34aea47c` passed Backend [run 44887993545](https://github.com/justinhblee-prog/shorts/actions/runs/44887993545) (backend validation and Playwright browser smoke) and Compose [run 44887993469](https://github.com/justinhblee-prog/shorts/actions/runs/44887993469) (real FFmpeg render/adoption/review, authenticated API E2E, encrypted backup and isolated restore). This is generated-fixture CI evidence, not target-host or customer-media retention validation.
 
 ## 6. Immediate next actions
 
