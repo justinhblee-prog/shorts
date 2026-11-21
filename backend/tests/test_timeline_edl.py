@@ -63,6 +63,14 @@ class TimelineEDLTests(unittest.TestCase):
         with self.assertRaises(EDLValidationError):
             validate_edl({**self.valid, "clips": too_many})
 
+    def test_normalizes_explicit_project_duration_and_rejects_short_or_fractional_duration(self):
+        payload = {**self.valid, "project_duration_ms": 8000}
+        normalized = validate_edl(payload)
+        self.assertEqual(normalized["project_duration_ms"], 8000)
+        for value in (4999, 8000.5, True, 3_600_001):
+            with self.subTest(value=value), self.assertRaises(EDLValidationError):
+                validate_edl({**self.valid, "project_duration_ms": value})
+
     def test_does_not_mutate_input(self):
         import copy
         payload = copy.deepcopy(self.valid)
