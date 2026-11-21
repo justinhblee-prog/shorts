@@ -63,7 +63,7 @@ class ClamAVScanner:
             raise ValueError("scanner executable, database directory and positive timeout are required")
 
     def _require_fresh_signatures(self):
-        """Require both core signature families and reject stale/future-dated files."""
+        """Require core databases and a fresh daily signature database."""
         directory = Path(self.database_dir)
         now = float(self.clock())
         for family in ("main", "daily"):
@@ -78,8 +78,10 @@ class ClamAVScanner:
             age = now - newest_mtime
             if age < -300:
                 raise MediaScanError("ClamAV signature timestamp is in the future")
-            if age > self.max_signature_age_seconds:
-                raise MediaScanError("ClamAV signatures are stale; refresh the media-scan database")
+            # main.cvd is a slowly changing base database; only daily.cvd/.cld
+            # is expected to refresh frequently and is subject to the age limit.
+            if family == "daily" and age > self.max_signature_age_seconds:
+                raise MediaScanError("ClamAV daily signatures are stale; refresh the media-scan database")
 
     def scan(self, path):
         self._require_fresh_signatures()
