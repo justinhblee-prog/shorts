@@ -14,9 +14,9 @@ body{min-height:100vh;display:flex;flex-direction:column}.toolbar{position:stick
 button,a{font:inherit}button{border:1px solid #454166;border-radius:9px;background:#1b1a32;color:#dcd7f5;padding:8px 12px;font-size:12px;font-weight:650;cursor:pointer;transition:.16s}
 button:hover{border-color:#9c87ff;background:#292448}button[aria-pressed=true]{background:linear-gradient(110deg,#7655d6,#4e6fd0);border-color:#a694ff;color:white;box-shadow:0 5px 18px #6750c944}
 .toolbar .spacer{flex:1}.open-app{color:#c8bcff;text-decoration:none;font-size:12px;font-weight:700}.open-app:hover{text-decoration:underline}
-.stage{flex:1;min-height:0;padding:20px;display:flex;flex-direction:column;align-items:center;gap:12px}
-.stage-meta{width:min(100%,1440px);display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:11px}
-.device-wrap{flex:1;min-height:0;width:100%;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:4px 4px 24px;position:relative}
+.stage{flex:1;min-height:0;width:100%;padding:20px;display:flex;flex-direction:column;align-items:stretch;gap:12px}
+.stage-meta{width:min(100%,1440px);align-self:center;display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:11px}
+.device-wrap{flex:1;min-height:0;width:100%;min-width:0;align-self:stretch;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:4px 4px 24px;position:relative}
 .device{height:min(78vh,900px);min-height:560px;width:100%;border:1px solid #514a78;border-radius:14px;background:#070711;overflow:hidden;box-shadow:0 24px 80px #0009;transition:width .22s ease,border-radius .22s ease,transform .18s ease;flex:none;margin-inline:auto;transform-origin:top center}.device.auto{width:100%}
 .device.mobile{width:390px;height:min(820px,78vh);min-height:560px;border-radius:28px;border:5px solid #34304d;box-shadow:0 0 0 1px #8f7df455,0 24px 80px #000a}
 .device.tablet{width:820px;height:min(78vh,900px);border-radius:20px;border:4px solid #34304d}
@@ -69,7 +69,7 @@ document.querySelectorAll('[data-device]').forEach(b=>b.addEventListener('click'
 document.getElementById('portrait').addEventListener('click',()=>{orientation='portrait';render()});
 document.getElementById('landscape').addEventListener('click',()=>{orientation='landscape';render()});
 document.getElementById('fit').addEventListener('click',()=>{fit=true;render()});document.getElementById('actual').addEventListener('click',()=>{fit=false;render()});
-new ResizeObserver(()=>render()).observe(wrap);window.addEventListener('orientationchange',render);
+new ResizeObserver(()=>render()).observe(wrap);window.addEventListener('resize',render,{passive:true});window.addEventListener('orientationchange',render);
 render();
 })();
 </script>
