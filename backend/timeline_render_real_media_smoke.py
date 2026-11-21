@@ -65,6 +65,9 @@ def main():
             queue, staging, artifacts_root,
             max_bytes=20_000_000, ffprobe_path=str(ffprobe),
             require_audio=True, max_duration_ms=10_000,
+            # The smoke fixture is stored on the bounded /tmp test volume;
+            # the production worker enforces the configured artifact reserve.
+            min_free_bytes=0,
         )
         edl = {
             "schema": "nexus-edit-decision-list",
