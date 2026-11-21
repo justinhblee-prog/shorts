@@ -81,7 +81,8 @@ class RetentionInventory:
             raise RetentionInventoryError("snapshot reference inventory failed") from exc
 
         asset_references = {}
-        snapshot_inventory_complete = len(snapshot_rows) <= limit * 10
+        snapshot_truncated = len(snapshot_rows) > limit * 10
+        snapshot_inventory_complete = not snapshot_truncated
         snapshot_rows = snapshot_rows[:limit * 10]
         for row in snapshot_rows:
             job_known, job_active = self._job_reference_state(
@@ -227,7 +228,7 @@ class RetentionInventory:
             "blocked_count": len(candidates) - eligible_count,
             "reason_counts": dict(sorted(reason_counts.items())),
             "candidates": candidates,
-            "truncated": assets_truncated or artifacts_truncated or not snapshot_inventory_complete,
+            "truncated": assets_truncated or artifacts_truncated or snapshot_truncated,
             "snapshot_reference_inventory_complete": snapshot_inventory_complete,
             "read_only": True,
             "destructive_action_performed": False,
