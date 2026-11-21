@@ -8,7 +8,8 @@ Scope: single-host Docker deployment and supervised operation.
 Copy `.env.example` to `.env`. Never commit the real file.
 
 Required for protected operations:
-- `NEXUS_REVIEW_TOKEN`: long, random operator token.
+- Preferred: `NEXUS_REVIEW_CREDENTIALS_JSON` with per-operator credentials and `NEXUS_REVIEW_ROLE_MAP_JSON` with least-privilege role assignments.
+- Legacy migration fallback only: `NEXUS_REVIEW_TOKEN`, a long random secret. Do not configure both modes; the JSON credentials take precedence.
 
 Required for end-to-end AI production:
 - `SCRIPT_PROVIDER_URL`, `SCRIPT_PROVIDER_TOKEN`
@@ -30,6 +31,12 @@ Required for YouTube:
 
 Never put credentials into source files, UI code, query strings or commit messages.
 
+Browser/API deployment settings:
+- `NEXUS_API_BIND_ADDRESS` defaults to `127.0.0.1`; the host-published API port is loopback-only. Keep it that way when a host-level HTTPS reverse proxy forwards to `127.0.0.1:8502`.
+- `NEXUS_CORS_ORIGINS` is a comma-separated allowlist of exact browser origins, including scheme and host, with no path, query, credentials, wildcard or opaque `null` origin. Remote origins must use HTTPS; HTTP is allowed only for localhost/loopback development. Entries are normalized and duplicates removed. Set it to the deployed frontend origin (for example, `https://studio.example.com`). Invalid configuration fails API startup.
+- The reverse proxy must terminate HTTPS, forward `X-Review-Token`, and allow `OPTIONS` preflight requests. Do not expose the raw API port directly to the public internet.
+- Set `NEXUS_API_BIND_ADDRESS=0.0.0.0` only when an external firewall/private ingress prevents public access to the raw port and the deployment has been reviewed. Do not use it as a shortcut for HTTPS.
+
 ## 2. Start services
 
 At repository root:
@@ -40,7 +47,7 @@ docker compose up -d
 docker compose ps
 ```
 
-Open `http://localhost:8502/`. The API, worker and scheduler use the same persistent SQLite volume. The scheduler uses a shared-database leader lease; multiple instances may run safely, with one active dispatcher at a time. The dashboard's token is held in browser memory only; refreshing the browser clears it.
+Open `http://localhost:8502/` for local development. By default, Compose publishes API port 8502 only on loopback; remote browser access must go through an HTTPS reverse proxy with the exact frontend origin configured in `NEXUS_CORS_ORIGINS`. The API, worker and scheduler use the same persistent SQLite volume. The scheduler uses a shared-database leader lease; multiple instances may run safely, with one active dispatcher at a time. The dashboard's token is held in browser memory only; refreshing the browser clears it.
 
 ## 3. Production lifecycle
 

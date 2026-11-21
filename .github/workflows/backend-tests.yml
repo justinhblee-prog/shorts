@@ -22,3 +22,17 @@ jobs:
           python-version: "3.11"
       - run: pip install -r backend/requirements.txt
       - run: sh scripts/validate.sh
+      - name: Validate resolved Docker Compose API binding
+        run: |
+          cp .env.example .env
+          docker compose config --format json > /tmp/nexus-compose.json
+          python - <<'PY'
+          import json
+          with open("/tmp/nexus-compose.json", encoding="utf-8") as handle:
+              config = json.load(handle)
+          ports = config["services"]["api"]["ports"]
+          assert len(ports) == 1, ports
+          assert ports[0].get("host_ip") == "127.0.0.1", ports[0]
+          assert str(ports[0].get("published")) == "8502", ports[0]
+          print("API host port is loopback-only by default:", ports[0])
+          PY

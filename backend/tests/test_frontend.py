@@ -102,11 +102,33 @@ class FrontendPortalTests(unittest.TestCase):
     def test_backend_cors_is_exact_origin_opt_in_and_disallows_credentials(self):
         app_py = (ROOT / "backend" / "app.py").read_text(encoding="utf-8")
         env = (ROOT / ".env.example").read_text(encoding="utf-8")
-        self.assertIn('os.getenv("NEXUS_CORS_ORIGINS", "")', app_py)
+        self.assertIn("parse_cors_origins()", app_py)
+        self.assertIn("def parse_cors_origins", (ROOT / "backend" / "cors_config.py").read_text(encoding="utf-8"))
         self.assertIn("allow_credentials=False", app_py)
         self.assertIn('allow_headers=["Content-Type", "X-Review-Token"]', app_py)
         self.assertIn("NEXUS_CORS_ORIGINS=", env)
         self.assertNotIn("allow_origins=[\"*\"]", app_py)
+
+    def test_cors_origin_parser_requires_exact_secure_origins(self):
+        from cors_config import parse_cors_origins, CorsOriginConfigurationError
+        self.assertEqual(
+            parse_cors_origins(" https://Studio.Example.com/ , https://studio.example.com:443, http://localhost:8502 "),
+            ["https://studio.example.com", "http://localhost:8502"],
+        )
+        for invalid in (
+            "*", "null", "https://example.com/path", "https://user:pass@example.com",
+            "http://example.com", "https://example.com?x=1", "ftp://example.com",
+        ):
+            with self.subTest(origin=invalid):
+                with self.assertRaises(CorsOriginConfigurationError):
+                    parse_cors_origins(invalid)
+
+    def test_api_port_is_loopback_bound_by_default(self):
+        compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
+        env = (ROOT / ".env.example").read_text(encoding="utf-8")
+        self.assertIn('${NEXUS_API_BIND_ADDRESS:-127.0.0.1}:8502:8502', compose)
+        self.assertIn("NEXUS_API_BIND_ADDRESS=127.0.0.1", env)
+        self.assertNotIn('- "8502:8502"', compose)
 
     def test_external_media_urls_require_https_without_embedded_credentials(self):
         app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
