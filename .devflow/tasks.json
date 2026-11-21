@@ -182,9 +182,7 @@
         "Connected workspace creation, binary media upload, fail-closed rescan, EDL v1 validation, idempotent render submission/status, private artifact download and artifact-bound review decisions",
         "Added optional audio-bed upload with gain and fade controls",
         "Added a Playwright API-contract smoke for upload → validate → render → private preview → human review",
-        "Exact-head browser validation passed on commit c0e4168544a56faafc5c999fa577af5e498651e3: run 44901102049 passed backend validation, authenticated timeline editor API-contract browser workflow and responsive workbench layout checks.",
-        "Exact-head Compose integration passed on commit c0e4168544a56faafc5c999fa577af5e498651e3: run 44901102137 passed real generated-media FFmpeg render, private artifact adoption/review and authenticated API-to-worker integration smoke.",
-        "Exact-head validation passed at 8013c3c520eb2e59581b43c1ed07504c5fdc8e7d: 914 Python tests, authenticated timeline editor Playwright API-contract flow, responsive studio preview smoke, and Compose EDL/FFmpeg/ClamAV upload-render-review/private-preview integration."
+        "Exact-head validation passed on branch head abcfd823edefdc3d4044a45a99385577cc38053c: backend validation + authenticated timeline editor API-contract Playwright + responsive workbench smoke passed in run 44901290376; Compose real-media FFmpeg/ClamAV upload-render-review/private-preview integration passed in run 44901290337."
       ],
       "remaining": [
         "Validate the Vercel preview against a live authenticated API deployed from the BUILD-00352 integration branch; browser UI contract tests currently use API mocks",
