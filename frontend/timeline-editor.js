@@ -6,6 +6,14 @@
   const say = (message,mode="info") => {
     const el=$("timelineStatus");if(el){el.textContent=message;el.dataset.state=mode;}
   };
+  function clearPrivatePreview(){
+    const video=$("timelineServerPreview");
+    if(video){video.pause();video.removeAttribute("src");video.load();video.hidden=true;video.style.display="none";}
+    if(state.outputUrl){URL.revokeObjectURL(state.outputUrl);state.outputUrl="";}
+    $("timelineRenderReview").hidden=true;
+    $("timelineCheckRender").disabled=true;
+    state.snapshotId="";state.artifactId="";
+  }
   const pathFor = (workspace,suffix) => "/api/operator/workspaces/"+encodeURIComponent(workspace)+suffix;
   const sleep = ms => new Promise(resolve=>setTimeout(resolve,ms));
   const secondsToMs = value => Math.max(0,Math.round(Number(value||0)*1000));
@@ -71,6 +79,7 @@
       clip.outPoint=Math.min(clip.outPoint,msToSeconds(clip.serverDurationMs));
       clip.duration=msToSeconds(clip.serverDurationMs);
     }
+    local()?.render();
     return clips;
   }
   async function ensureAudioAsset(workspaceId){
@@ -141,8 +150,8 @@
     if(state.rendering||!requireEditorContext())return;
     const workspaceId=currentWorkspace();
     state.rendering=true;state.workspaceId=workspaceId;
+    clearPrivatePreview();
     $("timelineSubmitRender").disabled=true;$("timelineCheckRender").disabled=true;
-    $("timelineRenderReview").hidden=true;
     try{
       say("원본 미디어를 비공개 워크스페이스에 등록하고 검사합니다.");
       const edl=await buildEdl(workspaceId);
@@ -197,7 +206,7 @@
     const next=currentWorkspace();
     if(next!==state.workspaceId){
       state.workspaceId=next;
-      state.snapshotId="";state.artifactId="";
+      clearPrivatePreview();
       videoClips().forEach(clip=>{clip.assetId="";clip.uploadedWorkspaceId="";clip.serverDurationMs=0;});
       if(state.audio){state.audio.assetId="";state.audio.uploadedWorkspaceId="";state.audio.serverDurationMs=0;}
       $("timelineRenderReview").hidden=true;$("timelineCheckRender").disabled=true;
@@ -217,7 +226,7 @@
     $("timelineRevisionRender").addEventListener("click",()=>decideRender("revision_requested"));
     $("timelineRejectRender").addEventListener("click",()=>decideRender("rejected"));
     window.addEventListener("nexus:workspace-changed",workspaceChanged);
-    window.addEventListener("nexus:auth-changed",()=>{if(!api()?.hasToken())say("API 인증이 초기화되었습니다. 렌더링을 계속하려면 다시 연결하세요.");});
+    window.addEventListener("nexus:auth-changed",()=>{clearPrivatePreview();if(!api()?.hasToken())say("API 인증이 초기화되었습니다. 렌더링을 계속하려면 다시 연결하세요.");});
     workspaceChanged();
   }
   if($("timelineEditor")){
