@@ -156,7 +156,7 @@ Implemented on `build/build-00319-bounded-autonomous-continuation`.
 2. After the workflow is deliberately integrated into main, configure the fine-grained NEXUS_GITHUB_READ_TOKEN and explicit NEXUS_APPROVED_SCOPES mappings.
 3. Verify the trusted Windows self-hosted runner toolchain, isolated Python environments, Ollama model access, and persistent LocalAppData database across at least two separate workflow runs.
 4. Verify a real Ollama-generated scoped diff, exact open Draft PR publication, successful review-artifact recording, and dependent-job advancement.
-5. Verify the read-only API/dashboard against that real runner cycle; then continue product integration and the remaining release gates.
+5. The read-only API/dashboard is implemented; verify it against the same persistent runner database after the host-sharing prerequisite is configured, then continue product integration and the remaining release gates.
 
 
 ### BUILD-00320 — Windows runner preflight and isolated Python environments
@@ -347,3 +347,16 @@ Code head `9268b47224d5910095351283d7a050f74eadac93` passed GitHub Actions run [
 The trusted runner now requires a second worktree read after executor completion. The worker requires an executor verification hook, compares its actual tracked/untracked Git paths with the claimed list, and quarantines missing or mismatched evidence before review-pending.
 
 Exact-head validation: head `c84cd357b7b9bc7d8e8f87040467e8c449a1ecf9` passed **821 tests**, `scripts/validate.sh`, and frontend syntax validation in [run 44547815032](https://github.com/justinhblee-prog/shorts/actions/runs/44547815032). Hosted Linux only; Windows local runner and live autonomous continuation remain unverified.
+
+
+### DEV-ORCH-008 — authenticated read-only development monitor
+
+Implemented on `feat/dev-orch-008-readonly-dashboard-2026-11-21`.
+
+- Added authenticated GET-only endpoints for development summary, job list/detail, immutable event history, and worker presence.
+- Added the `development.read` RBAC permission for the operator role. Reviewer and worker roles do not receive it.
+- Added a dashboard section with queue counts, lease counts, worker presence, status filtering, Draft PR links, and per-job event history.
+- The API omits lease tokens and runner hostnames; event payload details are not returned. No create, claim, retry, recovery, completion, PR mutation, or runner-control endpoint is exposed.
+- The monitor requires `NEXUS_DEVELOPMENT_DB` to point to an existing absolute-path SQLite database with the expected schema. Missing configuration, a missing file, or an incomplete schema returns HTTP 503; it does not create or display a fabricated empty queue.
+- The API host must access the exact same persistent database file as the Windows worker. A container does not automatically see the runner's `%LOCALAPPDATA%` database; use a deliberate bind mount or run the API on the same host. Do not point the monitor at a separate empty database and interpret it as runner state.
+- Offline API/RBAC tests and frontend syntax/DOM checks are included. Hosted exact-head CI is the next validation gate; real Windows database sharing and browser operation remain unverified.
