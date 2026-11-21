@@ -31,6 +31,7 @@ from recommendation_evaluation import RecommendationEvaluationStore
 from scheduler_store import ScheduleStore
 from media_staging import MediaStager, MediaStagingError
 from preflight import build_preflight
+from cors_config import parse_cors_origins
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 class TikTokOAuthAccessLogRedaction(logging.Filter):
@@ -57,11 +58,7 @@ for access_handler in uvicorn_access_logger.handlers:
 
 
 app=FastAPI(title="NEXUS STUDIO PRO API",version="0.1.0")
-cors_origins=[
-    origin.strip().rstrip("/")
-    for origin in os.getenv("NEXUS_CORS_ORIGINS", "").split(",")
-    if origin.strip()
-]
+cors_origins=parse_cors_origins()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
