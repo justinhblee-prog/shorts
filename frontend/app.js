@@ -399,6 +399,7 @@
     completed:"완료",cancelled:"취소"
   };
   function setDevelopmentUnavailable(message){
+    selectedDevelopmentJob="";
     ["developmentMetricTotal","developmentMetricReady","developmentMetricBlocked",
      "developmentMetricLeases","developmentMetricWorkers"].forEach(id=>$(id).textContent="—");
     $("developmentWorkers").innerHTML='<div class="empty-state">개발 Worker 상태를 확인할 수 없습니다.</div>';
@@ -501,7 +502,7 @@
     try{await api("/api/queue/stats");$("settingsDialog").close();msg("tokenMessage","인증 성공");await refreshAll();}
     catch(e){token="";msg("tokenMessage",e.message,true);}
   });
-  $("clearToken").addEventListener("click",()=>{token="";$("tokenInput").value="";setConnection(false,"인증 필요");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");});
+  $("clearToken").addEventListener("click",()=>{token="";$("tokenInput").value="";setConnection(false,"인증 필요");setDevelopmentUnavailable("인증이 초기화되어 개발 작업 정보를 숨겼습니다.");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");});
   $("refreshAll").addEventListener("click",refreshAll);
   $("refreshDevelopment").addEventListener("click",()=>loadDevelopmentMonitor().catch(e=>toast(e.message)));
   $("developmentStatusFilter").addEventListener("change",()=>loadDevelopmentMonitor().catch(e=>toast(e.message)));
