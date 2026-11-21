@@ -96,3 +96,11 @@ The eight mandatory launch gates remain at **1/8**. CI and synthetic fixtures do
 - Announce result counts through a polite status region and retain the query across queue refreshes.
 - Add source and Chromium browser regressions for zero-result and matching-result behavior.
 - Exact-head validation passed in the same UI checkpoint: [run 44505738015](https://github.com/justinhblee-prog/shorts/actions/runs/44505738015), 730 tests and Playwright Chromium.
+
+
+## BUILD-00361 — timeline editor UI/API integration
+
+- **Frontend workstream:** preserve the approved fixed-sidebar workspace shell and connect the local timeline editor to authenticated private workspace upload and EDL v1 render APIs.
+- **Backend dependency:** BUILD-00352 provides workspace isolation, quarantined media upload/scan, EDL validation, immutable snapshots, durable queue submission, lease-fenced FFmpeg render, private artifact preview/download and artifact-bound review decisions.
+- **Safety:** render artifacts remain private and review-pending. The editor records approve/reject/revision decisions only; it does not publish to YouTube/TikTok or make content public.
+- **Validation boundary:** browser tests use API contract mocks; backend Compose integration separately exercises real generated MP4/FFmpeg/ffprobe and artifact adoption. Target-host/provider validation remains external.
