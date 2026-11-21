@@ -81,3 +81,10 @@ The documentation/task-ledger head `7575d24fd058b1a8b615e8ce4bee4268c77ee9cd` pa
 - Optional `fail_reason` must be a string or null. Malformed identity/failure fields are rejected before the publication state store is mutated.
 - Added offline fake-transport regressions for falsey non-list IDs, non-string IDs and non-string failure reasons. Each asserts the existing publication status, video ID and audit-event count remain unchanged.
 - No live provider calls, credentials, uploads or external publishing were used. Exact-head CI for this follow-up is pending.
+
+
+## TikTok provider error-envelope validation
+
+- Non-binary TikTok API responses now require `error` to be omitted/null, a string, or an object with a non-empty string `code`. Arrays, booleans, numbers and malformed error objects are rejected instead of being treated as success.
+- Added offline fake-transport regressions for array-valued error envelopes and non-string error codes.
+- Combined source/test commits for status identity and error-envelope hardening: `b8dbac47775dc0778b1a4b552f209d35485dbf5d`, `8f6fa25cb87a52d81ca9912cc16aa12d180d7539`, `5072884e4844927a16a670e8ec8bcdaf538be19d`, `43b36deb6afcab3e32721bb2076f07f23e68c064`. Exact latest-head Backend and Compose checks are pending.
