@@ -210,6 +210,11 @@ $queue=[Collections.Generic.Queue[object]]::new()
 foreach($t in @($eligible|Select-Object -First $MaxTasks)){
  $prior=$state.tasks[[string]$t.id]
  if($prior -and $prior.status -eq "draft_pr_created"){continue}
+ if($prior -and $prior.status -in @("failed","timed_out") -and [int]$prior.attempt_count -ge 5){
+  Set-State $statePath ([string]$t.id) "retry_exhausted" "Stopped after five worker attempts; human review is required."
+  Write-Warning "[QUEUE] $($t.id) exhausted five worker attempts and requires human review."
+  continue
+ }
  if($prior -and $prior.retry_after_utc){
   $retryAt=[DateTime]::MinValue
   if([DateTime]::TryParse([string]$prior.retry_after_utc,[ref]$retryAt) -and $retryAt -gt [DateTime]::UtcNow){
