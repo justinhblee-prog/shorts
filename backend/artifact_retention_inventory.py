@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 
+from artifact_retention import evaluate_retention_candidate
+
 
 class RetentionInventoryError(RuntimeError):
     """The read-only inventory could not be completed safely."""
@@ -234,5 +236,3 @@ class RetentionInventory:
             "destructive_action_performed": False,
         }
 
-
-from artifact_retention import evaluate_retention_candidate
