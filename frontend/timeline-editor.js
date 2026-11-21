@@ -216,6 +216,7 @@
     state.audio.assetId=asset.asset_id;state.audio.uploadedWorkspaceId=workspaceId;
     state.audio.serverDurationMs=Number(asset.media_metadata?.duration_ms||asset.duration_ms||0);
     if(!state.audio.serverDurationMs)throw new Error("서버가 오디오 길이를 확인하지 못했습니다.");
+    renderTimelineViews();
     return state.audio;
   }
   async function buildEdl(workspaceId){
