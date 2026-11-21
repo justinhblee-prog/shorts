@@ -93,13 +93,17 @@ def reconcile_artifacts(artifact_store, logger=None):
     removed = (
         staging["removed_files"] + staging["removed_directories"] + artifacts["removed"]
     )
+    usage = artifact_store.storage_usage()
     log.info(
         "render_artifact_reconciliation_completed removed_staging_files=%s "
-        "removed_staging_directories=%s removed_artifacts=%s removed_bytes=%s",
+        "removed_staging_directories=%s removed_artifacts=%s removed_bytes=%s "
+        "artifact_storage_files=%s artifact_storage_used_bytes=%s "
+        "artifact_storage_available_bytes=%s artifact_storage_quota_bytes=%s",
         staging["removed_files"], staging["removed_directories"],
         artifacts["removed"], staging["removed_bytes"] + artifacts["removed_bytes"],
+        usage["files"], usage["used_bytes"], usage["available_bytes"], usage["max_bytes"],
     )
-    return {"staging": staging, "artifacts": artifacts, "removed": removed}
+    return {"staging": staging, "artifacts": artifacts, "storage": usage, "removed": removed}
 
 
 def build_worker():
