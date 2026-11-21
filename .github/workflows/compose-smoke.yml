@@ -75,7 +75,7 @@ jobs:
       - name: Build all service images
         run: docker compose build
       - name: Start API, worker, scheduler, metrics collector and backup
-        run: docker compose --profile media-scan up -d
+        run: docker compose --profile media-scan --profile render up -d
       - name: Wait for current ClamAV signatures and verify scanner database
         run: |
           set -eu
