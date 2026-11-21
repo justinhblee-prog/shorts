@@ -282,3 +282,13 @@ Automated CI and Compose smoke do not prove:
 
 - PR #475 latest validation-record/task-ledger head `bead8802c7e6d2207586cde5c05c276c05dabcf9` passed Backend [44890304610](https://github.com/justinhblee-prog/shorts/actions/runs/44890304610) and Compose [44890304622](https://github.com/justinhblee-prog/shorts/actions/runs/44890304622). Both workflows completed successfully; backend validation/Playwright and generated-media Compose integration/backup restore passed.
 - All current PR #474/#475 code and documentation heads are CI-validated. PRs remain Draft/open/unmerged. No live provider calls, customer-media checks, target-host tests, deployments, external uploads or publishes were performed.
+
+
+## 5.13. Latest provider response-boundary hardening — 2026-11-21
+
+- BUILD-00352 PR #474 remains Draft/open/unmerged at exact head `6b5ba0ee0da2ad103369f897804dadda10be9923`; Backend [44889771751](https://github.com/justinhblee-prog/shorts/actions/runs/44889771751) and Compose [44889771753](https://github.com/justinhblee-prog/shorts/actions/runs/44889771753) both passed.
+- BUILD-00353 PR #475 remains Draft/open/unmerged at latest docs/task-ledger head `2e47ec503441530093a3292ebb9068c9067210c6`. Exact-head Backend [44893080562](https://github.com/justinhblee-prog/shorts/actions/runs/44893080562) and Compose [44893080568](https://github.com/justinhblee-prog/shorts/actions/runs/44893080568) were queued/in progress at handover update; do not mark this head validated until both conclude success.
+- New TikTok offline response hardening rejects malformed status video-ID lists (including falsey non-lists and non-string IDs), malformed failure-reason types, and malformed API error envelopes (non-object/non-string values or objects without a non-empty string error code). Tests assert no publication state/audit mutation on malformed status responses.
+- Source/test commits include `b8dbac47775dc0778b1a4b552f209d35485dbf5d`, `8f6fa25cb87a52d81ca9912cc16aa12d180d7539`, `5072884e4844927a16a670e8ec8bcdaf538be19d`, `43b36deb6afcab3e32721bb2076f07f23e68c064`; latest PR head also includes docs/task-ledger updates.
+- Backend/Compose use fake provider responses and generated media; they do not establish live Google/YouTube/TikTok HTTPS compatibility, customer media behavior, production filesystem behavior or deployment readiness. Live credentials, spend ceiling, legal/provider review, authorized private test accounts and workspace-owned credentials remain external gates.
+- No provider credentials or scopes were changed; no live provider requests, external uploads, publishing, merges, deployments or indexed artifact deletions were performed.
