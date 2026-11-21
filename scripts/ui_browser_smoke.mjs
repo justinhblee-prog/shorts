@@ -397,7 +397,7 @@ async function waitForServer() {
     assert.equal(await page.locator("#timelineZoomValue").textContent(),"125%");
     const zoomedTimelineWidth=await page.locator("#timelineVisualTrack").evaluate(el=>el.getBoundingClientRect().width);
     assert.ok(zoomedTimelineWidth>initialTimelineWidth,"timeline zoom should expand the time canvas");
-    await page.locator("#timelineZoomLevel").fill("2.5");
+    await page.locator("#timelineZoomLevel").evaluate(el=>{el.value="2.5";el.dispatchEvent(new Event("input",{bubbles:true}));});
     assert.equal(await page.locator("#timelineZoomValue").textContent(),"250%");
     await page.locator("#timelineZoomFit").click();
     assert.equal(await page.locator("#timelineZoomValue").textContent(),"100%");
