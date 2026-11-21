@@ -47,6 +47,15 @@ if($Worker){
   $argsJson=$env:DEVFLOW_AGENT_ARGS_JSON;$command=$env:DEVFLOW_AGENT_COMMAND
   if(-not $command -or -not $argsJson){throw "Agent CLI configuration missing."}
   $agentArgs=ConvertFrom-Json -InputObject $argsJson;if($agentArgs -isnot [array]){$agentArgs=@($agentArgs)}
+  # Resolve runner-provided Agent script paths before changing process cwd to an isolated worktree.
+  # Older per-user configurations may still contain a relative scripts/ollama-agent.py path.
+  if($agentArgs.Count -gt 0 -and -not [IO.Path]::IsPathRooted([string]$agentArgs[0])){
+   $runnerRoot=$env:GITHUB_WORKSPACE
+   if(-not $runnerRoot){$runnerRoot=(git -C $PSScriptRoot rev-parse --show-toplevel 2>$null)}
+   if($runnerRoot){$candidate=[IO.Path]::GetFullPath((Join-Path $runnerRoot ([string]$agentArgs[0])))
+    if(Test-Path -LiteralPath $candidate -PathType Leaf){$agentArgs[0]=$candidate}
+   }
+  }
   $filePlaceholderCount=@($agentArgs|Where-Object{$_ -eq "{prompt_file}"}).Count
   $textPlaceholderCount=@($agentArgs|Where-Object{$_ -eq "{prompt_text}"}).Count
   if(($filePlaceholderCount + $textPlaceholderCount) -ne 1){throw "Agent args must include exactly one {prompt_file} or {prompt_text} placeholder."}
