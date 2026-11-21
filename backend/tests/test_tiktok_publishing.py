@@ -1339,6 +1339,36 @@ class TikTokPublishingTests(unittest.TestCase):
 
 
 
+
+    def test_chunk_plan_respects_tiktok_documented_decimal_byte_limits(self):
+        cases = (
+            (1, (1, 1)),
+            (4_999_999, (4_999_999, 1)),
+            (5_000_000, (5_000_000, 1)),
+            (64_000_000, (64_000_000, 1)),
+            (64_000_001, (32_000_000, 2)),
+            (128_000_001, (64_000_000, 2)),
+            (4_000_000_000, (64_000_000, 62)),
+        )
+        for size, expected in cases:
+            with self.subTest(size=size):
+                self.assertEqual(TikTokPublisher._chunk_plan(size), expected)
+                chunk_size, chunk_count = expected
+                chunk_sizes = [chunk_size] * (chunk_count - 1)
+                chunk_sizes.append(size - chunk_size * (chunk_count - 1))
+                self.assertEqual(sum(chunk_sizes), size)
+                self.assertEqual(len(chunk_sizes), chunk_count)
+                for chunk_bytes in chunk_sizes[:-1]:
+                    self.assertGreaterEqual(chunk_bytes, 5_000_000)
+                    self.assertLessEqual(chunk_bytes, 64_000_000)
+                final_chunk = chunk_sizes[-1]
+                if size < 5_000_000:
+                    self.assertEqual(final_chunk, size)
+                else:
+                    self.assertGreaterEqual(final_chunk, 5_000_000)
+                    self.assertLessEqual(final_chunk, 128_000_000)
+
+
 if __name__ == "__main__":
     unittest.main()
 
