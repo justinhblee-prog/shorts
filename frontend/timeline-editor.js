@@ -93,7 +93,7 @@
       track.serverDurationMs=Number(asset.media_metadata?.duration_ms||asset.duration_ms||0);
       if(!track.serverDurationMs)throw new Error(track.name+" · 서버가 오디오 길이를 확인하지 못했습니다.");
       if(track.sourceInMs>=track.serverDurationMs)throw new Error(track.name+" · 시작점이 원본 길이를 초과합니다.");
-      track.sourceOutMs=Math.min(track.sourceOutMs||track.serverDurationMs,track.serverDurationMs);
+      track.sourceOutMs=Math.min(Number.isFinite(Number(track.sourceOutMs))?Number(track.sourceOutMs):track.serverDurationMs,track.serverDurationMs);
     }
     return state.audios;
   }
@@ -122,7 +122,7 @@
     const audioTracks=audioTracksInput.map((track,index)=>{
       const startMs=Math.min(Math.max(0,Math.round(Number(track.startMs)||0)),cursor-1);
       const sourceIn=Math.max(0,Math.round(Number(track.sourceInMs)||0));
-      const sourceOut=Math.min(track.serverDurationMs,Math.round(Number(track.sourceOutMs)||track.serverDurationMs),sourceIn+Math.max(0,cursor-startMs));
+      const requestedSourceOut=Number(track.sourceOutMs);\n      const sourceOut=Math.min(track.serverDurationMs,Number.isFinite(requestedSourceOut)?Math.round(requestedSourceOut):track.serverDurationMs,sourceIn+Math.max(0,cursor-startMs));
       if(sourceOut<=sourceIn)throw new Error(track.name+" · 타임라인에 배치할 오디오 구간이 없습니다.");
       const available=sourceOut-sourceIn;
       const fadeIn=Math.min(Math.max(0,Math.round(Number(track.fadeInMs)||0)),available);
