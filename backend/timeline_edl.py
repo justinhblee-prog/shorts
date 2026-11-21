@@ -38,10 +38,12 @@ def _number(value: Any, field: str) -> float:
 def validate_edl(payload: Any) -> dict:
     """Validate and return a normalized copy of the supported EDL v1 subset.
 
-    Supported payload shape: schema, version, timebase='milliseconds', clips[].
-    Each clip has id, type ('video'|'title'), start_ms, end_ms, and for video
-    clips an opaque asset_id plus source_in_ms/source_out_ms. Browser paths,
-    URLs, filters, transitions and arbitrary renderer directives are rejected.
+    Supported payload shape: schema, version, timebase='milliseconds', clips[],
+    optional audio_tracks, project_duration_ms, transitions and gaps. Video
+    joins must match their declared hard cut, crossfade overlap or black gap.
+    Each video clip uses an opaque asset_id and source trim; title text is
+    bounded. Browser paths, URLs, filters and arbitrary renderer directives
+    are rejected. The returned object is a normalized copy.
     """
     if not isinstance(payload, dict):
         raise EDLValidationError("EDL must be a JSON object")
