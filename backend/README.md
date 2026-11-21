@@ -603,3 +603,21 @@ Production jobs can be cancelled only before review handoff. A running productio
 ### BUILD-00138 — metrics collector lease ownership
 
 The YouTube Data API, YouTube Analytics and TikTok metrics collectors use renewable, token-fenced leases. Snapshot and collection-state writes verify the active owner/token in the same SQLite transaction, so results arriving after lease replacement or expiry are rejected. The heartbeat is checked before and after provider work. Configure `NEXUS_METRICS_LEASE_SECONDS` (default 300 seconds) for YouTube Data API/TikTok and `YOUTUBE_ANALYTICS_LEASE_SECONDS` (default 900 seconds) for Analytics. Restart the metrics-collector service after deploying the SQLite lease-token migration.
+
+
+### BUILD-00363 — lease-fenced worker scratch lifecycle
+
+The production worker now assigns each claimed job a private, token-fenced scratch
+directory and points Python temporary-file creation at that directory for the job's
+lifetime. The lease marker is atomically refreshed with each successful worker
+heartbeat. Normal completion and handled failures remove only the directory whose
+job, worker and lease-token hashes still match the current worker. On startup/claim
+cycles, abandoned job directories are pruned only when their valid lease expiry plus
+the configured grace period has elapsed. Missing, malformed, symlinked or mismatched
+metadata fails closed and is retained for operator inspection.
+
+Configure `NEXUS_WORKER_SCRATCH_DIR` (default `data/worker-scratch` in the worker
+container; Compose may set it to `/app/data/worker-scratch`) and
+`NEXUS_WORKER_SCRATCH_GRACE_SECONDS` (default 3600; minimum 300). This protects
+job-scoped Python temp files; it does not replace volume quotas or clean renderer
+provider-side scratch storage, media staging files, logs or completed artifacts.

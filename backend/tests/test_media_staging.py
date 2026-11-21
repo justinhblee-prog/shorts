@@ -27,6 +27,20 @@ class MediaStagerTests(unittest.TestCase):
         self.assertEqual(result["sha256"],hashlib.sha256(self.payload).hexdigest())
         self.assertEqual(result["size_bytes"],len(self.payload))
 
+    def test_download_uses_worker_scratch_then_adopts_into_media_directory(self):
+        scratch = tempfile.mkdtemp(dir=self.tmp.name)
+        previous = os.environ.get("NEXUS_MEDIA_STAGING_TEMP_DIR")
+        os.environ["NEXUS_MEDIA_STAGING_TEMP_DIR"] = scratch
+        try:
+            result = self.stager.stage("job-scratch", "https://cdn.example.test/video.mp4")
+            self.assertTrue(os.path.isfile(os.path.join(self.tmp.name, result["media_path"])))
+            self.assertEqual(os.listdir(scratch), [])
+        finally:
+            if previous is None:
+                os.environ.pop("NEXUS_MEDIA_STAGING_TEMP_DIR", None)
+            else:
+                os.environ["NEXUS_MEDIA_STAGING_TEMP_DIR"] = previous
+
     def test_rejects_non_allowlisted_host_before_network(self):
         with self.assertRaises(MediaStagingError):
             self.stager.stage("job-1","https://evil.example/video.mp4")

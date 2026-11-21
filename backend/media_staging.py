@@ -197,7 +197,16 @@ class MediaStager:
         prefix = b""
         digest = hashlib.sha256()
         try:
-            with tempfile.NamedTemporaryFile(mode="wb", dir=self.media_dir,
+            # Active workers provide a lease-scoped temp directory. Keep it on
+            # the same filesystem as media_dir so os.replace remains atomic.
+            configured_temp = os.getenv("NEXUS_MEDIA_STAGING_TEMP_DIR")
+            temp_dir = Path(configured_temp).absolute() if configured_temp else self.media_dir
+            if configured_temp:
+                if temp_dir.is_symlink() or not temp_dir.is_dir():
+                    raise MediaStagingError("Worker media temp directory is unavailable or unsafe")
+                if temp_dir.stat().st_dev != self.media_dir.stat().st_dev:
+                    raise MediaStagingError("Worker media temp directory must share the media filesystem")
+            with tempfile.NamedTemporaryFile(mode="wb", dir=temp_dir,
                                              prefix=".nexus-", suffix=".part", delete=False) as out:
                 temporary = Path(out.name)
                 for chunk in chunks:

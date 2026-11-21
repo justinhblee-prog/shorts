@@ -41,6 +41,8 @@ services:
     env_file: .env
     environment:
       NEXUS_DB_PATH: /app/data/nexus.sqlite3
+      NEXUS_WORKER_SCRATCH_DIR: /app/data/worker-scratch
+      NEXUS_WORKER_SCRATCH_GRACE_SECONDS: ${NEXUS_WORKER_SCRATCH_GRACE_SECONDS:-3600}
     volumes:
       - nexus_data:/app/data
     depends_on:
