@@ -158,7 +158,10 @@ class DevelopmentJobApiTests(unittest.TestCase):
             "runner-visible-id", hostname="private-runner-host",
             current_job_id=self.job["id"],
         )
-        with mock.patch.object(app_module, "require_review_permission"):
+        with (
+            mock.patch.object(app_module, "_get_development_job_store", return_value=self.store),
+            mock.patch.object(app_module, "require_review_permission"),
+        ):
             jobs = app_module.development_jobs(status="leased", limit=1, x_review_token="operator-token")
         self.assertEqual(len(jobs["items"]), 1)
 
@@ -173,7 +176,7 @@ class DevelopmentJobApiTests(unittest.TestCase):
             mock.patch.object(app_module, "require_review_permission"),
         ):
             events = app_module.development_job_events(self.job["id"], limit=20, x_review_token="operator-token")
-        self.assertTrue(all(events["events"][i]["timestamp"] <= events["events"][i+1]["timestamp"] for i in range(len(events["events"]) - 1)))
+        self.assertTrue(all(events["events"][i]["created_at"] <= events["events"][i+1]["created_at"] for i in range(len(events["events"]) - 1)))
 
     def test_pagination_limit_truncates_results(self):
         second = self.store.create(title="Second pagination fixture", priority=101, scope=["backend/second.py"])
