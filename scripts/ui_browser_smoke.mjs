@@ -427,6 +427,12 @@ async function waitForServer() {
     assert.equal(await page.locator("#timelineZoomValue").textContent(),"100%");
     assert.equal(await page.locator("#timelineScrollLeft").isVisible(),true);
     assert.equal(await page.locator("#timelineScrollRight").isVisible(),true);
+    await page.locator("#timelineApproveRender").scrollIntoViewIfNeeded();
+    const approvalHitTarget=await page.locator("#timelineApproveRender").evaluate(el=>{
+      const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2,hit=document.elementFromPoint(x,y);
+      return {button:el.id,hit:hit?.id||hit?.className||hit?.tagName,buttonRect:{left:r.left,right:r.right,top:r.top,bottom:r.bottom}};
+    });
+    assert.equal(approvalHitTarget.hit,"timelineApproveRender","review approval must not be covered by an adjacent editor column: "+JSON.stringify(approvalHitTarget));
     await page.locator("#timelineApproveRender").click();
     await page.waitForFunction(()=>document.querySelector("#timelineRenderReview").hidden===true);
     assert.equal(capturedTimelineDecision.decision,"approved");
