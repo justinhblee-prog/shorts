@@ -88,3 +88,13 @@ The documentation/task-ledger head `7575d24fd058b1a8b615e8ce4bee4268c77ee9cd` pa
 - Non-binary TikTok API responses now require `error` to be omitted/null, a string, or an object with a non-empty string `code`. Arrays, booleans, numbers and malformed error objects are rejected instead of being treated as success.
 - Added offline fake-transport regressions for array-valued error envelopes and non-string error codes.
 - Combined source/test commits for status identity and error-envelope hardening: `b8dbac47775dc0778b1a4b552f209d35485dbf5d`, `8f6fa25cb87a52d81ca9912cc16aa12d180d7539`, `5072884e4844927a16a670e8ec8bcdaf538be19d`, `43b36deb6afcab3e32721bb2076f07f23e68c064`. Exact latest-head Backend and Compose checks are pending.
+
+
+## Exact-head validation for TikTok status/error-envelope hardening
+
+The complete source, test, documentation and task-ledger head `2e47ec503441530093a3292ebb9068c9067210c6` passed both required checks:
+
+- Backend [run 44893080562](https://github.com/justinhblee-prog/shorts/actions/runs/44893080562): repository validation, Korean font fallback and Playwright browser smoke all passed.
+- Compose [run 44893080568](https://github.com/justinhblee-prog/shorts/actions/runs/44893080568): service startup/readiness, current ClamAV signature readiness, worker isolation/resource limits, real generated-media FFmpeg render/adoption/review, authenticated upload-to-worker/private-preview E2E, encrypted backup and isolated restore all passed; cleanup completed successfully.
+
+These remain offline fake-provider contract tests and generated-fixture media integration. No live provider HTTPS, customer-media, target-host or production deployment validation is implied.
