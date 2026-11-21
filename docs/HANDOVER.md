@@ -1624,3 +1624,14 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Timeline UI exposes hard cut / crossfade / black-screen connection modes and a shared duration control. Black intervals appear as distinct BLACK markers, and downstream clip positions and total duration include each interval.
 - Tests cover EDL schema validation and unsafe gaps, renderer graph construction and rejection of undeclared gaps, browser UI/API-contract EDL generation, and a real FFmpeg/ffprobe worker render with internal and trailing black sections plus title/audio and private review handoff.
 - Internal black-gap support is implemented. Customer-specific media/target-host validation remains external.
+
+
+## BUILD-00362 — lazy media thumbnail loading — 2026-11-21
+
+- Video shelf thumbnails now defer assigning their object-URL source until the card approaches the visible shelf viewport. The shelf uses an IntersectionObserver rooted to its own scroll container with a 96px prefetch margin and `preload=none`; browsers without IntersectionObserver use a compatibility fallback.
+- Browser smoke adds additional fixture clips, verifies that offscreen thumbnails do not all preload, then scrolls the shelf and verifies deferred thumbnails begin loading.
+- This reduces concurrent metadata/decode work for larger local media lists. Representative customer codecs, unusually large source files and large-library performance still require target-browser validation.
+
+- Exact corrected executable head `e0eade2946006f3a47c86113cc614c3a46c6da2e` passed `scripts/validate.sh`, authenticated timeline editor/EDL Playwright smoke and responsive workbench smoke in Actions run [44917087034](https://github.com/justinhblee-prog/shorts/actions/runs/44917087034). The first run exposed only a test-order issue; the synthetic fixture was moved after existing timeline assertions before the successful rerun. The subsequent commit records documentation and task-ledger evidence only.
+
+- Thumbnail lifecycle follow-up: on each media shelf rerender, disconnect the prior observer, pause all previously loaded thumbnail videos, remove their media source and call `load()` before dropping references. This releases stale browser media/decoder resources instead of allowing detached cards to retain active media. Browser smoke asserts prior cards are paused and have no remaining `src` after rerender.

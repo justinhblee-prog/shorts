@@ -430,6 +430,43 @@ async function waitForServer() {
     assert.match(await page.locator("#timelineServerPreview").getAttribute("src"),/^blob:/,"private artifact should be fetched as an authenticated browser blob");
     checkpoint("authenticated workspace upload → EDL validation → render status → private artifact preview → human review decision verified (API contract mock)");
 
+    const lazyThumbnailAudit=await page.evaluate(()=>{
+      const timeline=window.NexusLocalTimeline,source=timeline.state.clips.find(clip=>clip.kind==="video");
+      for(let index=0;index<8;index++)timeline.state.clips.push({...source,id:"lazy-thumbnail-"+index,name:"Lazy thumbnail "+index,assetId:"",uploadedWorkspaceId:"",serverDurationMs:0});
+      timeline.render();
+      const videos=[...document.querySelectorAll("#timelineMediaShelf .timeline-media-card video")];
+      return {count:videos.length,loaded:videos.filter(video=>video.hasAttribute("src")).length,preload:videos[0]?.preload};
+    });
+    assert.equal(lazyThumbnailAudit.preload,"none","offscreen thumbnail videos must not preload media metadata");
+    assert.ok(lazyThumbnailAudit.loaded<lazyThumbnailAudit.count,"only visible or near-visible thumbnail videos should load");
+    await page.locator("#timelineMediaShelf").evaluate(el=>{el.scrollTop=el.scrollHeight;});
+    await page.waitForFunction(()=>{
+      const videos=[...document.querySelectorAll("#timelineMediaShelf .timeline-media-card video")];
+      return videos.length>0&&videos[videos.length-1].hasAttribute("src");
+    });
+    const detachedThumbnailCleanup=await page.evaluate(()=>{
+      const timeline=window.NexusLocalTimeline;
+      const previous=[...document.querySelectorAll("#timelineMediaShelf .timeline-media-card video")];
+      timeline.render();
+      return {previousCount:previous.length,released:previous.every(video=>!video.hasAttribute("src")&&video.paused)};
+    });
+    assert.ok(detachedThumbnailCleanup.previousCount>0,"thumbnail lifecycle fixture should contain video cards");
+    assert.equal(detachedThumbnailCleanup.released,true,"rerender must release detached thumbnail media sources and pause decoders");
+
+    const fallbackThumbnailAudit=await page.evaluate(()=>{
+      const nativeObserver=window.IntersectionObserver;
+      try{
+        delete window.IntersectionObserver;
+        window.NexusLocalTimeline.render();
+        const videos=[...document.querySelectorAll("#timelineMediaShelf .timeline-media-card video")];
+        return {count:videos.length,loaded:videos.filter(video=>video.hasAttribute("src")).length};
+      }finally{
+        window.IntersectionObserver=nativeObserver;
+      }
+    });
+    assert.ok(fallbackThumbnailAudit.count>0,"fallback fixture should contain video thumbnails");
+    assert.equal(fallbackThumbnailAudit.loaded,fallbackThumbnailAudit.count,"browsers without IntersectionObserver must eagerly load thumbnail sources");
+
 
     failQueueStats = true;
     await page.locator("#refreshAll").click();
