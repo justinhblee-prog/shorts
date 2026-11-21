@@ -677,7 +677,9 @@ class TikTokPublisher:
         response = self._call(
             API_ROOT + "/v2/post/publish/creator_info/query/"
         )
-        data = response.get("data") or {}
+        data = response.get("data")
+        if not isinstance(data, dict):
+            raise TikTokPublishError("TikTok creator response data has an unexpected shape")
         options = data.get("privacy_level_options")
         if not isinstance(options, list) or not options:
             raise TikTokPublishError("TikTok creator privacy options are unavailable")
@@ -1003,10 +1005,17 @@ class TikTokPublisher:
                     },
                 },
             )
-            data = initialized.get("data") or {}
+            data = initialized.get("data")
+            if not isinstance(data, dict):
+                raise TikTokPublishError(
+                    "TikTok initialization response data has an unexpected shape"
+                )
             publish_id = data.get("publish_id")
             upload_url = self._validate_upload_url(data.get("upload_url"))
-            if not publish_id or len(publish_id) > 64 or not upload_url:
+            if (
+                not isinstance(publish_id, str) or not publish_id.strip()
+                or len(publish_id) > 64 or not upload_url
+            ):
                 raise TikTokPublishError("TikTok initialization response is incomplete")
             self.store.set_initialized(job_id, attempt_id, publish_id, creator_data)
             self._upload_chunks(upload_url, resolved, mime, size)
