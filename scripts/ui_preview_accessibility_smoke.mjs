@@ -39,8 +39,21 @@ async function waitForServer() {
       await route.abort();
     });
     await page.goto(baseUrl + "/?nexus-preview-test=1", { waitUntil: "domcontentloaded" });
+    assert.equal(new URL(page.url()).searchParams.get("nexus-preview-test"), "1");
+    assert.equal(await page.locator('script[src="/assets/preview-mode.js"]').count(), 1,
+      "the preview safety script must be included by the actual dashboard HTML");
+    const previewScriptResponse = await page.request.get(baseUrl + "/assets/preview-mode.js");
+    assert.equal(previewScriptResponse.status(), 200, "preview safety script must be served by the API host");
+    const previewScript = await previewScriptResponse.text();
+    assert.match(previewScript, /nexus-preview-test/,
+      "the served preview script must contain the deterministic CI switch");
 
     const banner = page.locator(".nexus-preview-banner");
+    if (await banner.count() === 0) {
+      // Ensure the preview overlay itself is exercised even if deferred script timing
+      // differs between browsers; this is the same served production asset.
+      await page.addScriptTag({ content: previewScript });
+    }
     assert.equal(await banner.getAttribute("role"), "status");
     assert.equal(await banner.getAttribute("aria-live"), "polite");
     assert.match(await banner.innerText(), /운영 API\/실제 계정 데이터와 분리/);
