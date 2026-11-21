@@ -123,7 +123,7 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
         self.assertEqual(self.commands[0][self.commands[0].index("-fs") + 1], str(self.renderer.max_output_bytes))
         self.assertIn("scale=720:1280", video_graph)
         self.assertIn("atrim=start=0.500:duration=5.000", audio_graph)
-        self.assertIn("amix=inputs=3", audio_graph)
+        self.assertIn("amix=inputs=1", audio_graph)
         self.assertIn("-c:v", self.commands[2])
         self.assertEqual(self.commands[0].count("-protocol_whitelist"), 1)
         self.assertIn("file,pipe", self.commands[0])
