@@ -1286,3 +1286,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - The latest PR head `d84273...` is documentation-only and was not itself covered by those exact-SHA CI runs. Do not claim otherwise.
 - Corrected the security review and this handover to withdraw the false claim that recovery shared development write permissions. The workflow already separates the jobs; the exact permission maps are now parsed and asserted by tests.
 - Activation remains blocked by missing OS-level Windows runner isolation, ACL/network egress and secret audit, real Windows/Ollama execution, cross-run LocalAppData persistence, and disposable Draft PR recovery round-trip. Keep PR Draft/open/unmerged; no dispatch, schedule activation, runner/secret change, merge, or deployment.
+
+
+### 2026-11-21 — PR #416 exact-head validation and security-review consolidation
+
+- PR #416 head `8028d2688e5f5f6ba9db6e84099530cbc2a22df6` passed exact-head hosted CI run [44843382240](https://github.com/justinhblee-prog/shorts/actions/runs/44843382240). Dependency installation, `sh scripts/validate.sh`, and worker workflow YAML parsing all succeeded. The validation suite includes 621 backend tests.
+- Rewrote `docs/DEVELOPMENT_WORKER_SECURITY_REVIEW.md` to remove superseded and contradictory review notes. It now records the exact permission maps: global `contents: read`; recovery `contents: read` + `pull-requests: read`; development `contents: write` + `pull-requests: write` + `actions: write`. The YAML-parsed contract test asserts these maps exactly.
+- Corrected the permission description: write scopes are job-level on `development-cycle`, not workflow-global. The separate intake token is read-only and distinct from the publication job token.
+- Latest review document commit: `0aefe59f025ffca8459d75bdf352e9cccf4098dd`. This is a documentation-only follow-up after the exact-head CI run; do not describe this later doc commit as independently CI-tested.
+- PR #416 remains Open, Draft, Unmerged. Keep it that way. No workflow dispatch, schedule activation, runner/secret change, merge, or deployment.
+- Activation blockers remain: dedicated low-privilege Windows runner/VM, ACL and egress restrictions, secret inventory, real Windows/Ollama execution, cross-run LocalAppData persistence, and disposable Draft PR publication/recovery round-trip.
