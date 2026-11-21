@@ -360,7 +360,8 @@ async function waitForServer() {
       const url = URL.createObjectURL(file);
       const state = window.NexusLocalTimeline.state;
       state.clips = [
-        {id:"clip-smoke",kind:"video",name:file.name,url,file,mimeType:file.type,sizeBytes:file.size,duration:5,inPoint:0,outPoint:5},
+        {id:"clip-smoke",kind:"video",name:"timeline-smoke-a.mp4",url,file,mimeType:file.type,sizeBytes:file.size,duration:5,inPoint:0,outPoint:2.5},
+        {id:"clip-smoke-2",kind:"video",name:"timeline-smoke-b.mp4",url,file,mimeType:file.type,sizeBytes:file.size,duration:5,inPoint:2.5,outPoint:5},
         {id:"title-smoke",kind:"title",name:"Render smoke",duration:5,inPoint:1,outPoint:4,text:"Render smoke"},
       ];
       state.selected="clip-smoke";
@@ -376,6 +377,9 @@ async function waitForServer() {
     await audioRows.nth(0).locator('input[aria-label="music-bed.wav Gain"]').dispatchEvent("change");
     await audioRows.nth(1).locator('input[aria-label="voice-over.wav 시작(s)"]').fill("1.5");
     await audioRows.nth(1).locator('input[aria-label="voice-over.wav 시작(s)"]').dispatchEvent("change");
+    await page.locator("#timelineTransitionType").selectOption("crossfade");
+    await page.locator("#timelineTransitionDuration").selectOption("500");
+    assert.equal(await page.locator("#timelineVisualTrack .timeline-transition-marker").count(),1,"visual timeline should show the crossfade overlap");
     await page.locator("#timelineProjectDuration").fill("7");
     assert.equal(await page.locator("#timelineVisualDuration").textContent(),"7.0s");
     await page.locator("#timelineSubmitRender").click();
@@ -383,15 +387,17 @@ async function waitForServer() {
     await page.locator("#timelineRenderReview").waitFor({state:"visible",timeout:5000});
     assert.equal(uploadedTimelineAsset,true,"source media was not privately uploaded to the workspace");
     assert.equal(capturedTimelineEdl.schema,"nexus-edit-decision-list");
-    assert.equal(capturedTimelineEdl.clips.filter(clip=>clip.type==="video").length,1);
+    assert.equal(capturedTimelineEdl.clips.filter(clip=>clip.type==="video").length,2);
     assert.equal(capturedTimelineEdl.clips.find(clip=>clip.type==="video").asset_id,"asset-smoke");
     assert.equal(capturedTimelineEdl.clips.find(clip=>clip.type==="title").text,"Render smoke");
     assert.equal(capturedTimelineEdl.audio_tracks.length,2,"two independent audio tracks must be submitted");
     assert.equal(capturedTimelineEdl.audio_tracks[0].gain,0.7);
     assert.equal(capturedTimelineEdl.audio_tracks[1].start_ms,1500);
     assert.equal(capturedTimelineEdl.project_duration_ms,7000,"explicit project duration must be included in EDL");
+    assert.deepEqual(capturedTimelineEdl.transitions,[{from_clip_id:"clip-smoke",to_clip_id:"clip-smoke-2",type:"crossfade",duration_ms:500}],"crossfade must be represented as an explicit bounded EDL transition");
+    assert.equal(capturedTimelineEdl.clips.find(clip=>clip.id==="clip-smoke-2").start_ms,2000,"the second video must overlap the first by 500ms");
     assert.equal(capturedTimelineEdl.audio_tracks[1].start_ms+capturedTimelineEdl.audio_tracks[1].source_out_ms-capturedTimelineEdl.audio_tracks[1].source_in_ms,6500,"audio may extend into the declared trailing duration");
-    assert.equal(await page.locator("#timelineMediaShelf .timeline-media-card").count(),2,"local media shelf should show the uploaded video and title overlay");
+    assert.equal(await page.locator("#timelineMediaShelf .timeline-media-card").count(),3,"local media shelf should show both video clips and the title overlay");
     assert.equal(await page.locator("#timelineVisualTrack .timeline-visual-lane").count(),3,"visual timeline should render video, title and audio lanes");
     assert.equal(await page.locator("#timelineVisualTrack .timeline-segment.is-video").count(),1);
     assert.equal(await page.locator("#timelineVisualTrack .timeline-segment.is-title").count(),1);
