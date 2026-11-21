@@ -31,6 +31,14 @@ GitHub Actions on the integrated Draft PR #467:
 - Compose integration smoke passed: current ClamAV database readiness and EICAR rejection, service readiness, render-worker isolation/resource limits, real FFmpeg/ffprobe fixture render and artifact adoption/review, authenticated API upload → separate worker render → approval → private preview, and scheduled encrypted backup plus isolated restore.
 - The authenticated E2E uses generated MP4 media and isolated Docker volumes. It proves the Compose integration path, not arbitrary customer-media compatibility, physical-device QA, target-host persistence/quotas, or live YouTube/TikTok provider validation.
 
+## Render artifact storage guard
+
+- `NEXUS_RENDER_ARTIFACT_MAX_BYTES` defaults to 20 GiB and caps the installation-wide sum of indexed adopted render artifacts. The aggregate is checked inside the SQLite write transaction immediately before adoption, preventing concurrent workers from exceeding the logical indexed-artifact cap.
+- `NEXUS_RENDER_ARTIFACT_MIN_FREE_BYTES` defaults to 1 GiB. Adoption fails closed if the artifact filesystem has less free space than the configured reserve or free space cannot be inspected; `0` disables only this preflight.
+- This is not a physical filesystem quota or block reservation. The logical cap excludes temporary staging and unindexed orphan files. Host/container quotas and monitoring remain necessary.
+- When capacity is exhausted, the staged output is not adopted and the worker's normal failure path discards it. Existing indexed artifacts are preserved; no automatic deletion is performed.
+- The worker's five-minute orphan reconciliation and two-hour grace period remove only crash-left staging and unindexed generated files. Indexed artifact retention/deletion is a separate policy and remains open.
+
 ## Remaining production gates
 
 - Pin FFmpeg/ffprobe to reviewed versions and verify against an independently maintained checksum manifest; the image currently generates its manifest from the installed binaries.
