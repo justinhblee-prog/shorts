@@ -47,9 +47,9 @@ Open `http://localhost:8502/`. The API, worker and scheduler use the same persis
 1. In the Studio section, choose an active brand, market and language, then submit a topic.
 2. The durable queue dispatches `short_video_production` to the worker.
 3. The worker creates a private per-job scratch directory under `NEXUS_WORKER_SCRATCH_DIR` (default `/app/data/worker-scratch`) before provider execution. Python temporary files use this directory for the job lifetime; the worker refreshes its lease marker alongside the queue heartbeat and removes the directory only while its job/worker/lease-token ownership still matches. On startup/idle polling, only direct-child job directories with valid, expired lease metadata older than the configured grace are pruned. Missing, malformed, replaced or symlinked markers fail closed. Set `NEXUS_WORKER_SCRATCH_GRACE_SECONDS` to at least 300 seconds (default 3600). Before claiming a new job, the worker checks free space on this filesystem and waits without claiming work when it is below `NEXUS_WORKER_SCRATCH_MIN_FREE_BYTES` (default 1 GiB; set to `0` to disable). This is a preflight threshold, not a hard quota or reservation: concurrent services and writes can still consume space after the check. The directory resides on the persistent application data volume; monitor that volume's physical free space separately.
-3. The worker calls script, voice and renderer providers. Missing credentials or malformed provider responses fail the stage; no placeholder artifact is accepted.
-4. The production enters `review_pending`. Open the remote renderer artifact link and inspect the real output.
-5. Use **미디어 스테이징** or the approved-upload queue. Staging reads the saved artifact URL from the production record; the operator cannot supply an arbitrary URL.
+4. The worker calls script, voice and renderer providers. Missing credentials or malformed provider responses fail the stage; no placeholder artifact is accepted.
+5. The production enters `review_pending`. Open the remote renderer artifact link and inspect the real output.
+6. Use **미디어 스테이징** or the approved-upload queue. Staging reads the saved artifact URL from the production record; the operator cannot supply an arbitrary URL.
 6. Approve or reject the production. Rejection and revision require a reason.
 7. In **승인 완료 · 비공개 업로드**, explicitly choose **비공개 업로드**. The YouTube API request sets `privacyStatus=private`.
 8. Confirm the returned YouTube video ID and inspect the upload record.
