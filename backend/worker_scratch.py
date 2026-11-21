@@ -21,7 +21,7 @@ class WorkerScratchWorkspace:
 
     def __init__(self, job_id, worker_id, lease_token, root=None, lease_seconds=300,
                  grace_seconds=3600, clock=None):
-        self.root = Path(root or os.getenv("NEXUS_WORKER_SCRATCH_DIR", "data/worker-scratch")).resolve()
+        self.root = Path(root or os.getenv("NEXUS_WORKER_SCRATCH_DIR", "data/worker-scratch")).absolute()
         self.job_id = str(job_id)
         self.worker_id = str(worker_id)
         self.lease_token_hash = _digest(lease_token)
@@ -103,7 +103,7 @@ class WorkerScratchWorkspace:
     @classmethod
     def prune_expired(cls, root=None, grace_seconds=3600, now=None):
         """Remove only direct-child job directories with valid, expired lease metadata."""
-        root_path = Path(root or os.getenv("NEXUS_WORKER_SCRATCH_DIR", "data/worker-scratch")).resolve()
+        root_path = Path(root or os.getenv("NEXUS_WORKER_SCRATCH_DIR", "data/worker-scratch")).absolute()
         grace = max(300, int(grace_seconds))
         current = time.time() if now is None else float(now)
         removed = []
