@@ -2,7 +2,7 @@
   const $ = id => document.getElementById(id);
   const api = () => window.NexusStudioApi;
   const local = () => window.NexusLocalTimeline;
-  const state = { audio:null, snapshotId:"", workspaceId:"", artifactId:"", rendering:false, outputUrl:"" };
+  const state = { audios:[], snapshotId:"", workspaceId:"", artifactId:"", rendering:false, outputUrl:"" };
   const say = (message,mode="info") => {
     const el=$("timelineStatus");if(el){el.textContent=message;el.dataset.state=mode;}
   };
@@ -82,22 +82,26 @@
     local()?.render();
     return clips;
   }
-  async function ensureAudioAsset(workspaceId){
-    if(!state.audio)return null;
-    if(!state.audio.file)throw new Error("오디오 원본 파일을 다시 선택하세요.");
-    say("오디오 업로드 및 서버 검사 중 · "+state.audio.file.name);
-    const existing=state.audio.uploadedWorkspaceId===workspaceId?state.audio.assetId:"";
-    const asset=await uploadAsset(state.audio.file,workspaceId,existing,item=>{state.audio.assetId=item.asset_id;state.audio.uploadedWorkspaceId=workspaceId;});
-    state.audio.assetId=asset.asset_id;state.audio.uploadedWorkspaceId=workspaceId;
-    state.audio.serverDurationMs=Number(asset.media_metadata?.duration_ms||asset.duration_ms||0);
-    if(!state.audio.serverDurationMs)throw new Error("서버가 오디오 길이를 확인하지 못했습니다.");
-    return state.audio;
+  async function ensureAudioAssets(workspaceId){
+    if(state.audios.length>8)throw new Error("EDL v1은 최대 8개 오디오 트랙을 지원합니다.");
+    for(const track of state.audios){
+      if(!track.file)throw new Error(track.name+" · 오디오 원본 파일을 다시 선택하세요.");
+      say("오디오 업로드 및 서버 검사 중 · "+track.name);
+      const existing=track.uploadedWorkspaceId===workspaceId?track.assetId:"";
+      const asset=await uploadAsset(track.file,workspaceId,existing,item=>{track.assetId=item.asset_id;track.uploadedWorkspaceId=workspaceId;});
+      track.assetId=asset.asset_id;track.uploadedWorkspaceId=workspaceId;
+      track.serverDurationMs=Number(asset.media_metadata?.duration_ms||asset.duration_ms||0);
+      if(!track.serverDurationMs)throw new Error(track.name+" · 서버가 오디오 길이를 확인하지 못했습니다.");
+      if(track.sourceInMs>=track.serverDurationMs)throw new Error(track.name+" · 시작점이 원본 길이를 초과합니다.");
+      track.sourceOutMs=Math.min(track.sourceOutMs||track.serverDurationMs,track.serverDurationMs);
+    }
+    return state.audios;
   }
   async function buildEdl(workspaceId){
     const localState=local()?.state;
     if(!localState||localState.clips.length>20)throw new Error("EDL v1은 영상과 타이틀을 합쳐 최대 20개 클립을 지원합니다.");
     const clips=await ensureVideoAssets(workspaceId);
-    const audio=await ensureAudioAsset(workspaceId);
+    const audioTracksInput=await ensureAudioAssets(workspaceId);
     let cursor=0;
     const edlClips=[];
     for(const clip of clips){
@@ -115,13 +119,16 @@
       if(end<=start)throw new Error("타이틀 클립의 시작·종료 시간을 확인하세요.");
       edlClips.push({id:clip.id,type:"title",start_ms:start,end_ms:end,text:clip.text});
     }
-    const audioTracks=[];
-    if(audio){
-      const sourceOut=Math.min(audio.serverDurationMs,cursor);
-      const fadeIn=Math.min(secondsToMs($("timelineAudioFadeIn").value),sourceOut);
-      const fadeOut=Math.min(secondsToMs($("timelineAudioFadeOut").value),Math.max(0,sourceOut-fadeIn));
-      audioTracks.push({id:"audio_bed_1",asset_id:audio.assetId,start_ms:0,source_in_ms:0,source_out_ms:sourceOut,gain:Math.max(0,Math.min(4,Number($("timelineAudioGain").value||1))),fade_in_ms:fadeIn,fade_out_ms:fadeOut});
-    }
+    const audioTracks=audioTracksInput.map((track,index)=>{
+      const startMs=Math.min(Math.max(0,Math.round(Number(track.startMs)||0)),cursor-1);
+      const sourceIn=Math.max(0,Math.round(Number(track.sourceInMs)||0));
+      const sourceOut=Math.min(track.serverDurationMs,Math.round(Number(track.sourceOutMs)||track.serverDurationMs),sourceIn+Math.max(0,cursor-startMs));
+      if(sourceOut<=sourceIn)throw new Error(track.name+" · 타임라인에 배치할 오디오 구간이 없습니다.");
+      const available=sourceOut-sourceIn;
+      const fadeIn=Math.min(Math.max(0,Math.round(Number(track.fadeInMs)||0)),available);
+      const fadeOut=Math.min(Math.max(0,Math.round(Number(track.fadeOutMs)||0)),Math.max(0,available-fadeIn));
+      return {id:"audio_track_"+(index+1),asset_id:track.assetId,start_ms:startMs,source_in_ms:sourceIn,source_out_ms:sourceOut,gain:Math.max(0,Math.min(4,Number(track.gain??1))),fade_in_ms:fadeIn,fade_out_ms:fadeOut};
+    });
     return {schema:"nexus-edit-decision-list",version:1,timebase:"milliseconds",clips:edlClips,audio_tracks:audioTracks};
   }
   async function fetchArtifact(workspaceId,snapshotId){
@@ -189,18 +196,46 @@
     }catch(error){say("검수 결정 실패 · "+error.message,"error");}
     finally{buttons.forEach(button=>button.disabled=false);}
   }
+  function renderAudioTracks(){
+    const host=$("timelineAudioTracks");if(!host)return;
+    host.replaceChildren();
+    $("timelineAudioStatus").textContent="오디오 트랙 "+state.audios.length+"/8";
+    if(!state.audios.length){const empty=document.createElement("small");empty.textContent="최대 8개 독립 오디오 트랙 · 트랙별 시작 위치, Gain, Fade 설정";host.append(empty);return;}
+    state.audios.forEach((track,index)=>{
+      const row=document.createElement("div");row.className="timeline-audio-track";
+      const name=document.createElement("span");name.className="timeline-audio-name";name.textContent=(index+1)+". "+track.name+" · "+track.duration.toFixed(1)+"s";row.append(name);
+      for(const [key,label,min,max,step,value] of [
+        ["startMs","시작(s)",0,86400,0.1,track.startMs/1000],
+        ["sourceInMs","원본 시작(s)",0,86400,0.1,track.sourceInMs/1000],
+        ["sourceOutMs","원본 종료(s)",0,86400,0.1,track.sourceOutMs/1000],
+        ["gain","Gain",0,4,0.1,track.gain],
+        ["fadeInMs","Fade in(s)",0,60,0.1,track.fadeInMs/1000],
+        ["fadeOutMs","Fade out(s)",0,60,0.1,track.fadeOutMs/1000]
+      ]){
+        const labelNode=document.createElement("label");labelNode.textContent=label;
+        const input=document.createElement("input");input.type="number";input.min=String(min);input.max=String(max);input.step=String(step);input.value=String(value);
+        input.setAttribute("aria-label",track.name+" "+label);
+        input.addEventListener("change",()=>{const n=Number(input.value);if(!Number.isFinite(n)||n<min||n>max){input.value=String(value);return;}track[key]=key==="gain"?n:Math.round(n*1000);});
+        labelNode.append(input);row.append(labelNode);
+      }
+      const remove=document.createElement("button");remove.type="button";remove.className="button button-quiet button-small";remove.textContent="트랙 삭제";
+      remove.addEventListener("click",()=>{URL.revokeObjectURL(track.url);state.audios.splice(index,1);renderAudioTracks();});
+      row.append(remove);host.append(row);
+    });
+  }
   async function loadAudio(file){
+    if(state.audios.length>=8){say("오디오 트랙은 최대 8개까지 추가할 수 있습니다.","error");return;}
     const url=URL.createObjectURL(file),probe=new Audio();
     probe.preload="metadata";probe.src=url;
     $("timelineAudioStatus").textContent="오디오 길이 확인 중 · "+file.name;
-    probe.addEventListener("loadedmetadata",()=>{
-      if(state.audio?.url)URL.revokeObjectURL(state.audio.url);
-      state.audio={file,url,duration:probe.duration,assetId:"",uploadedWorkspaceId:"",serverDurationMs:0};
-      $("timelineAudioStatus").textContent=file.name+" · "+probe.duration.toFixed(1)+"초 · 서버 검사 전";
-    },{once:true});
-    probe.addEventListener("error",()=>{
-      URL.revokeObjectURL(url);state.audio=null;$("timelineAudioStatus").textContent="오디오 메타데이터를 읽을 수 없습니다.";
-    },{once:true});
+    await new Promise(resolve=>{
+      probe.addEventListener("loadedmetadata",()=>{
+        if(!Number.isFinite(probe.duration)||probe.duration<=0){URL.revokeObjectURL(url);say(file.name+" · 유효하지 않은 오디오 길이입니다.","error");resolve();return;}
+        state.audios.push({file,url,name:file.name,duration:probe.duration,assetId:"",uploadedWorkspaceId:"",serverDurationMs:0,startMs:0,sourceInMs:0,sourceOutMs:Math.round(probe.duration*1000),gain:1,fadeInMs:0,fadeOutMs:0});
+        renderAudioTracks();resolve();
+      },{once:true});
+      probe.addEventListener("error",()=>{URL.revokeObjectURL(url);say(file.name+" · 오디오 메타데이터를 읽을 수 없습니다.","error");resolve();},{once:true});
+    });
   }
   function workspaceChanged(){
     const next=currentWorkspace();
@@ -208,14 +243,14 @@
       state.workspaceId=next;
       clearPrivatePreview();
       videoClips().forEach(clip=>{clip.assetId="";clip.uploadedWorkspaceId="";clip.serverDurationMs=0;});
-      if(state.audio){state.audio.assetId="";state.audio.uploadedWorkspaceId="";state.audio.serverDurationMs=0;}
+      state.audios.forEach(track=>{track.assetId="";track.uploadedWorkspaceId="";track.serverDurationMs=0;});
       $("timelineRenderReview").hidden=true;$("timelineCheckRender").disabled=true;
     }
   }
   function bind(){
     $("timelineCreateWorkspace").addEventListener("click",createWorkspace);
-    $("timelineAudioInput").addEventListener("change",event=>{
-      const file=event.target.files?.[0];if(file)loadAudio(file);event.target.value="";
+    $("timelineAudioInput").addEventListener("change",async event=>{
+      const files=[...(event.target.files||[])];for(const file of files){if(state.audios.length>=8)break;await loadAudio(file);}event.target.value="";
     });
     $("timelineCheckRender").addEventListener("click",async()=>{
       if(!requireEditorContext())return;
@@ -227,11 +262,12 @@
     $("timelineRejectRender").addEventListener("click",()=>decideRender("rejected"));
     window.addEventListener("nexus:workspace-changed",workspaceChanged);
     window.addEventListener("nexus:auth-changed",()=>{clearPrivatePreview();if(!api()?.hasToken())say("API 인증이 초기화되었습니다. 렌더링을 계속하려면 다시 연결하세요.");});
+    renderAudioTracks();
     workspaceChanged();
   }
   if($("timelineEditor")){
     bind();
-    window.addEventListener("beforeunload",()=>{if(state.audio?.url)URL.revokeObjectURL(state.audio.url);if(state.outputUrl)URL.revokeObjectURL(state.outputUrl);});
+    window.addEventListener("beforeunload",()=>{state.audios.forEach(track=>URL.revokeObjectURL(track.url));if(state.outputUrl)URL.revokeObjectURL(state.outputUrl);});
     if(!api()?.hasToken())say("편집 미리보기는 로컬에서 가능하며, 서버 렌더링에는 API 주소·토큰·활성 워크스페이스가 필요합니다.");
   }
 })();
