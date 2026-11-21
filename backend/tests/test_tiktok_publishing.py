@@ -642,7 +642,7 @@ class TikTokPublishingTests(unittest.TestCase):
             )
         self.assertEqual(len(self.transport.calls), 1)
 
-    def test_file_just_over_64_mib_uses_two_valid_sequential_chunks(self):
+    def test_file_just_over_64_mb_uses_two_valid_sequential_chunks(self):
         path = Path(self.tmp.name) / "large.mp4"
         size = CHUNK_SIZE + 17
         with path.open("wb") as media:
