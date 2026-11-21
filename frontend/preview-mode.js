@@ -45,4 +45,47 @@
   const noteStyle=document.createElement("style");
   noteStyle.textContent=".nexus-preview-inline-note{margin:0 0 16px;padding:10px 14px;border:1px solid #4b5d82;border-radius:10px;background:#111e32;color:#b9c8e5;font-size:11px;}";
   document.head.appendChild(noteStyle);
+
+  const navLinks=[...document.querySelectorAll('header a[href^="#"]')].filter(a=>document.querySelector(a.getAttribute("href")));
+  const navSections=navLinks.map(a=>({a,el:document.querySelector(a.getAttribute("href"))})).filter(x=>x.el);
+  const markActive=(id)=>navSections.forEach(({a,el})=>{const active=el.id===id;a.classList.toggle("preview-nav-active",active);if(active)a.setAttribute("aria-current","location");else a.removeAttribute("aria-current");});
+  if("IntersectionObserver" in window){
+    const observer=new IntersectionObserver(entries=>{const visible=entries.filter(e=>e.isIntersecting).sort((a,b)=>b.intersectionRatio-a.intersectionRatio)[0];if(visible)markActive(visible.target.id);},{rootMargin:"-18% 0px -68% 0px",threshold:[0,.15,.35,.6]});
+    navSections.forEach(({el})=>observer.observe(el));
+  }
+  navSections.forEach(({a,el})=>a.addEventListener("click",()=>markActive(el.id)));
+  if(navSections.length)markActive(navSections[0].el.id);
+  const feedback=document.createElement("section");
+  feedback.className="nexus-feedback";
+  feedback.innerHTML='<button type="button" class="nexus-feedback-toggle" aria-expanded="false">✎ 화면 피드백</button><div class="nexus-feedback-body" hidden><label for="nexusFeedbackText">수정할 화면과 내용을 적어주세요</label><textarea id="nexusFeedbackText" rows="4" placeholder="예: 콘텐츠 기획 화면에서 카드 간격을 줄이고 필터를 위쪽으로 이동해주세요."></textarea><div class="nexus-feedback-actions"><button type="button" class="nexus-feedback-copy">피드백 복사</button><span class="nexus-feedback-status" role="status" aria-live="polite"></span></div><p>복사한 내용을 이 대화에 붙여 보내주시면 해당 화면부터 반영하겠습니다.</p></div>';
+  document.body.appendChild(feedback);
+  const feedbackStyle=document.createElement("style");
+  feedbackStyle.textContent=`
+    header a.preview-nav-active{background:rgba(128,111,255,.17)!important;color:#fff!important;box-shadow:inset 2px 0 #a99aff}
+    .nexus-feedback{position:fixed;z-index:99998;right:20px;bottom:20px;width:min(350px,calc(100vw - 32px));font:12px/1.5 system-ui,sans-serif;color:#e8edff}
+    .nexus-feedback-toggle,.nexus-feedback-copy{border:1px solid #8273dd;border-radius:12px;background:#28224c;color:#fff;padding:11px 15px;font-weight:700;box-shadow:0 8px 28px #0007;cursor:pointer}
+    .nexus-feedback-toggle{display:block;margin-left:auto}
+    .nexus-feedback-body{margin-top:9px;padding:14px;border:1px solid #59658b;border-radius:14px;background:#111a2c;box-shadow:0 12px 40px #0009}
+    .nexus-feedback-body label{display:block;margin-bottom:7px;font-weight:700}
+    .nexus-feedback-body textarea{box-sizing:border-box;width:100%;resize:vertical;border:1px solid #465578;border-radius:9px;background:#0a1220;color:#fff;padding:10px;font:12px/1.5 system-ui,sans-serif}
+    .nexus-feedback-actions{display:flex;align-items:center;gap:10px;margin-top:9px}
+    .nexus-feedback-copy{padding:8px 12px}
+    .nexus-feedback-status,.nexus-feedback-body p{color:#aebbd8;font-size:10px}
+    .nexus-feedback-body p{margin:9px 0 0}
+    @media(max-width:600px){.nexus-feedback{right:12px;bottom:12px;width:min(330px,calc(100vw - 24px))}.nexus-feedback-toggle{padding:10px 13px}}
+  `;
+  document.head.appendChild(feedbackStyle);
+  const toggle=feedback.querySelector(".nexus-feedback-toggle");
+  const body=feedback.querySelector(".nexus-feedback-body");
+  toggle.addEventListener("click",()=>{const open=body.hidden;body.hidden=!open;toggle.setAttribute("aria-expanded",String(open));toggle.textContent=open?"× 피드백 닫기":"✎ 화면 피드백";});
+  feedback.querySelector(".nexus-feedback-copy").addEventListener("click",async()=>{
+    const value=feedback.querySelector("#nexusFeedbackText").value.trim();
+    const status=feedback.querySelector(".nexus-feedback-status");
+    if(!value){status.textContent="먼저 수정 의견을 입력해주세요.";return;}
+    const section=navSections.find(({el})=>el.getBoundingClientRect().top<window.innerHeight&&el.getBoundingClientRect().bottom>0);
+    const label=section?.a.innerText.trim().replace(/\s+/g," ")||"현재 화면";
+    const note="[NEXUS 화면 피드백] "+label+"\n"+value;
+    try{await navigator.clipboard.writeText(note);status.textContent="복사했습니다. 이 대화에 붙여넣어 주세요.";}
+    catch{const area=feedback.querySelector("#nexusFeedbackText");area.value=note;area.focus();area.select();status.textContent="텍스트를 선택했습니다. 복사해 주세요.";}
+  });
 })();
