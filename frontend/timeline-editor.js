@@ -123,7 +123,7 @@
     const blob=await api().requestBlob(pathFor(workspaceId,"/render-artifacts/"+encodeURIComponent(artifact.artifact_id)+"/download"));
     const video=$("timelineServerPreview");
     if(state.outputUrl)URL.revokeObjectURL(state.outputUrl);
-    state.outputUrl=URL.createObjectURL(blob);video.src=state.outputUrl;video.hidden=false;
+    state.outputUrl=URL.createObjectURL(blob);video.removeAttribute("hidden");video.setAttribute("src",state.outputUrl);video.style.display="block";video.load();
     $("timelineRenderReview").hidden=false;
     $("timelineCheckRender").disabled=false;
     say("렌더 완료 · "+(Number(artifact.duration_ms||0)/1000).toFixed(1)+"초 · "+Number(artifact.byte_size||0).toLocaleString()+" bytes · 사람 검수 대기","success");
