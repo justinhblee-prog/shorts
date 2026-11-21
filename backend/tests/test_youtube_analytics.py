@@ -130,6 +130,42 @@ class YouTubeAnalyticsTests(unittest.TestCase):
                 "rows": [[0.5, 0.5, 0.1]] * 201,
             })
 
+    def test_store_save_rejects_boolean_and_nonfinite_numeric_metrics(self):
+        self.store.save("video-invalid-metrics", "2026-11-01", "2026-11-14", {
+            "views": True,
+            "engagedViews": False,
+            "estimatedMinutesWatched": float("nan"),
+            "averageViewDuration": float("inf"),
+            "averageViewPercentage": 125.0,
+        }, [])
+        saved = self.store.get("video-invalid-metrics")
+        self.assertIsNone(saved["views"])
+        self.assertIsNone(saved["engaged_views"])
+        self.assertIsNone(saved["estimated_minutes_watched"])
+        self.assertIsNone(saved["average_view_duration"])
+        # Replays can legitimately make average view percentage exceed 100%.
+        self.assertEqual(saved["average_view_percentage"], 125.0)
+
+    def test_store_save_discards_malformed_retention_coordinates(self):
+        self.store.save("video-retention-validation", "2026-11-01", "2026-11-14", {}, [
+            {"elapsedVideoTimeRatio": True, "audienceWatchRatio": 0.8},
+            {"elapsedVideoTimeRatio": 0.25, "audienceWatchRatio": False},
+            {"elapsedVideoTimeRatio": 0.5, "audienceWatchRatio": 1.2},
+            {"elapsedVideoTimeRatio": 1.1, "audienceWatchRatio": 0.5},
+            {"elapsedVideoTimeRatio": float("nan"), "audienceWatchRatio": 0.5},
+            {"elapsedVideoTimeRatio": 0.25, "audienceWatchRatio": 0.75,
+             "relativeRetentionPerformance": True},
+            {"elapsedVideoTimeRatio": 0.75, "audienceWatchRatio": 0.4,
+             "relativeRetentionPerformance": 0.9},
+        ])
+        saved = self.store.get("video-retention-validation")
+        self.assertEqual(len(saved["retention_curve"]), 2)
+        self.assertEqual(saved["retention_curve"][0]["elapsed_video_time_ratio"], 0.25)
+        self.assertIsNone(
+            saved["retention_curve"][0]["relative_retention_performance"]
+        )
+        self.assertEqual(saved["retention_curve"][1]["audience_watch_ratio"], 0.4)
+
     def test_collects_watch_time_and_retention_using_header_names(self):
         reports = FakeReports(
             metrics={
