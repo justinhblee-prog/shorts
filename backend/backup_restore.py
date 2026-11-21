@@ -278,6 +278,27 @@ def _require_backup_staging_space(output_dir, required_bytes):
         )
 
 
+def _archive_uncompressed_size(archive_path):
+    """Read tar metadata without extracting payloads and return bounded file bytes."""
+    try:
+        archive = tarfile.open(archive_path, "r:gz")
+    except (tarfile.TarError, OSError) as exc:
+        raise BackupRestoreError("Backup archive cannot be opened") from exc
+    with archive:
+        members = archive.getmembers()
+        if len(members) > MAX_ARCHIVE_MEMBERS:
+            raise BackupRestoreError("Backup archive contains too many entries")
+        total_size = 0
+        for member in members:
+            if member.isfile():
+                if member.size < 0:
+                    raise BackupRestoreError("Backup archive contains an invalid file size")
+                total_size += member.size
+                if total_size > MAX_ARCHIVE_BYTES:
+                    raise BackupRestoreError("Backup archive exceeds the supported uncompressed size")
+    return total_size
+
+
 def _require_restore_staging_space(path, required_bytes):
     """Check target-volume capacity before copying verified restore files into place."""
     try:
@@ -588,6 +609,19 @@ def restore_backup(archive_path, db_path, media_dir, backup_dir,
             "Backup encryption is required; refusing to restore a plaintext archive"
         )
 
+    # The restore workspace is on the database-parent volume. For encrypted
+    # archives, reserve room for the authenticated plaintext tarball before
+    # decrypting; then inspect bounded tar metadata and reserve extraction space
+    # before writing any expanded database/media payloads.
+    if encrypted:
+        encrypted_overhead = len(ENCRYPTED_MAGIC) + ENCRYPTED_NONCE_BYTES + ENCRYPTED_TAG_BYTES
+        encrypted_size = archive_path.stat().st_size
+        if encrypted_size < encrypted_overhead:
+            raise BackupRestoreError("Encrypted backup is truncated")
+        _require_restore_staging_space(
+            db_path.parent, encrypted_size - encrypted_overhead
+        )
+
     with tempfile.TemporaryDirectory(prefix="nexus-restore-", dir=db_path.parent) as temp:
         stage = Path(temp)
         source_archive = archive_path
@@ -595,6 +629,8 @@ def restore_backup(archive_path, db_path, media_dir, backup_dir,
             decrypted_archive = stage / "backup.tar.gz"
             _decrypt_file(archive_path, decrypted_archive, encryption_key)
             source_archive = decrypted_archive
+        extraction_bytes = _archive_uncompressed_size(source_archive)
+        _require_restore_staging_space(db_path.parent, extraction_bytes)
         extracted = stage / "extracted"
         manifest = _extract_and_verify(source_archive, extracted)
         staged_db = extracted / DATABASE_NAME
