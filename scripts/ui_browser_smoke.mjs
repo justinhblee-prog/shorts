@@ -392,7 +392,17 @@ async function waitForServer() {
     assert.equal(await page.locator("#timelineVisualTrack .timeline-segment.is-video").count(),1);
     assert.equal(await page.locator("#timelineVisualTrack .timeline-segment.is-title").count(),1);
     assert.equal(await page.locator("#timelineVisualDuration").textContent(),"5.0s");
-    await page.locator("#timelineApproveRender").scrollIntoViewIfNeeded();
+    const initialTimelineWidth=await page.locator("#timelineVisualTrack").evaluate(el=>el.getBoundingClientRect().width);
+    await page.locator("#timelineZoomIn").click();
+    assert.equal(await page.locator("#timelineZoomValue").textContent(),"125%");
+    const zoomedTimelineWidth=await page.locator("#timelineVisualTrack").evaluate(el=>el.getBoundingClientRect().width);
+    assert.ok(zoomedTimelineWidth>initialTimelineWidth,"timeline zoom should expand the time canvas");
+    await page.locator("#timelineZoomLevel").evaluate(el=>{el.value="2.5";el.dispatchEvent(new Event("input",{bubbles:true}));});
+    assert.equal(await page.locator("#timelineZoomValue").textContent(),"250%");
+    await page.locator("#timelineZoomFit").click();
+    assert.equal(await page.locator("#timelineZoomValue").textContent(),"100%");
+    assert.equal(await page.locator("#timelineScrollLeft").isVisible(),true);
+    assert.equal(await page.locator("#timelineScrollRight").isVisible(),true);
     await page.locator("#timelineApproveRender").click();
     await page.waitForFunction(()=>document.querySelector("#timelineRenderReview").hidden===true);
     assert.equal(capturedTimelineDecision.decision,"approved");
