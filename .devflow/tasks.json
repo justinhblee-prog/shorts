@@ -140,6 +140,50 @@
       ],
       "external_gates": [],
       "notes": "Real Windows Runner/Ollama worker generated and committed the offline protocol regression suite in Draft PR #442. Completed suite and scoped-patch sandbox coverage verified in stacked Draft PR #443: 8 tests passed; Git CLI automation checks and backend/UI CI passed. No merge or deployment."
+    },
+    {
+      "id": "BUILD-00357",
+      "title": "Add browser-level regression coverage for the read-only development monitor",
+      "priority": 6,
+      "status": "ready",
+      "depends_on": [],
+      "base_branch": "feat/dev-orch-008-readonly-dashboard-2026-11-21",
+      "scope": [
+        "scripts/ui_development_monitor_smoke.mjs",
+        "scripts/ui_development_monitor_smoke_server.py",
+        "docs"
+      ],
+      "acceptance": [
+        "Create a disposable fixture API server that exposes only the read-only development monitor endpoints and deterministic job, event and worker fixtures.",
+        "Use the repository's existing Chromium smoke conventions; do not add paid services, live credentials, production DB access or external network calls.",
+        "Verify authenticated dashboard loading, summary counts, status filtering, job selection and event-history switching.",
+        "Verify lease tokens, runner hostnames and private event details are never rendered in the browser.",
+        "Verify missing/invalid API authentication shows a safe error state and no write or mutation request is issued.",
+        "Run the smoke test and record the exact command and result; keep screenshots/artifacts where existing conventions support them."
+      ],
+      "external_gates": [],
+      "notes": "Independent UI/QA lane stacked on Draft PR #445. Do not modify backend source or PR #445 files; tests and fixture only."
+    },
+    {
+      "id": "BUILD-00358",
+      "title": "Expand read-only development monitor API contract and security regressions",
+      "priority": 7,
+      "status": "ready",
+      "depends_on": [],
+      "base_branch": "feat/dev-orch-008-readonly-dashboard-2026-11-21",
+      "scope": [
+        "backend/tests/test_development_job_api.py"
+      ],
+      "acceptance": [
+        "Add API-level tests for status filtering, bounded pagination/limits and deterministic event-history ordering.",
+        "Verify every monitor route remains GET-only and requires development.read authorization.",
+        "Verify response serialization excludes lease tokens, worker hostnames and private event details across summary, list, detail, events and worker endpoints.",
+        "Verify missing jobs return 404, invalid filters/limits return 422, and missing/unavailable/incomplete DB configuration fails closed without creating a database.",
+        "Verify read-only monitor requests do not mutate job, lease, worker or event state.",
+        "Run the focused test module and full scripts/validate.sh; do not claim unexecuted checks."
+      ],
+      "external_gates": [],
+      "notes": "Independent Core/QA lane stacked on Draft PR #445. Modify only this test file; do not change backend implementation or task manifest."
     }
   ]
 }
