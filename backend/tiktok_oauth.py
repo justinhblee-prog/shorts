@@ -246,6 +246,8 @@ class TikTokOAuthManager:
             data = json.loads(raw.decode("utf-8"))
         except (ValueError, UnicodeDecodeError) as exc:
             raise TikTokOAuthError("TikTok OAuth returned invalid JSON") from exc
+        if not isinstance(data, dict):
+            raise TikTokOAuthError("TikTok OAuth returned an invalid token response object")
         if status < 200 or status >= 300 or data.get("error"):
             code = data.get("error") or "http_" + str(status)
             detail = data.get("error_description") or "token request rejected"
@@ -260,11 +262,15 @@ class TikTokOAuthManager:
         required = ("access_token", "refresh_token", "open_id")
         if any(not isinstance(data.get(key), str) or not data[key] for key in required):
             raise TikTokOAuthError("TikTok OAuth token response is missing required token fields")
-        try:
-            access_seconds = int(data["expires_in"])
-            refresh_seconds = int(data["refresh_expires_in"])
-        except (KeyError, TypeError, ValueError) as exc:
-            raise TikTokOAuthError("TikTok OAuth token response has invalid expiry values") from exc
+        access_seconds = data.get("expires_in")
+        refresh_seconds = data.get("refresh_expires_in")
+        if (
+            isinstance(access_seconds, bool) or not isinstance(access_seconds, int)
+            or access_seconds <= 0
+            or isinstance(refresh_seconds, bool) or not isinstance(refresh_seconds, int)
+            or refresh_seconds <= 0
+        ):
+            raise TikTokOAuthError("TikTok OAuth token response has invalid expiry values")
         now = _now()
         values = {
             "open_id": data["open_id"],
