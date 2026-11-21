@@ -70,6 +70,26 @@ The launcher returns immediately with a PID, run metadata, stdout/stderr log pat
 
 The supervisor re-reads the task manifest from its local checkout on each cycle. It does not silently pull or rewrite the shared automation branch; new task definitions must arrive through the normal reviewed branch update. This protects the local automation process from closure of the interactive PowerShell window but does not restore a lost ChatGPT-to-Windows connector, start an offline Windows PC, or prove that the coding-agent CLI/provider remains authenticated. The local runner must remain online, and the configured Agent must pass preflight. The normal dependency, open-PR, lease, validation, and Draft-PR safety gates remain in force.
 
+### Start automatically at Windows logon
+
+After the automation branch and Agent configuration are present in a persistent local checkout, a per-user Task Scheduler entry can start the detached supervisor at each Windows logon:
+
+```powershell
+# Validate the Task Scheduler definition without registering anything
+pwsh -File .\scripts\install-devflow-scheduled-task.ps1 -ValidateOnly
+
+# Register it for the current Windows user and start the supervisor now
+pwsh -File .\scripts\install-devflow-scheduled-task.ps1 -StartNow
+
+# Update an existing task definition
+pwsh -File .\scripts\install-devflow-scheduled-task.ps1 -Replace -StartNow
+
+# Remove the scheduled task
+pwsh -File .\scripts\install-devflow-scheduled-task.ps1 -Uninstall
+```
+
+The task uses the current Windows user with an interactive logon token and limited privileges; it stores no password or API credential. It starts at user logon, uses the repository checkout as its working directory, and is configured to ignore overlapping Task Scheduler starts. Keep the checkout at a stable path, keep the user session and local Ollama service available, and maintain GitHub CLI/Agent authentication. The installer does not install or start Ollama, configure credentials, enable a GitHub Actions runner, or update the checkout. Run it only after reviewing the automation branch and completing the Agent CLI preflight. `-ValidateOnly` is non-mutating; `-Uninstall` removes only the named scheduled task.
+
 A deterministic regression harness runs the detached supervisor against a disposable local Git repository and a fake launcher. It forces the first scheduler cycle to fail, verifies a later cycle is retried and succeeds, checks the persisted terminal status, and confirms the scheduler lease is released. Run it with `pwsh -File scripts/test-devflow-detached-supervisor.ps1`; the Windows Agent workflow runs this regression before attempting any real Agent task.
 
 ## Flow and safety gates
