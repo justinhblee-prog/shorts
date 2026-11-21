@@ -109,8 +109,9 @@ class PreflightTests(unittest.TestCase):
             for family in ("main", "daily"):
                 target = database_dir / (family + ".cvd")
                 target.write_bytes(b"signature-db")
-                old = time.time() - 8 * 24 * 60 * 60
-                os.utime(target, (old, old))
+                if family == "daily":
+                    old = time.time() - 8 * 24 * 60 * 60
+                    os.utime(target, (old, old))
             with patch("preflight.shutil.which", return_value="/usr/bin/clamscan"):
                 result = build_preflight({
                     "NEXUS_MEDIA_SCAN_ENABLED": "true",
