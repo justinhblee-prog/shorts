@@ -87,6 +87,7 @@ class ArtifactRetentionEligibilityTests(unittest.TestCase):
             **self.asset,
             "id": "rart_test",
             "data_class": "render_artifact",
+            "created_at": (self.now - timedelta(days=100)).isoformat(),
             "review_status": "pending",
         }
         result = evaluate_retention_candidate(artifact, self.policy, now=self.now)
