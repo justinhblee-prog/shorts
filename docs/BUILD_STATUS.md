@@ -1173,3 +1173,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Refresh the top-level validation checkpoint to the latest verified BUILD-00140 CI run.
 - Replace the stale 408-test summary with the current 466-test result and link to the exact GitHub Actions run.
 - Keep all live-provider, account, deployment and revenue limitations explicit.
+
+
+## BUILD-00359 — ClamAV signature freshness enforcement
+
+- The media scanner requires both ClamAV `main` and `daily` signature families (`.cvd` or `.cld`) and rejects databases older than `NEXUS_CLAMAV_MAX_SIGNATURE_AGE_SECONDS` (default seven days).
+- Future-dated signature files beyond five minutes of clock skew, missing core databases, invalid age settings and stale signatures fail closed before invoking `clamscan`.
+- API preflight reports missing, stale and future-dated signatures rather than treating any single database file as ready.
+- Unit tests cover stale, missing, future-dated and invalid-age conditions. This validates application logic only; target-host updater freshness and actual malware scanning still require deployment validation.
