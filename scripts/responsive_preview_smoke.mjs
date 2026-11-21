@@ -78,7 +78,14 @@ async function waitForServer() {
     assert.equal(await page.locator("#fit").getAttribute("aria-pressed"), "true");
 
     await page.locator('[data-device="auto"]').click();
-    await page.waitForFunction(() => document.querySelector("#device").classList.contains("auto"));
+    await page.waitForFunction(() => {
+      const el = document.querySelector("#device");
+      const wrap = el.parentElement;
+      const style = getComputedStyle(wrap);
+      const available = wrap.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      return el.classList.contains("auto") &&
+        Math.abs(parseFloat(getComputedStyle(el).width) - available) <= 2;
+    });
     const autoMeasurementsAt1600 = await device.evaluate(el => {
       const wrap = el.parentElement;
       const style = getComputedStyle(wrap);
@@ -92,9 +99,13 @@ async function waitForServer() {
       "Auto mode must fill the available preview width: " + JSON.stringify(autoMeasurementsAt1600)
     );
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.waitForFunction(previous =>
-      Math.abs(parseFloat(getComputedStyle(document.querySelector("#device")).width) - previous) > 100,
-    autoMeasurementsAt1600.deviceWidth);
+    await page.waitForFunction(() => {
+      const el = document.querySelector("#device");
+      const wrap = el.parentElement;
+      const style = getComputedStyle(wrap);
+      const available = wrap.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      return Math.abs(parseFloat(getComputedStyle(el).width) - available) <= 2;
+    });
     const autoWidthAt1280 = await device.evaluate(el => parseFloat(getComputedStyle(el).width));
     assert.ok(autoWidthAt1280 < autoMeasurementsAt1600.deviceWidth, "Auto mode must follow browser resize");
 
