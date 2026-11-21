@@ -33,7 +33,7 @@
     }catch(error){say("작업공간 생성 실패 · "+error.message,"error");}
     finally{button.disabled=false;}
   }
-  async function uploadAsset(file,workspaceId,existingAssetId=""){
+  async function uploadAsset(file,workspaceId,existingAssetId="",onUploaded=()=>{}){
     let asset;
     if(existingAssetId){
       const stored=await api().request("/api/workspaces/"+encodeURIComponent(workspaceId)+"/assets/"+encodeURIComponent(existingAssetId));
@@ -42,6 +42,9 @@
     }else{
       const url=pathFor(workspaceId,"/assets")+"?filename="+encodeURIComponent(file.name);
       asset=await api().request(url,{method:"POST",body:file,headers:{"Content-Type":file.type||"application/octet-stream"}});
+      asset.asset_id=asset.asset_id||asset.id;
+      if(!asset.asset_id)throw new Error(file.name+" · 업로드 응답에 asset ID가 없습니다.");
+      onUploaded(asset);
     }
     if(asset.scan_status!=="clean"){
       const rescan=await api().request(pathFor(workspaceId,"/assets/"+encodeURIComponent(asset.asset_id)+"/scan"),{method:"POST"});
@@ -58,29 +61,27 @@
     if(!clips.length)throw new Error("먼저 타임라인에 영상 클립을 추가하세요.");
     for(const clip of clips){
       if(!clip.file)throw new Error(clip.name+" · 원본 파일이 브라우저 메모리에 없습니다. 파일을 다시 불러오세요.");
-      if(!clip.assetId||clip.uploadedWorkspaceId!==workspaceId){
-        say("비공개 미디어 업로드 및 서버 검사 중 · "+clip.name);
-        const asset=await uploadAsset(clip.file,workspaceId,clip.assetId);
-        clip.assetId=asset.asset_id;clip.uploadedWorkspaceId=workspaceId;
-        clip.serverDurationMs=Number(asset.media_metadata?.duration_ms||0);
-        if(!clip.serverDurationMs)throw new Error(clip.name+" · 서버가 영상 길이를 확인하지 못했습니다.");
-        if(msToSeconds(clip.serverDurationMs)<clip.inPoint+0.1)throw new Error(clip.name+" · 편집 시작점이 서버에서 확인한 원본 길이를 초과합니다.");
-        clip.outPoint=Math.min(clip.outPoint,msToSeconds(clip.serverDurationMs));
-        clip.duration=msToSeconds(clip.serverDurationMs);
-      }
+      say("비공개 미디어 업로드 및 서버 검사 중 · "+clip.name);
+      const existing=clip.uploadedWorkspaceId===workspaceId?clip.assetId:"";
+      const asset=await uploadAsset(clip.file,workspaceId,existing,item=>{clip.assetId=item.asset_id;clip.uploadedWorkspaceId=workspaceId;});
+      clip.assetId=asset.asset_id;clip.uploadedWorkspaceId=workspaceId;
+      clip.serverDurationMs=Number(asset.media_metadata?.duration_ms||asset.duration_ms||0);
+      if(!clip.serverDurationMs)throw new Error(clip.name+" · 서버가 영상 길이를 확인하지 못했습니다.");
+      if(msToSeconds(clip.serverDurationMs)<clip.inPoint+0.1)throw new Error(clip.name+" · 편집 시작점이 서버에서 확인한 원본 길이를 초과합니다.");
+      clip.outPoint=Math.min(clip.outPoint,msToSeconds(clip.serverDurationMs));
+      clip.duration=msToSeconds(clip.serverDurationMs);
     }
     return clips;
   }
   async function ensureAudioAsset(workspaceId){
     if(!state.audio)return null;
     if(!state.audio.file)throw new Error("오디오 원본 파일을 다시 선택하세요.");
-    if(!state.audio.assetId||state.audio.uploadedWorkspaceId!==workspaceId){
-      say("오디오 업로드 및 서버 검사 중 · "+state.audio.file.name);
-      const asset=await uploadAsset(state.audio.file,workspaceId,state.audio.assetId);
-      state.audio.assetId=asset.asset_id;state.audio.uploadedWorkspaceId=workspaceId;
-      state.audio.serverDurationMs=Number(asset.media_metadata?.duration_ms||0);
-      if(!state.audio.serverDurationMs)throw new Error("서버가 오디오 길이를 확인하지 못했습니다.");
-    }
+    say("오디오 업로드 및 서버 검사 중 · "+state.audio.file.name);
+    const existing=state.audio.uploadedWorkspaceId===workspaceId?state.audio.assetId:"";
+    const asset=await uploadAsset(state.audio.file,workspaceId,existing,item=>{state.audio.assetId=item.asset_id;state.audio.uploadedWorkspaceId=workspaceId;});
+    state.audio.assetId=asset.asset_id;state.audio.uploadedWorkspaceId=workspaceId;
+    state.audio.serverDurationMs=Number(asset.media_metadata?.duration_ms||asset.duration_ms||0);
+    if(!state.audio.serverDurationMs)throw new Error("서버가 오디오 길이를 확인하지 못했습니다.");
     return state.audio;
   }
   async function buildEdl(workspaceId){
