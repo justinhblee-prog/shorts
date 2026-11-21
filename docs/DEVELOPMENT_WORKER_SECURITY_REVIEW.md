@@ -119,3 +119,12 @@ These source-level changes and regression tests passed on exact PR head `fb9807e
 - The worker implementation head `e671027536d99a17ac211d223281aa103d90c810` passed [run 44667166106](https://github.com/justinhblee-prog/shorts/actions/runs/44667166106), including the Windows process-tree cancellation/fallback regressions.
 - PR #416 remains Draft/open/unmerged. Hosted CI does not establish actual Windows runner isolation, account ACLs, network egress restrictions, multi-run LocalAppData persistence or real Ollama generation.
 - **Activation remains blocked** until the dedicated low-privilege runner/VM audit and every runtime gate above are completed. No workflow dispatch, schedule activation, runner setting change, secret change, merge or deployment is authorized.
+
+
+## Review correction — 2026-11-21
+
+The follow-up note above incorrectly described the recovery permission split as still outstanding. Reinspection of the current workflow at promotion head `7cd1941074315ce715c8d1fcb86592f9df21e747` shows that this remediation was already present: `recover-reviews` is a separate job with exactly `contents: read` and `pull-requests: read`; `development-cycle` is separately scoped to `contents: write`, `pull-requests: write`, and `actions: write`; top-level permissions are `contents: read`. The existing workflow-contract suite already asserted the recovery/development split. The earlier follow-up gap statement is therefore superseded and should not be treated as an outstanding vulnerability.
+
+Additional hardening in commit `71adeb3ed0c85b0f54ee86714217d4bfd170fdd1` adds a YAML-parsed exact-map assertion for all three permission scopes. This prevents unreviewed extra write permissions from being silently introduced while retaining the existing structural tests. CI for this exact new test commit is pending at the time of this note.
+
+The operational activation blockers remain unchanged: OS-level sandboxing, dedicated low-privilege runner/VM and ACL audit, outbound egress restrictions, secret inventory, real Windows runner/Ollama execution, cross-run LocalAppData persistence, and a disposable Draft PR recovery round-trip. No worker dispatch or activation was performed.
