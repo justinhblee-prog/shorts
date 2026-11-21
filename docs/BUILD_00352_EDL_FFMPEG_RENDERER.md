@@ -23,7 +23,9 @@ Transitions, subtitles, arbitrary filters, URL inputs, arbitrary file paths, tim
 - The authenticated operator API supports bounded private uploads, quarantine/rescan, render submission/status, pending artifact listing, download and review decisions.
 - ClamAV and ffprobe failures leave media quarantined. `NEXUS_MEDIA_SCAN_ENABLED` must be enabled and trusted ClamAV signatures available before uploads can become renderable; the default is fail-closed/pending.
 - The Compose render worker is isolated with no network, read-only root filesystem, dropped Linux capabilities, no-new-privileges, bounded tmpfs, CPU/memory/PID limits and graceful shutdown.
-- Worker construction verifies the exact configured FFmpeg and ffprobe paths against the image-baked SHA-256 manifest before opening the render queue or registering a worker generation; a missing, unsafe or mismatched manifest fails startup closed.
+- The repository contains a reviewed `backend/media-binaries.sha256` lockfile for `/usr/bin/ffmpeg` and `/usr/bin/ffprobe`. The image pins Debian FFmpeg package `7:7.1.5-0+deb13u1`, copies the reviewed lockfile and verifies both digests with `sha256sum --check` during image build.
+- Worker construction repeats exact configured-path verification against the same immutable image manifest before opening the render queue or registering a worker generation; a missing, unsafe or mismatched manifest fails startup closed.
+- Update the package version and both reviewed digests together only after inspecting the new binary provenance and confirming the Compose render smoke; never regenerate the manifest from the just-installed binaries.
 
 ## Validation evidence
 
@@ -38,14 +40,14 @@ The smoke uses generated fixture media. It does not establish production compati
 ## Workspace upload capacity controls
 
 - Each workspace has a durable private-media byte quota configured by `NEXUS_MAX_WORKSPACE_ASSET_BYTES` (default: 2 GiB); the per-file limit remains independently controlled by `NEXUS_MAX_ASSET_BYTES`.
-- Concurrent upload registration reserves capacity in a short SQLite `BEGIN IMMEDIATE` transaction. Active asset bytes and unexpired reservations are counted together before the asset is adopted.
-- Reservations are released in the same transaction that registers the asset, or on failure; abandoned reservations expire after ten minutes.
-- Quota rejection occurs before a staged file is adopted into the workspace asset directory. The request staging buffer remains separately bounded by the per-file upload limit.
+- Each upload reserves its first chunk before writing it to disk, then extends its reservation per chunk under a short SQLite `BEGIN IMMEDIATE` transaction. Active asset bytes and all unexpired reservations are counted together before each chunk is staged.
+- Reservations are refreshed while chunks arrive and released in the same transaction that registers the asset, or on failure; an expired reservation causes the upload to fail closed, and abandoned reservations expire after ten minutes.
+- Quota rejection occurs before the rejected chunk is written to the staging file and before the completed file is adopted into the workspace asset directory. The in-memory chunk buffer remains bounded to 1 MiB per read.
 - Host filesystem quotas and total disk limits for render staging/artifacts are still required operational controls; this workspace quota does not replace them.
 
 ## Remaining production gates
 
-- Pin FFmpeg/ffprobe to reviewed versions and verify against an independently maintained checksum manifest; the image currently generates its manifest from the installed binaries.
+- Maintain reviewed FFmpeg/ffprobe package versions and checksum lockfile updates as an explicit supply-chain review gate; the current lockfile pins Debian FFmpeg `7:7.1.5-0+deb13u1`.
 - Validate ClamAV signature provisioning and a real clean/infected upload scan in the target environment.
 - Configure host-level disk quotas and retention limits for private assets, staging and adopted artifacts.
 - Validate on the actual target host and representative customer media before production use.
