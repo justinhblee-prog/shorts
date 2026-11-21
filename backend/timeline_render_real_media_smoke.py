@@ -74,13 +74,23 @@ def main():
             "version": 1,
             "timebase": "milliseconds",
             "clips": [{
-                "id": "video", "type": "video", "start_ms": 0,
+                "id": "video-a", "type": "video", "start_ms": 0,
                 "end_ms": 2000, "asset_id": asset["asset_id"],
                 "source_in_ms": 0, "source_out_ms": 2000,
             }, {
+                "id": "video-b", "type": "video", "start_ms": 1500,
+                "end_ms": 3500, "asset_id": asset["asset_id"],
+                "source_in_ms": 0, "source_out_ms": 2000,
+            }, {
                 "id": "title", "type": "title", "start_ms": 0,
-                "end_ms": 2000, "text": "Integrated real render smoke",
+                "end_ms": 3500, "text": "Integrated real crossfade render smoke",
             }],
+            "transitions": [{
+                "id": "crossfade-a-b", "type": "crossfade",
+                "from_clip_id": "video-a", "to_clip_id": "video-b",
+                "duration_ms": 500,
+            }],
+            "project_duration_ms": 3500,
             "audio_tracks": [{
                 "id": "music", "asset_id": asset["asset_id"],
                 "start_ms": 0, "source_in_ms": 0, "source_out_ms": 2000,
@@ -138,7 +148,7 @@ def main():
         if row is None:
             raise RuntimeError("lease-fenced artifact adoption did not create an artifact row")
         artifact = artifacts.get(row["artifact_id"], "ws_render_smoke")
-        if not 1900 <= artifact["duration_ms"] <= 2200:
+        if not 3300 <= artifact["duration_ms"] <= 3700:
             raise RuntimeError(f"unexpected rendered duration: {artifact['duration_ms']}")
         if artifact["video_width"] != 320 or artifact["video_height"] != 568:
             raise RuntimeError("rendered video dimensions did not match the configured output")
@@ -155,7 +165,7 @@ def main():
         if decision["artifact_sha256"] != artifact["artifact_sha256"]:
             raise RuntimeError("review decision was not bound to the adopted artifact hash")
         print(
-            "integrated_real_media_render_smoke passed "
+            "integrated_real_media_crossfade_render_smoke passed "
             f"duration_ms={artifact['duration_ms']} bytes={artifact['byte_size']} "
             f"artifact_id={artifact['artifact_id']}"
         )
