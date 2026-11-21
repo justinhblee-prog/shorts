@@ -22,3 +22,25 @@ jobs:
           python-version: "3.11"
       - run: pip install -r backend/requirements.txt
       - run: sh scripts/validate.sh
+  responsive-preview-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Run responsive preview browser smoke
+        run: node scripts/responsive_preview_smoke.mjs
+      - name: Upload browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-responsive-preview-smoke
+          path: artifacts/*.png
+          if-no-files-found: ignore
+          retention-days: 7
