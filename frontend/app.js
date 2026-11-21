@@ -1,8 +1,8 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   let token = "";
+  let apiOrigin = "";
   let reviewer = "operator";
-  let activeWorkspaceId = localStorage.getItem("nexusWorkspaceId") || "";
   let brands = [];
   let toastTimer;
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -38,50 +38,26 @@
   const money = (n,c="USD") => new Intl.NumberFormat("en-US",{style:"currency",currency:c,maximumFractionDigits:2}).format(Number(n||0));
   function toast(message){$("toast").textContent=message;$("toast").classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>$("toast").classList.remove("show"),2800);}
   function msg(id,text,error=false){const el=$(id);el.textContent=text;el.classList.toggle("error",!!error);}
+  function normalizeApiOrigin(value){
+    const raw=String(value||"").trim();
+    if(!raw)return "";
+    let url;
+    try{url=new URL(raw);}catch{throw new Error("API 주소는 https:// 도메인 형식으로 입력하세요.");}
+    const localHost=["localhost","127.0.0.1","[::1]"].includes(url.hostname);
+    if((url.protocol!=="https:"&&!(url.protocol==="http:"&&localHost))||url.username||url.password||url.search||url.hash||url.pathname!=="/")
+      throw new Error("API 주소는 HTTPS 도메인 또는 localhost 주소만 허용됩니다.");
+    return url.origin;
+  }
   async function api(path,options={}){
     const headers={"Content-Type":"application/json",...(options.headers||{})};
     if(token) headers["X-Review-Token"]=token;
-    if(activeWorkspaceId) headers["X-Nexus-Workspace-Id"]=activeWorkspaceId;
-    const response=await fetch(path,{...options,headers});
+    const target=(apiOrigin||window.location.origin)+path;
+    const response=await fetch(target,{...options,headers});
     const raw=await response.text();let data={};
     try{data=raw?JSON.parse(raw):{};}catch{data={detail:raw};}
     if(!response.ok) throw new Error(typeof data.detail==="string"?data.detail:JSON.stringify(data.detail||data));
     return data;
   }
-  async function loadWorkspaces(){
-    const selector=$("workspaceSelector");
-    if(!selector)return;
-    try{
-      const data=await api("/api/operator/workspaces");
-      const workspaces=Array.isArray(data.workspaces)?data.workspaces:[];
-      const valid=workspaces.some(item=>item.id===activeWorkspaceId);
-      if(activeWorkspaceId&&!valid){
-        activeWorkspaceId="";
-        localStorage.removeItem("nexusWorkspaceId");
-      }
-      selector.innerHTML='<option value="">기본 공간 · 미지정 데이터</option>'+
-        workspaces.map(item=>'<option value="'+esc(item.id)+'">'+esc(item.name||item.id)+'</option>').join("");
-      selector.value=activeWorkspaceId;
-      selector.disabled=workspaces.length===0;
-      selector.title=workspaces.length
-        ? "선택한 워크스페이스의 데이터만 표시합니다."
-        : "사용 가능한 워크스페이스가 없습니다.";
-    }catch(error){
-      activeWorkspaceId="";
-      localStorage.removeItem("nexusWorkspaceId");
-      selector.innerHTML='<option value="">기본 공간 · 미지정 데이터</option>';
-      selector.value="";
-      selector.disabled=true;
-      selector.title=error.message;
-    }
-  }
-  $("workspaceSelector")?.addEventListener("change",async event=>{
-    activeWorkspaceId=event.target.value;
-    if(activeWorkspaceId)localStorage.setItem("nexusWorkspaceId",activeWorkspaceId);
-    else localStorage.removeItem("nexusWorkspaceId");
-    await refreshAll();
-    toast(activeWorkspaceId?"워크스페이스가 전환되었습니다.":"기본 공간으로 전환되었습니다.");
-  });
   function setConnection(connected,label){$("connection").classList.toggle("connected",connected);$("connection").innerHTML='<i></i> '+esc(label);}
   function populateBrandSelects(){
     const opts=brands.filter(b=>b.active).map(b=>'<option value="'+esc(b.slug)+'">'+esc(b.name)+'</option>').join("");
@@ -96,9 +72,11 @@
     const queued=Number(q.queued||0)+Number(q.failed_retriable||0);
     $("metricQueued").textContent=queued.toLocaleString();
     $("metricRunning").textContent="실행 중 "+Number(q.running||0).toLocaleString();
-    const reviewTotal=(r.items||[]).length+(r.timeline_renders||[]).length;
-    $("metricReview").textContent=reviewTotal.toLocaleString();
-    $("reviewCount").textContent=reviewTotal+" ITEMS";
+    $("metricReview").textContent=(r.items||[]).length.toLocaleString();
+    $("reviewCount").textContent=(r.items||[]).length+" ITEMS";
+    $("overviewQueued").textContent=queued.toLocaleString();
+    $("overviewRunning").textContent=Number(q.running||0).toLocaleString();
+    $("overviewReview").textContent=(r.items||[]).length.toLocaleString();
     const revenue=Number(f.revenue||0),cost=Number(f.costs||f.cost||0),net=Number(f.net_profit??(revenue-cost));
     $("metricRevenue").textContent=money(revenue);
     setConnection(true,"API 연결됨");
@@ -113,28 +91,12 @@
   }
   async function loadReviews(){
     const data=await api("/api/review/pending?limit=100");
-    const items=data.items||[];
-    const timelineItems=data.timeline_renders||[];
-    const totalReviewItems=items.length+timelineItems.length;
-    const dashboardApproval=document.getElementById("cyberApprovalList");
-    if(dashboardApproval){
-      dashboardApproval.innerHTML=items.length?items.slice(0,4).map(item=>'<a class="cyber-approval-item" href="#review"><span class="cyber-approval-dot"></span><span><b>'+esc(item.brand)+' · '+esc(item.topic)+'</b><small>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status||"검수 대기")+'</small></span><span class="cyber-approval-arrow">↗</span></a>').join(""):'<div class="empty-state">현재 검수 대기 콘텐츠가 없습니다.</div>';
-    }
-    $("reviewCount").textContent=totalReviewItems+" ITEMS";
-    $("metricReview").textContent=totalReviewItems;
+    const items=data.items||[];$("reviewCount").textContent=items.length+" ITEMS";
+    $("metricReview").textContent=items.length;
     $("reviewList").innerHTML=items.length?items.map(item=>{
       const artifacts=item.artifacts||[];
       const video=artifacts.find(a=>a.artifact_type==="video");
       const videoUrl=safeExternalMediaUrl(video?.artifact_url);
-      const recoveryAttempt=video?.metadata?.recovered_from_provider_attempt;
-      const recoveryFingerprint=video?.metadata?.media_staging||{};
-      const recoverySummary=recoveryAttempt
-        ? '<section class="review-policy"><strong>외부 AI 생성 결과 복구</strong>'
-          +'<p>공급자 실행 기록: '+esc(recoveryAttempt)+'</p>'
-          +'<p>검증 파일 SHA-256: <code>'+esc(recoveryFingerprint.sha256||"기록 없음")+'</code></p>'
-          +'<p>파일 크기: '+esc(recoveryFingerprint.size_bytes||"알 수 없음")+' bytes · 경로: '+esc(recoveryFingerprint.media_path||"기록 없음")+'</p>'
-          +'<small>기존 공급자 응답에서 복구한 결과입니다. 파일 검사와 품질 게이트를 통과했더라도 사람의 최종 검수 및 별도 승인 전에는 게시할 수 없습니다.</small></section>'
-        : '';
       const scriptArtifact=artifacts.find(a=>a.artifact_type==="text"&&a.stage==="script");
       const audioArtifact=artifacts.find(a=>a.artifact_type==="audio");
       const qualityArtifact=artifacts.find(a=>a.stage==="quality_check"&&a.artifact_type==="report");
@@ -199,357 +161,8 @@
       const guidance=profile.risk_level
         ? '<section class="review-guidance"><div><strong>브랜드 검수 기준</strong><span class="risk-level risk-'+esc(profile.risk_level)+'">위험도 '+esc(profile.risk_level)+'</span></div>'+(profile.positioning?'<p>'+esc(profile.positioning)+'</p>':'')+(rules.length?'<ul>'+rules.map(rule=>'<li>'+esc(rule)+'</li>').join('')+'</ul>':'')+'</section>'
         : '';
-      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status)+'</p><div class="review-meta">JOB '+esc(item.job_id)+' · '+esc(item.updated_at||"")+'</div>'+recoverySummary+guidance+policySummary+qualitySummary+scriptPreview+audioPreview+(videoUrl?'<p><a target="_blank" rel="noopener noreferrer" href="'+esc(videoUrl)+'">렌더링 영상 열기 ↗</a></p>':'')+'<div class="inline-message" id="stage-'+esc(item.job_id)+'"></div></div><div class="review-actions"><button class="button button-quiet" data-action="stage" data-id="'+esc(item.job_id)+'">미디어 스테이징</button><button class="button button-primary" data-action="approve" data-id="'+esc(item.job_id)+'" data-policy-status="'+esc(policy.status||"missing")+'" data-policy-required="'+esc(policyItems.join(", "))+'" data-policy-blockers="'+esc(policyApprovalBlocks.join(", "))+'" data-quality-status="'+esc(quality.status||"missing")+'" data-quality-warnings="'+esc(qualityWarnings.join(", "))+'" '+((policyApprovalBlocks.length||qualityBlocks.length)?'disabled title="필수 정책 또는 품질 차단 항목 해결 전 승인할 수 없습니다"':'')+'>승인</button><button class="button button-outline" data-action="revision" data-id="'+esc(item.job_id)+'">수정 요청</button><button class="button button-quiet" data-action="reject" data-id="'+esc(item.job_id)+'">반려</button></div></article>';
+      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status)+'</p><div class="review-meta">JOB '+esc(item.job_id)+' · '+esc(item.updated_at||"")+'</div>'+guidance+policySummary+qualitySummary+scriptPreview+audioPreview+(videoUrl?'<div class="review-media-preview"><video controls preload="metadata" playsinline src="'+esc(videoUrl)+'">브라우저에서 영상을 재생할 수 없습니다.</video><a target="_blank" rel="noopener noreferrer" href="'+esc(videoUrl)+'">별도 창에서 영상 열기 ↗</a></div>':'<div class="review-media-empty">실제 렌더링 영상이 연결되면 이곳에서 미리 볼 수 있습니다.</div>')+'<div class="inline-message" id="stage-'+esc(item.job_id)+'"></div></div><div class="review-actions"><button class="button button-quiet" data-action="stage" data-id="'+esc(item.job_id)+'">미디어 스테이징</button><button class="button button-primary" data-action="approve" data-id="'+esc(item.job_id)+'" data-policy-status="'+esc(policy.status||"missing")+'" data-policy-required="'+esc(policyItems.join(", "))+'" data-policy-blockers="'+esc(policyApprovalBlocks.join(", "))+'" data-quality-status="'+esc(quality.status||"missing")+'" data-quality-warnings="'+esc(qualityWarnings.join(", "))+'" '+((policyApprovalBlocks.length||qualityBlocks.length)?'disabled title="필수 정책 또는 품질 차단 항목 해결 전 승인할 수 없습니다"':'')+'>승인</button><button class="button button-outline" data-action="revision" data-id="'+esc(item.job_id)+'">수정 요청</button><button class="button button-quiet" data-action="reject" data-id="'+esc(item.job_id)+'">반려</button></div></article>';
     }).join(""):'<div class="empty-state">현재 검수 대기 콘텐츠가 없습니다.</div>';
-    if(timelineItems.length){
-      $("reviewList").querySelector(".empty-state")?.remove();
-      const timelineCards=timelineItems.map(item=>
-        '<article class="review-card timeline-render-review-card"><div>'
-        +'<h4>서버 렌더 결과 · '+esc(item.snapshot_id)+'</h4>'
-        +'<p>타임라인 렌더 · '+esc(item.status||"검수 대기")+' · '+esc(item.creator_principal_id)+'</p>'
-        +'<div class="review-meta">JOB '+esc(item.render_job_id)+' · '+esc(item.created_at||"")+'</div>'
-        +'<video class="timeline-render-preview" data-timeline-artifact="'+esc(item.artifact_id)+'" controls playsinline preload="metadata" aria-label="서버 렌더 영상 미리보기"></video>'
-        +'<p>'+esc((Number(item.duration_ms||0)/1000).toFixed(1))+'초 · '+esc(item.video_width)+'×'+esc(item.video_height)+' · '+esc(Number(item.byte_size||0).toLocaleString())+' bytes</p>'
-        +'<p class="review-meta">SHA-256 '+esc(String(item.artifact_sha256||"").slice(0,16))+'…</p>'
-        +'<div class="inline-message" id="timeline-review-'+esc(item.snapshot_id)+'"></div>'
-        +'</div><div class="review-actions">'
-        +'<button class="button button-primary" data-action="timeline-approve" data-id="'+esc(item.snapshot_id)+'">승인</button>'
-        +'<button class="button button-outline" data-action="timeline-revision" data-id="'+esc(item.snapshot_id)+'">수정 요청</button>'
-        +'<button class="button button-quiet" data-action="timeline-reject" data-id="'+esc(item.snapshot_id)+'">반려</button>'
-        +'</div></article>'
-      ).join("");
-      $("reviewList").insertAdjacentHTML("beforeend",timelineCards);
-      await hydrateTimelineReviewPreviews();
-    }
-    filterReviewCards();
-  }
-  async function hydrateTimelineReviewPreviews(){
-    const videos=Array.from(document.querySelectorAll("video[data-timeline-artifact]"));
-    await Promise.all(videos.map(async video=>{
-      const artifactId=video.dataset.timelineArtifact;
-      try{
-        const session=await api("/api/timeline/artifacts/"+encodeURIComponent(artifactId)+"/preview-session",{method:"POST"});
-        video.src=session.preview_url;
-        video.hidden=false;
-        video.load();
-      }catch(error){
-        const fallback=document.createElement("p");
-        fallback.className="inline-message error";
-        fallback.textContent="미리보기 세션을 열지 못했습니다: "+error.message;
-        video.replaceWith(fallback);
-      }
-    }));
-  }
-  function filterReviewCards(){
-    const query=$("reviewSearch").value.trim().toLocaleLowerCase();
-    const cards=Array.from($("reviewList").querySelectorAll(".review-card"));
-    let visible=0;
-    cards.forEach(card=>{
-      const matches=!query||card.textContent.toLocaleLowerCase().includes(query);
-      card.hidden=!matches;
-      if(matches)visible+=1;
-    });
-    $("reviewSearchStatus").textContent=query
-      ? "검색 결과 "+visible+" / "+cards.length+"건"
-      : "전체 "+cards.length+"건 표시";
-  }
-
-  async function loadPublishingOverview(){
-    const data=await api("/api/publishing/overview");
-    const labels=[
-      ["youtube","YouTube Shorts","uploaded","게시 완료"],
-      ["youtube","YouTube Shorts","processing","처리 중"],
-      ["youtube","YouTube Shorts","failed","실패"],
-      ["youtube","YouTube Shorts","uncertain","결과 확인 필요"],
-      ["youtube","YouTube Shorts","pending","게시 대기"],
-      ["tiktok","TikTok","published","게시 완료"],
-      ["tiktok","TikTok","processing","처리 중"],
-      ["tiktok","TikTok","failed","실패"],
-      ["tiktok","TikTok","uncertain","결과 확인 필요"],
-      ["tiktok","TikTok","pending","게시 대기"]
-    ];
-    $("publishingOverview").innerHTML=labels.map(([key,name,status,label])=>{
-      const value=Number(data[key]?.[status]||0);
-      const warning=["failed","uncertain"].includes(status)&&value>0;
-      return '<div class="metric-card"><span>'+name+' · '+label+'</span><strong class="'+(warning?"missing-text":"")+'">'+value+'</strong></div>';
-    }).join("")+'<div class="metric-card"><span>승인 콘텐츠</span><strong>'+Number(data.total||0)+'</strong></div>';
-  }
-
-  async function loadPublishingAnalytics(){
-    const data=await api("/api/publishing/analytics-status");
-    const platforms=[
-      ["youtube","YouTube Shorts"],
-      ["tiktok","TikTok"]
-    ];
-    const statusLabels={
-      succeeded:"수집 성공",running:"수집 중",failed:"수집 실패",
-      not_configured:"계정 미연결",scope_missing:"권한 범위 부족",
-      not_started:"수집 전"
-    };
-    const metricLabels={
-      views:"조회수",engaged_views:"참여 조회수",
-      engaged_view_share:"참여 조회 비율",estimated_minutes_watched:"시청 시간(분)",
-      average_view_duration:"평균 시청 시간",average_view_percentage:"평균 시청 비율",
-      audience_retention_curve:"시청자 유지율 곡선",view_count:"조회수",
-      like_count:"좋아요",comment_count:"댓글",share_count:"공유"
-    };
-    const stamp=value=>value?new Date(value).toLocaleString():"기록 없음";
-    $("publishingAnalytics").innerHTML=platforms.map(([key,name])=>{
-      const item=data[key]||{};
-      const coverage=item.coverage||{};
-      const available=Array.isArray(item.available_metrics)?item.available_metrics:[];
-      const unavailable=Array.isArray(item.unavailable_metrics)?item.unavailable_metrics:[];
-      const metricNames=available.map(x=>metricLabels[x]||x);
-      const unavailableNames=unavailable.map(x=>metricLabels[x]||x);
-      const total=Number(coverage.published_videos||0);
-      const collected=Number(coverage.with_snapshot||0);
-      const missing=Number(coverage.stale_or_missing??(Number(coverage.without_snapshot||0)+Number(coverage.stale_snapshots||0)));
-      const coverageText=total?collected+" / "+total+"개 영상":"대상 영상 없음";
-      const batch=item.last_batch||{};
-      return '<article class="analytics-card"><div class="analytics-card-head"><strong>'+name+'</strong><span class="analytics-status">'+esc(statusLabels[item.status]||item.status||"상태 미확인")+'</span></div>'
-        +'<div class="analytics-coverage"><b>'+esc(coverageText)+'</b><small>데이터 누락·갱신 필요 '+missing+'개</small></div>'
-        +'<div class="analytics-meta"><span>최근 스냅샷</span><b>'+esc(stamp(item.latest_snapshot_at))+'</b></div>'
-        +'<div class="analytics-meta"><span>최근 수집 성공</span><b>'+esc(stamp(item.last_success_at))+'</b></div>'
-        +'<div class="analytics-meta"><span>최근 수집 시도</span><b>'+esc(stamp(item.last_attempt_at))+'</b></div>'
-        +'<div class="analytics-meta"><span>최근 배치</span><b>요청 '+Number(batch.requested||0)+' · 수집 '+Number(batch.collected||0)+'</b></div>'
-        +'<div class="analytics-metrics"><small>제공 지표</small><p>'+esc(metricNames.join(" · ")||"아직 확인된 지표 없음")+'</p>'
-        +(unavailableNames.length?'<small>미제공 지표</small><p class="missing-text">'+esc(unavailableNames.join(" · "))+'</p>':'')+'</div></article>';
-    }).join("");
-  }
-
-  async function loadAnalyticsHistory(){
-    if($("exportAnalyticsHistory"))$("exportAnalyticsHistory").disabled=true;
-    $("analyticsHistory").setAttribute("aria-busy","true");
-    const status=$("analyticsHistoryStatus");
-    if(status)status.textContent="조회 중 · 선택한 기간의 YouTube · TikTok 성과 이력을 불러옵니다.";
-    const days=Number($("analyticsHistoryDays").value||30);
-    const platform=$("analyticsHistoryPlatform").value||"all";
-    const videoId=$("analyticsHistoryVideoId").value.trim();
-    const query=new URLSearchParams({days:String(days),platform,limit:"500"});
-    if(videoId)query.set("video_id",videoId);
-    let data;
-    try{data=await api("/api/publishing/analytics-history?"+query.toString());}
-    catch(error){$("analyticsHistory").setAttribute("aria-busy","false");if(status)status.textContent="조회 실패 · "+error.message;throw error;}
-    const rows=[];
-    for(const [key,items] of Object.entries(data.items||{})){
-      for(const item of items)rows.push({...item,platform:key});
-    }
-    rows.sort((a,b)=>String(b.collected_at||"").localeCompare(String(a.collected_at||""))||Number(b.id||0)-Number(a.id||0));
-    const grouped={};
-    rows.forEach(item=>{
-      const key=item.platform+":"+item.video_id;
-      (grouped[key]||(grouped[key]=[])).push(item);
-    });
-    const chartMetric=$("analyticsHistoryMetric")?.value||"views";
-    const metricLabels={views:"조회수",engaged_views:"참여 조회수",engaged_view_share:"참여 조회 비율(%)",like_count:"좋아요",comment_count:"댓글",share_count:"공유",estimated_minutes_watched:"시청 시간(분)",average_view_duration:"평균 시청 시간(초)",average_view_percentage:"평균 시청 비율(%)"};
-    const metricUnits={views:"회",engaged_views:"회",engaged_view_share:"%",like_count:"개",comment_count:"개",share_count:"개",estimated_minutes_watched:"분",average_view_duration:"초",average_view_percentage:"%"};
-    const retentionStatusLabels={available:"수집됨",no_data:"데이터 없음",unavailable:"미제공/권한 부족",pending_availability:"수집 대기"};
-    const chartMetricValue=item=>{
-      const key=chartMetric==="views"?(item.platform==="youtube"?"views":"view_count"):chartMetric;
-      const raw=item[key];
-      if(raw===null||raw===undefined||raw==="")return null;
-      const value=Number(raw);
-      if(!Number.isFinite(value)||value<0)return null;
-      return chartMetric==="engaged_view_share"?value*100:value;
-    };
-    const chartMetricDeltas=new WeakMap();
-    const deltas=new WeakMap();
-    Object.entries(grouped).forEach(([,items])=>{
-      const chronological=[...items].sort((a,b)=>
-        String(a.collected_at||"").localeCompare(String(b.collected_at||""))
-        || Number(a.id||0)-Number(b.id||0)
-      );
-      let previous;
-      let previousChartMetric;
-      chronological.forEach(item=>{
-        const chartValue=chartMetricValue(item);
-        if(chartValue!==null){
-          if(previousChartMetric!==undefined)chartMetricDeltas.set(item,chartValue-previousChartMetric);
-          previousChartMetric=chartValue;
-        }
-        const metric=item.platform==="youtube"?"views":"view_count";
-        const value=item[metric];
-        const numericValue=value===null||value===undefined||value===""?null:Number(value);
-        if(Number.isFinite(numericValue)&&numericValue>=0){
-          if(previous!==undefined)deltas.set(item,numericValue-previous);
-          previous=numericValue;
-        }
-      });
-    });
-    const number=value=>{
-      if(value===null||value===undefined||value==="")return "—";
-      const numeric=Number(value);
-      return Number.isFinite(numeric)?numeric.toLocaleString():"—";
-    };
-    const deltaFor=item=>{
-      const value=deltas.get(item);
-      return value===undefined?"—":(value>0?"+":"")+value.toLocaleString();
-    };
-    const platformLatest={youtube:[],tiktok:[]};
-    Object.entries(grouped).forEach(([key,items])=>{
-      const chronological=[...items].sort((a,b)=>String(b.collected_at||"").localeCompare(String(a.collected_at||""))||Number(b.id||0)-Number(a.id||0));
-      const latest=chronological.find(item=>{
-        const metric=item.platform==="youtube"?"views":"view_count";
-        return item[metric]!==null&&item[metric]!==undefined&&Number.isFinite(Number(item[metric]))&&Number(item[metric])>=0;
-      });
-      if(latest)platformLatest[latest.platform].push(Number(latest[latest.platform==="youtube"?"views":"view_count"]));
-    });
-    const summaryPlatforms=platform==="all"?["youtube","tiktok"]:[platform];
-    const platformSummary=summaryPlatforms.map(platform=>{
-      const values=platformLatest[platform];
-      const total=values.reduce((sum,value)=>sum+value,0);
-      const average=values.length?Math.round(total/values.length):null;
-      return '<article class="analytics-platform-card"><span>'+ (platform==="youtube"?"YouTube":"TikTok") +'</span><strong>'+ (values.length?total.toLocaleString():"—") +'</strong><small>영상 '+values.length+'개 · 영상당 평균 '+(average===null?"—":average.toLocaleString())+'</small></article>';
-    }).join("");
-    const platformComparison='<section class="analytics-platform-comparison"><div class="analytics-trend-heading"><strong>플랫폼별 최신 조회수 요약</strong><span>영상별 최신 스냅샷 기준</span></div><div class="analytics-platform-grid">'+platformSummary+'</div><p class="analytics-chart-note">플랫폼별 수집 영상 수와 최신 조회수 합계의 참고 지표입니다. 플랫폼별 조회수 정의·수집 범위가 다르므로 우열이나 성과 순위로 해석하지 마세요.</p></section>';
-    const chartGroups=Object.entries(grouped).map(([key,items])=>{
-      const points=items.map(item=>({
-        time:Date.parse(item.collected_at),value:chartMetricValue(item),item
-      }))
-        .filter(point=>Number.isFinite(point.time)&&Number.isFinite(point.value)&&point.value>=0)
-        .sort((a,b)=>a.time-b.time||Number(a.item.id||0)-Number(b.item.id||0));
-      return {key,platform:items[0]?.platform,videoId:items[0]?.video_id,points};
-    }).filter(group=>group.points.length>=2)
-      .sort((a,b)=>b.points.length-a.points.length).slice(0,4);
-    const allPoints=chartGroups.flatMap(group=>group.points);
-    const chartMarkup=allPoints.length
-      ? (()=>{
-        const width=720,height=220,padX=22,padY=18;
-        const minTime=Math.min(...allPoints.map(point=>point.time));
-        const maxTime=Math.max(...allPoints.map(point=>point.time));
-        const maxValue=Math.max(1,...allPoints.map(point=>point.value));
-        const x=time=>padX+(maxTime===minTime?0.5:(time-minTime)/(maxTime-minTime))*(width-padX*2);
-        const y=value=>height-padY-(value/maxValue)*(height-padY*2);
-        const compact=value=>Intl.NumberFormat("en-US",{notation:"compact",maximumFractionDigits:1}).format(value);
-        const lines=[0,1,2,3].map(index=>{
-          const yy=padY+index*(height-padY*2)/3;
-          const value=maxValue*(1-index/3);
-          return '<line class="analytics-chart-gridline" x1="'+padX+'" y1="'+yy.toFixed(1)+'" x2="'+(width-padX)+'" y2="'+yy.toFixed(1)+'"></line>'
-            +'<text class="analytics-chart-axis-label" x="'+(padX-5)+'" y="'+(yy+3).toFixed(1)+'" text-anchor="end">'+esc(compact(value))+'</text>';
-        }).join("");
-        const axisLabels='<text class="analytics-chart-axis-label" x="'+padX+'" y="'+(height-2)+'" text-anchor="start">'+esc(new Date(minTime).toLocaleDateString())+'</text>'
-          +'<text class="analytics-chart-axis-label" x="'+(width-padX)+'" y="'+(height-2)+'" text-anchor="end">'+esc(new Date(maxTime).toLocaleDateString())+'</text>';
-        const series=chartGroups.map((group,index)=>{
-          const coordinates=group.points.map(point=>({x:x(point.time),y:y(point.value),point}));
-          const intervals=coordinates.slice(1).map((point,i)=>point.point.time-coordinates[i].point.time).filter(value=>value>0).sort((a,b)=>a-b);
-          const medianInterval=intervals.length?intervals[Math.floor((intervals.length-1)/2)]:0;
-          const gapThreshold=Math.max(48*60*60*1000,medianInterval*3);
-          const segments=[];
-          let segment=[];
-          coordinates.forEach((point,i)=>{
-            if(i>0&&point.point.time-coordinates[i-1].point.time>gapThreshold){
-              if(segment.length)segments.push(segment);
-              segment=[];
-            }
-            segment.push(point);
-          });
-          if(segment.length)segments.push(segment);
-          const lines=segments.filter(points=>points.length>=2).map(points=>'<polyline class="analytics-chart-line analytics-series-'+index+'" points="'+points.map(point=>point.x.toFixed(1)+","+point.y.toFixed(1)).join(" ")+'"></polyline>').join("");
-          const markers=coordinates.map(({x:px,y:py,point})=>{
-            const deltaValue=chartMetricDeltas.get(point.item);
-            const deltaLabel=deltaValue===undefined?"":" · 이전 수집 대비 "+(deltaValue>0?"+":"")+deltaValue.toLocaleString()+ (metricUnits[chartMetric]||"");
-            return '<circle class="analytics-chart-point analytics-series-'+index+'" cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="4"><title>'+esc(new Date(point.time).toLocaleString())+' · '+esc(Number(point.value).toLocaleString())+(metricUnits[chartMetric]||"") +esc(deltaLabel)+'</title></circle>';
-          }).join("");
-          return lines+markers;
-        }).join("");
-        const legend=chartGroups.map((group,index)=>'<span class="analytics-chart-legend-item"><i class="analytics-series-dot analytics-series-'+index+'"></i>'+esc(group.platform==="youtube"?"YouTube":"TikTok")+" · "+esc(String(group.videoId||"").slice(0,18))+'</span>').join("");
-        return '<section class="analytics-trend-panel" aria-label="영상별 성과 지표 추이"><div class="analytics-trend-heading"><strong>영상별 '+esc(metricLabels[chartMetric]||"성과 지표")+' 추이</strong><span>표본이 2개 이상인 영상 중 최대 4개 · 장기 수집 공백은 선을 끊어 표시</span></div><div class="analytics-chart-scroll"><svg class="analytics-trend-chart" viewBox="0 0 '+width+" "+height+'" role="img" aria-label="선택된 영상들의 시간에 따른 성과 스냅샷 추이">'+lines+axisLabels+series+'</svg></div><div class="analytics-chart-legend">'+legend+'</div><p class="analytics-chart-note">각 선은 영상별 실제 수집 스냅샷입니다. 48시간 및 해당 영상의 일반 수집 간격 대비 3배를 넘는 공백은 선을 끊어 표시합니다. 선이 끊긴 구간은 데이터가 없으며 보간하지 않습니다. 플랫폼별 제공 지표가 다르므로 선택 지표가 없는 영상은 제외됩니다.</p></section>';
-      })()
-      : '<div class="analytics-chart-empty">선택한 지표의 추이를 표시하려면 동일 영상에 유효한 스냅샷이 최소 2개 필요합니다.</div>';
-    const collectionTimes=rows.map(item=>Date.parse(item.collected_at)).filter(Number.isFinite);
-    const collectionRange=collectionTimes.length
-      ? new Date(Math.min(...collectionTimes)).toLocaleDateString()+" ~ "+new Date(Math.max(...collectionTimes)).toLocaleDateString()
-      : "—";
-    $("analyticsHistory").innerHTML=rows.length
-      ? '<div class="analytics-history-summary">조회 '+rows.length+'개 스냅샷 · YouTube '+Number(data.counts?.youtube||0)+'개 · TikTok '+Number(data.counts?.tiktok||0)+'개 · 수집 기간 '+esc(collectionRange)+' · 표 최대 200개 표시 · CSV 전체 내보내기(페이지 단위)</div>'+platformComparison+chartMarkup+'<div class="analytics-table-wrap"><table class="analytics-table"><thead><tr><th>수집 시각</th><th>플랫폼</th><th>영상 ID</th><th>조회수</th><th>참여 조회수</th><th>참여 조회 비율</th><th>시청자 유지율</th><th>이전 수집 대비</th><th>좋아요</th><th>댓글</th><th>공유</th><th>시청 시간(분)</th><th>평균 시청 시간(초)</th><th>평균 시청 비율</th></tr></thead><tbody>'
-      +rows.slice(0,200).map(item=>'<tr><td>'+esc(item.collected_at?new Date(item.collected_at).toLocaleString():"—")+'</td><td>'+esc(item.platform==="youtube"?"YouTube":"TikTok")+'</td><td class="analytics-video-id">'+esc(item.video_id)+'</td><td>'+number(item.views??item.view_count)+'</td><td>'+number(item.engaged_views)+'</td><td>'+(item.engaged_view_share===null||item.engaged_view_share===undefined||!Number.isFinite(Number(item.engaged_view_share))?"—":(Number(item.engaged_view_share)*100).toLocaleString()+"%")+'</td><td>'+(item.platform==="youtube"?(Array.isArray(item.retention_curve)&&item.retention_curve.length?retentionSparkline(item.retention_curve)+'<small>'+esc(retentionSummary(item.retention_curve))+'</small>':esc(retentionStatusLabels[item.retention_status]||"상태 미확인")):"—")+'</td><td>'+esc(deltaFor(item))+'</td><td>'+number(item.like_count)+'</td><td>'+number(item.comment_count)+'</td><td>'+number(item.share_count)+'</td><td>'+number(item.estimated_minutes_watched)+'</td><td>'+number(item.average_view_duration)+'</td><td>'+number(item.average_view_percentage)+'</td></tr>').join("")
-      +'</tbody></table></div>'
-      : '<div class="empty-state">선택한 기간에 저장된 성과 스냅샷이 없습니다. 데이터 수집이 완료된 후 다시 조회하세요.</div>';
-    const exportButton=$("exportAnalyticsHistory");
-    if(exportButton){
-      exportButton.disabled=rows.length===0;
-      exportButton.onclick=rows.length?async()=>{
-        exportButton.disabled=true;
-        const status=$("analyticsHistoryStatus");
-        if(status)status.textContent="CSV 준비 중 · 플랫폼별 전체 이력을 페이지 단위로 조회합니다.";
-        try{
-          const exportRows=[];
-          const pageSize=500;
-          let exportPageCount=0;
-          let exportAsOf=null;
-          for(const exportPlatform of (platform==="all"?["youtube","tiktok"]:[platform])){
-            let cursor=null;
-            while(true){
-              const pageParams={days:String(days),platform:exportPlatform,limit:String(pageSize)};
-              if(cursor){pageParams.before_collected_at=cursor.collected_at;pageParams.before_id=String(cursor.id);}
-              if(exportAsOf)pageParams.as_of=exportAsOf;
-              const pageQuery=new URLSearchParams(pageParams);
-              if(videoId)pageQuery.set("video_id",videoId);
-              const page=await api("/api/publishing/analytics-history?"+pageQuery.toString());
-              exportPageCount+=1;
-              if(status)status.textContent="CSV 준비 중 · "+(exportPlatform==="youtube"?"YouTube":"TikTok")+" "+exportPageCount+"페이지 조회 완료 · "+exportRows.length+"개 행 확보";
-              if(!exportAsOf){if(typeof page.as_of!=="string"||!Number.isFinite(Date.parse(page.as_of)))throw new Error("분석 내보내기 기준 시각을 확인할 수 없습니다.");exportAsOf=page.as_of;}
-              const pageItems=page.items?.[exportPlatform]||[];
-              exportRows.push(...pageItems.map(item=>({...item,platform:exportPlatform})));
-              if(pageItems.length<pageSize)break;
-              const lastItem=pageItems[pageItems.length-1];
-              if(!lastItem?.collected_at||!Number.isInteger(Number(lastItem.id))||Number(lastItem.id)<1)throw new Error("분석 이력 페이지 커서가 올바르지 않습니다.");
-              cursor={collected_at:lastItem.collected_at,id:Number(lastItem.id)};
-            }
-          }
-          exportRows.sort((a,b)=>String(b.collected_at||"").localeCompare(String(a.collected_at||""))||Number(b.id||0)-Number(a.id||0));
-          const exportDeltas=new WeakMap();
-          const exportGroups={};
-          exportRows.forEach(item=>{
-            const key=item.platform+":"+item.video_id;
-            (exportGroups[key]||(exportGroups[key]=[])).push(item);
-          });
-          Object.values(exportGroups).forEach(items=>{
-            const chronological=[...items].sort((a,b)=>String(a.collected_at||"").localeCompare(String(b.collected_at||""))||Number(a.id||0)-Number(b.id||0));
-            let previous;
-            chronological.forEach(item=>{
-              const value=item.platform==="youtube"?item.views:item.view_count;
-              const numeric=value===null||value===undefined||value===""?null:Number(value);
-              if(numeric!==null&&Number.isFinite(numeric)&&numeric>=0){
-                if(previous!==undefined)exportDeltas.set(item,numeric-previous);
-                previous=numeric;
-              }
-            });
-          });
-          const headers=["수집 시각","플랫폼","영상 ID","조회수","참여 조회수","참여 조회 비율(%)","유지율 수집 상태","시청자 유지율 (25/50/75%)","이전 수집 대비 조회수","좋아요","댓글","공유","시청 시간(분)","평균 시청 시간(초)","평균 시청 비율(%)"];
-          const csvCell=value=>{
-            let cell=value===null||value===undefined?"":String(value);
-            if(/^[\u0000-\u0020]*[=+\-@]/.test(cell))cell="'"+cell;
-            return '"'+cell.replace(/"/g,'""')+'"';
-          };
-          const csv=[headers,...exportRows.map(item=>[
-            item.collected_at,item.platform==="youtube"?"YouTube":"TikTok",item.video_id,
-            item.views??item.view_count,item.engaged_views,item.engaged_view_share===null||item.engaged_view_share===undefined?null:Number(item.engaged_view_share)*100,item.platform==="youtube"?(retentionStatusLabels[item.retention_status]||"상태 미확인"):null,item.platform==="youtube"?retentionSummary(item.retention_curve):null,exportDeltas.has(item)?exportDeltas.get(item):null,item.like_count,item.comment_count,
-            item.share_count,item.estimated_minutes_watched,item.average_view_duration,
-            item.average_view_percentage
-          ])].map(record=>record.map(csvCell).join(",")).join("\r\n");
-          const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8"});
-          const url=URL.createObjectURL(blob);
-          const link=document.createElement("a");
-          link.href=url;
-          link.download="nexus-analytics-"+new Date().toISOString().slice(0,10)+".csv";
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
-          setTimeout(()=>URL.revokeObjectURL(url),1000);
-          if(status)status.textContent="CSV 다운로드 요청 완료 · "+exportRows.length+"개 행 · "+exportPageCount+"페이지 조회";
-        }catch(err){
-          if(status)status.textContent="CSV 내보내기 실패 · "+err.message;
-          toast("CSV 내보내기 실패: "+err.message);
-        }finally{
-          exportButton.disabled=false;
-        }
-      }:null;
-    }
-    $("analyticsHistory").setAttribute("aria-busy","false");
-    $("analyticsHistory").dataset.loaded="true";
-    const asOfLabel=typeof data.as_of==="string"&&Number.isFinite(Date.parse(data.as_of))?new Date(data.as_of).toLocaleString():"기준 시각 정보 없음";
-    if(status)status.textContent=rows.length?"조회 완료 · "+rows.length+"개 스냅샷 · 기준 시각 "+asOfLabel+" · CSV는 전체 페이지를 순차 조회합니다.":"조회 완료 · 선택한 기간에 저장된 스냅샷이 없습니다. · 기준 시각 "+asOfLabel;
   }
 
   async function loadApproved(){
@@ -585,23 +198,10 @@
         (tiktokUncertain?"TikTok 게시 결과 확인 필요":
         (["initializing","uploading","processing"].includes(tiktokStatus)?"TikTok 처리 중":
         (tiktokStatus==="send_to_inbox"?"TikTok 앱에서 게시 완료 필요":
-        (tiktokStatus==="failed"?"TikTok 게시 실패":"TikTok 게시 대기"))));
-      const tiktokFailure=item.tiktok_last_error||item.tiktok_error||"";
-      const tiktokFailureSummary=tiktokStatus==="failed"
-        ? '<p class="review-warning">실패 사유: '+esc(tiktokFailure||"플랫폼에서 실패 상태를 반환했습니다.")+'</p><p>새 게시 시도 전 TikTok 계정에서 기존 게시 여부를 확인하세요.</p>'
-        : "";
-      const tiktokRetrySummary=item.tiktok_retryable===true
-        ? '<small>재시도 가능 · 게시 결과 중복 여부를 확인한 후 진행하세요.</small>'
-        : (tiktokStatus==="failed"?'<small>재시도 가능 여부 미확인 · 자동 재전송하지 않습니다.</small>':"");
+        (tiktokStatus==="failed"?"TikTok 이전 시도 실패":"TikTok 게시 대기"))));
       const tiktokIdSummary=item.tiktok_video_id?'<p>TikTok 영상 ID: '+esc(item.tiktok_video_id)+'</p>':"";
-      const ytEvents=Array.isArray(item.upload_events)?item.upload_events:[];
-      const ttEvents=Array.isArray(item.tiktok_events)?item.tiktok_events:[];
-      const latestYt=ytEvents.length?ytEvents[ytEvents.length-1]:null;
-      const latestTt=ttEvents.length?ttEvents[ttEvents.length-1]:null;
-      const eventTime=event=>event?.created_at||event?.occurred_at||event?.updated_at||"";
-      const historySummary='<div class="review-meta">YouTube 최근 변경: '+esc(eventTime(latestYt)||"기록 없음")+' · TikTok 최근 변경: '+esc(eventTime(latestTt)||"기록 없음")+'</div>';
       const statusText=status==="late_success_review_required"?"늦은 업로드 성공 · 운영자 확인 필요":(uncertain?"업로드 결과 확인 필요":(status==="uploading"?"업로드 진행 중":(status==="failed"?"이전 업로드 실패 · 재시도 가능":(status==="uploaded"?"업로드 완료":"업로드 대기"))));
-      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료 · '+esc(statusText)+'</p><p>'+esc(tiktokStatusText)+'</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+historySummary+(videoUrl?'<p><a target="_blank" rel="noopener noreferrer" href="'+esc(videoUrl)+'">원본 영상 열기 ↗</a></p>':'')+existingIdSummary+lateIdSummary+tiktokIdSummary+tiktokFailureSummary+tiktokRetrySummary+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div></div><div class="review-actions">'+action+tiktokAction+'</div></article>';
+      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · 승인 완료 · '+esc(statusText)+'</p><p>'+esc(tiktokStatusText)+'</p><div class="review-meta">JOB '+esc(item.job_id)+'</div>'+(videoUrl?'<p><a target="_blank" rel="noopener noreferrer" href="'+esc(videoUrl)+'">원본 영상 열기 ↗</a></p>':'')+existingIdSummary+lateIdSummary+tiktokIdSummary+'<div class="inline-message" id="upload-'+esc(item.job_id)+'"></div></div><div class="review-actions">'+action+tiktokAction+'</div></article>';
     }).join(""):'<div class="empty-state">승인 완료 후 업로드 대기 중인 콘텐츠가 없습니다.</div>';
   }
   async function loadYouTubeConnection(){
@@ -683,6 +283,8 @@
         : '<small class="trend-unavailable">해당 지역을 지원하는 활성 브랜드가 없어 바로 제작할 수 없습니다.</small>';
       return '<div class="data-item trend-item"><b>'+esc(x.title||x.query||"Untitled signal")+'</b><small>'+esc(region)+' · '+esc(x.source||"")+' · '+esc(x.published_at||x.collected_at||"")+'</small>'+controls+'</div>';
     }).join("")||'<div class="empty-state">저장된 트렌드 신호가 없습니다.</div>';
+    const overviewItems=(data.items||[]).slice(0,3);
+    $("overviewTrends").innerHTML=overviewItems.length?overviewItems.map(x=>'<div class="overview-trend"><b>'+esc(x.title||x.query||"Untitled signal")+'</b><small>'+esc(x.region||"GLOBAL")+' · '+esc(x.source||"Source pending")+'</small></div>').join(""):'<div class="empty-state">저장된 트렌드 신호가 없습니다.</div>';
   }
 
   async function loadTrendRecommendations(){
@@ -729,21 +331,8 @@
   async function loadSchedules(){
     const [data,outbox]=await Promise.all([api("/api/schedules"),api("/api/schedules/outbox")]);
     const schedules=(data.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.name)+' · '+(x.active?"활성":"중지")+'</b><small>'+esc(x.payload.brand)+' · '+esc(x.payload.region)+' · '+esc((x.payload.platforms||["youtube"])[0])+' · 다음 실행 '+esc(x.next_run_at)+'</small></div>').join("")||'<div class="empty-state">등록된 예약이 없습니다.</div>';
-    const counts=outbox.counts||{};
-    const dispatches=(outbox.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.status)+' · '+esc(x.schedule_id)+'</b><small>'+esc(x.scheduled_for)+' · 실패 '+Number(x.attempts||0)+'회'+(x.next_attempt_at?' · 다음 재시도 '+esc(x.next_attempt_at):'')+(x.last_error?' · '+esc(x.last_error):'')+'</small>'+(x.status==="dead_letter"?'<button class="button button-secondary button-small" type="button" data-schedule-outbox-retry="'+esc(x.id)+'">수동 재시도</button>':'')+'</div>').join("");
-    $("scheduleList").innerHTML='<div class="notice">즉시 실행 가능 '+Number(outbox.pending_ready||0)+' · 재시도 대기 '+Number(outbox.pending_retries||0)+' · 격리 '+Number(counts.dead_letter||0)+' · 전달 완료 '+Number(counts.dispatched||0)+'</div>'+schedules+'<h4>예약 실행 복구 로그</h4>'+(dispatches||'<div class="empty-state">예약 실행 이력이 없습니다.</div>');
-    const calendar=document.getElementById("cyberCalendarGrid");
-    if(calendar){
-      const now=new Date();const monday=new Date(now);monday.setHours(0,0,0,0);monday.setDate(monday.getDate()-((monday.getDay()+6)%7));
-      const days=Array.from({length:7},(_,offset)=>{const date=new Date(monday);date.setDate(monday.getDate()+offset);return date;});
-      const valid=(data.items||[]).map(item=>({...item,nextDate:new Date(item.next_run_at)})).filter(item=>!Number.isNaN(item.nextDate.getTime()));
-      calendar.innerHTML=days.map(date=>{
-        const items=valid.filter(item=>item.nextDate.getFullYear()===date.getFullYear()&&item.nextDate.getMonth()===date.getMonth()&&item.nextDate.getDate()===date.getDate());
-        const today=date.toDateString()===now.toDateString();
-        const entries=items.map(item=>'<article class="cyber-calendar-event"><time>'+esc(item.nextDate.toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"}))+'</time><b>'+esc(item.name)+'</b><small>'+esc(item.payload?.brand||"")+' · '+esc((item.payload?.platforms||["youtube"])[0])+'</small></article>').join("");
-        return '<section class="cyber-calendar-day'+(today?' is-today':'')+'"><header>'+esc(date.toLocaleDateString(undefined,{weekday:"short",day:"numeric"}))+'</header>'+(entries||'<div class="cyber-calendar-empty">—</div>')+'</section>';
-      }).join("");
-    }
+    const dispatches=(outbox.items||[]).map(x=>'<div class="data-item"><b>'+esc(x.status)+' · '+esc(x.schedule_id)+'</b><small>'+esc(x.scheduled_for)+' · attempts '+x.attempts+(x.last_error?' · '+esc(x.last_error):'')+'</small></div>').join("");
+    $("scheduleList").innerHTML='<div class="notice">Outbox pending/retry: '+Number(outbox.pending_retries||0)+' · dispatched: '+Number((outbox.counts||{}).dispatched||0)+'</div>'+schedules+'<h4>예약 실행 복구 로그</h4>'+(dispatches||'<div class="empty-state">예약 실행 이력이 없습니다.</div>');
   }
   async function loadOpportunities(){
     const data=await api("/api/opportunities?limit=20");
@@ -781,6 +370,14 @@
     }).join("");
     const finance=(data.financial||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' · '+esc(x.currency)+' · net '+money(x.net,x.currency)+'</b><small>매출 '+money(x.revenue,x.currency)+' · 비용 '+money(x.costs,x.currency)+' · '+x.entries+'건</small></div>').join("");
     const evalStatus=evaluation.status==="holdout_available"?"시계열 홀드아웃 진단 가능":evaluation.status==="holdout_inconclusive"?"홀드아웃 결과 불충분":"검증 표본 수집 중";
+    const observedBrands=data.brands||[];
+    const observedDelta=observedBrands.reduce((sum,item)=>sum+Number(item.view_delta||0),0);
+    const measuredVideos=observedBrands.reduce((sum,item)=>sum+Number(item.measured_videos||0),0);
+    $("overviewViewDelta").textContent=observedDelta.toLocaleString();
+    $("overviewMeasured").textContent=measuredVideos.toLocaleString();
+    $("overviewPerformanceNote").textContent=observedBrands.length
+      ? "브랜드별 스냅샷 변화 합계 · Analytics 측정 영상 "+measuredVideos.toLocaleString()+"개. 누적 전체 조회수가 아닌 관측 구간의 변화량입니다."
+      : "현재 측정 가능한 브랜드 성과가 없습니다. 인증 및 Analytics 수집 상태를 확인하세요.";
     const within=evaluation.within_run_validation||{};
     const withinStatus=within.status==="holdout_available"?"동일 추천 세트 기준 홀드아웃 가능":"동일 추천 세트 표본 부족";
     const withinRho=within.holdout_median_score_views_spearman;
@@ -808,6 +405,9 @@
       api("/api/queue/stats"),api("/api/workers"),api("/api/queue/control")
     ]);
     const state=control.control||{};
+    $("overviewQueueStatus").textContent=state.paused?"운영 상태 · 일시 중지":"운영 상태 · 정상";
+    $("overviewQueueStatus").classList.toggle("is-paused",!!state.paused);
+    $("overviewWorkers").textContent="Worker "+Number((w.workers||[]).length).toLocaleString();
     $("pauseQueue").disabled=!!state.paused;
     $("resumeQueue").disabled=!state.paused;
     const status=state.paused
@@ -817,59 +417,15 @@
     $("queueDetails").innerHTML=
       '<div class="data-item"><b>생산 큐 제어 · '+status+'</b><small>중지 작업: '+esc(state.paused_job_id||"없음")+' · 갱신 '+esc(state.updated_at||"")+'</small></div>'+
       '<div class="data-item"><b>Queue status</b><small>'+esc(JSON.stringify(q))+'</small></div>'+
-      (w.workers||[]).map(x=>'<div class="data-item"><b>'+esc(x.worker_id)+' · '+esc(x.status==="stale"?"응답 지연":x.status==="offline"?"오프라인":"온라인")+'</b><small>'+esc(x.hostname||"")+' · 마지막 응답 '+esc(x.last_seen_at||"")+' · 경과 '+esc(Number(x.heartbeat_age_seconds||0))+'초 / 기준 '+esc(Number(x.stale_after_seconds||0))+'초</small></div>').join("")+
+      (w.workers||[]).map(x=>'<div class="data-item"><b>'+esc(x.worker_id)+' · '+esc(x.status)+'</b><small>'+esc(x.hostname||"")+' · '+esc(x.last_seen_at||"")+'</small></div>').join("")+
       '<h4>운영 중지·재개 감사 기록</h4>'+(events||'<div class="empty-state">아직 제어 이력이 없습니다.</div>');
-  }
-  let integrityNextCursor = null;
-  async function loadIntegrityReport(cursor=null,append=false){
-    const pageQuery=cursor?"&cursor="+encodeURIComponent(cursor):"";
-    const report=await api("/api/production/integrity-report?limit=50"+pageQuery);
-    const paused=!!report.worker_control?.paused,count=Number(report.unresolved||0);
-    const scanned=Number(report.scanned||0);
-    const shown=append?Number($('integrityList').dataset.shown||0)+scanned:scanned;
-    const more=report.has_more?" · 다음 페이지 있음":"";
-    $("integritySummary").innerHTML='<div class="integrity-status '+(count?"integrity-warning":"integrity-clear")+'"><b>'+count.toLocaleString()+'건 미해결</b><span>표시 '+shown.toLocaleString()+'건 / 전체 '+count.toLocaleString()+'건'+more+' · '+(paused?"작업 큐 중지":"작업 큐 정상")+'</span></div>';
-    const labels={approval_or_upload_boundary:"승인·업로드 경계",ambiguous_external_outcome:"외부 실행 결과 불명확",terminal_state_mismatch:"종료 상태 불일치",review_handoff_mismatch:"검수 인계 불일치",unclassified_lifecycle_mismatch:"분류되지 않은 상태 불일치",queue_without_production_record:"제작 원장 누락",production_without_queue_record:"작업 큐 누락"};
-    const items=Array.isArray(report.items)?report.items:[];
-    const rendered=items.length?items.map(item=>{
-      const history=Array.isArray(item.audit_history)?item.audit_history:[];
-      const audit=history.map(event=>'<div class="integrity-audit"><b>'+esc(event.event_type)+' · '+esc(event.from_status||"—")+' → '+esc(event.to_status||"—")+'</b><small>'+esc(event.created_at||"")+(event.worker_id?' · worker '+esc(event.worker_id):"")+'</small></div>').join("");
-      return '<article class="integrity-item"><div class="integrity-item-head"><b>'+esc(labels[item.classification]||item.classification||"상태 불일치")+'</b><code>'+esc(item.job_id)+'</code></div><div class="integrity-ledgers"><div><small>제작 원장</small><strong>'+esc(item.production_status)+'</strong><time>'+esc(item.production_updated_at||"")+'</time></div><div><small>작업 큐</small><strong>'+esc(item.queue_status)+'</strong><time>'+esc(item.queue_updated_at||"")+'</time></div></div><p>'+esc(item.reason||"원인 정보 없음")+'</p><p class="integrity-next"><b>권장 조치</b> '+esc(item.recommended_action||"운영자 확인 필요")+'</p>'+(item.error_code||item.error_message?'<small class="integrity-error">큐 오류: '+esc(item.error_code||"")+' '+esc(item.error_message||"")+'</small>':"")+(audit?'<details><summary>최근 감사 이력 '+history.length+'건</summary>'+audit+'</details>':'')+'<small class="integrity-boundary">진단 전용 · 자동 복구·재시도·승인·게시 없음</small></article>';
-    }).join(""):'<div class="empty-state">'+(count?"현재 표시할 불일치 항목이 없습니다. 조회 한도를 확인하세요.":"제작 원장과 작업 큐의 상태 불일치가 발견되지 않았습니다.")+'</div>';
-    $("integrityList").innerHTML=append?$("integrityList").innerHTML+rendered:rendered;
-    $("integrityList").dataset.shown=String(shown);
-    integrityNextCursor=report.next_cursor;
-    $("integrityMore").style.display=report.has_more?"inline-flex":"none";
   }
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
-    const tasks=[
-      ["핵심 지표",loadMetrics],["재무",loadFinance],["검수 대기열",loadReviews],
-      ["승인 콘텐츠",loadApproved],["게시 현황",loadPublishingOverview],
-      ["성과 수집",loadPublishingAnalytics],["YouTube 연결",loadYouTubeConnection],
-      ["TikTok 연결",loadTikTokConnection],["TikTok 분석",loadTikTokMetrics],
-      ["트렌드",loadTrends],["추천",loadTrendRecommendations],
-      ["추천 평가",loadRecommendationEvaluation],["일정",loadSchedules],
-      ["운영 인사이트",loadInsights],["기회 분석",loadOpportunities],
-      ["작업 큐",loadQueue],["무결성 검사",loadIntegrityReport],
-      ["제작 사전검사",loadPreflight]
-    ];
-    const results=await Promise.allSettled(tasks.map(([,load])=>load()));
-    const failed=results.map((result,index)=>({result,label:tasks[index][0]}))
-      .filter(item=>item.result.status==="rejected");
-    const succeeded=results.length-failed.length;
-    if(failed.length===0){
-      setConnection(true,"API 연결됨");
-      toast("운영 데이터 전체 갱신 완료");
-      return;
-    }
-    if(succeeded===0){
-      setConnection(false,"API 연결 실패");
-    }else{
-      setConnection(true,"API 부분 연결 · "+failed.length+"개 기능 오류");
-    }
-    const details=failed.map(item=>item.label+": "+(item.result.reason?.message||"조회 실패")).join(" / ");
-    toast("일부 데이터 갱신 실패 ("+failed.length+"/"+tasks.length+") · "+details);
+    try{
+      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadYouTubeConnection(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadRecommendationEvaluation(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadPreflight()]);
+      toast("운영 데이터 갱신 완료");
+    }catch(e){setConnection(false,"인증·API 확인 필요");toast(e.message);}
   }
   function requireToken(){if(!token){$("settingsDialog").showModal();return false;}return true;}
   function queueControlPayload(){
@@ -897,37 +453,20 @@
     }catch(e){toast(e.message);}
   });
   $("openSettings").addEventListener("click",()=>$("settingsDialog").showModal());
-  $("openSettingsNav").addEventListener("click",()=>$("settingsDialog").showModal());
-  const globalSearch=$("workspaceSearch");
-  if(globalSearch){
-    globalSearch.addEventListener("keydown",event=>{
-      if(event.key!=="Enter")return;
-      const query=globalSearch.value.trim().toLocaleLowerCase("ko");
-      if(!query)return;
-      const candidates=[...document.querySelectorAll("main h1,main h2,main h3,main label,main .panel-kicker,main .section-index,main .data-item,main .review-card,main .pipeline-step,main .cyber-approval-item,main .cyber-calendar-event,main .analytics-table tr")].filter(node=>node.getClientRects().length>0);
-      const match=candidates.find(node=>(node.textContent||"").toLocaleLowerCase("ko").includes(query));
-      if(match){match.scrollIntoView({behavior:"smooth",block:"center"});match.setAttribute("tabindex","-1");match.focus({preventScroll:true});}
-      else{toast("검색어와 일치하는 화면 항목을 찾지 못했습니다.");}
-    });
-    globalSearch.addEventListener("keydown",event=>{if(event.key==="Escape")globalSearch.value="";});
-    window.addEventListener("keydown",event=>{
-      if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();globalSearch.focus();globalSearch.select();}
-    });
-  }
-
   $("saveToken").addEventListener("click",async()=>{
-    token=$("tokenInput").value.trim();reviewer=$("reviewerInput").value.trim()||"operator";
     try{
-      await api("/api/queue/stats");
-      await loadWorkspaces();
-      $("settingsDialog").close();msg("tokenMessage","인증 성공");
-      await refreshAll();
-    }catch(e){token="";msg("tokenMessage",e.message,true);}
+      apiOrigin=normalizeApiOrigin($("apiOriginInput").value);
+      if(apiOrigin)localStorage.setItem("nexusApiOrigin",apiOrigin);else localStorage.removeItem("nexusApiOrigin");
+    }catch(e){msg("tokenMessage",e.message,true);return;}
+    token=$("tokenInput").value.trim();reviewer=$("reviewerInput").value.trim()||"operator";
+    try{await api("/api/queue/stats");$("settingsDialog").close();msg("tokenMessage","인증 성공");await refreshAll();}
+    catch(e){token="";msg("tokenMessage",e.message,true);}
   });
+  try{apiOrigin=normalizeApiOrigin(localStorage.getItem("nexusApiOrigin")||"");}catch{localStorage.removeItem("nexusApiOrigin");apiOrigin="";}
+  $("apiOriginInput").value=apiOrigin;
   $("clearToken").addEventListener("click",()=>{token="";$("tokenInput").value="";setConnection(false,"인증 필요");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");});
   $("refreshAll").addEventListener("click",refreshAll);
   $("loadReviews").addEventListener("click",()=>loadReviews().catch(e=>toast(e.message)));
-  $("reviewSearch").addEventListener("input",filterReviewCards);
   $("youtubeConnect").addEventListener("click",async()=>{
     if(!requireToken())return;
     try{
@@ -972,58 +511,8 @@
     }catch(err){toast(err.message);}
   });
   $("loadTikTokMetrics").addEventListener("click",()=>loadTikTokMetrics().catch(e=>toast(e.message)));
-  $("refreshPublishingOverview").addEventListener("click",async()=>{
-    const button=$("refreshPublishingOverview");button.disabled=true;
-    try{await loadPublishingOverview();toast("YouTube · TikTok 게시 현황을 갱신했습니다.");}
-    catch(err){toast(err.message);}
-    finally{button.disabled=false;}
-  });
-  $("analyticsHistoryMetric").addEventListener("change",()=>{
-    if($("analyticsHistory").dataset.loaded==="true")loadAnalyticsHistory().catch(e=>toast(e.message));
-  });
-  $("loadAnalyticsHistory").addEventListener("click",async()=>{
-    const button=$("loadAnalyticsHistory");button.disabled=true;
-    try{await loadAnalyticsHistory();}
-    catch(err){toast(err.message);}
-    finally{button.disabled=false;}
-  });
-  $("refreshPublishingAnalytics").addEventListener("click",async()=>{
-    const button=$("refreshPublishingAnalytics");button.disabled=true;
-    try{await loadPublishingAnalytics();toast("플랫폼별 성과 데이터 수집 현황을 갱신했습니다.");}
-    catch(err){toast(err.message);}
-    finally{button.disabled=false;}
-  });
-  $("refreshTikTokDue").addEventListener("click",async()=>{
-    if(!requireToken())return;
-    const button=$("refreshTikTokDue");
-    button.disabled=true;
-    try{
-      const result=await api("/api/tiktok/publications/refresh-due?limit=20&min_age_seconds=60",{method:"POST"});
-      const failures=Array.isArray(result.errors)?result.errors.length:0;
-      toast("TikTok 상태 갱신 완료 · 확인 "+Number(result.checked||0)+"건 · 변경 "+Number(result.updated||0)+"건 · 오류 "+failures+"건");
-      await refreshAll();
-    }catch(err){toast(err.message);}
-    finally{button.disabled=false;}
-  });
 
-
-  $("scheduleList").addEventListener("click",async e=>{
-    const button=e.target.closest("button[data-schedule-outbox-retry]");
-    if(!button)return;
-    if(!requireToken())return;
-    const outboxId=button.dataset.scheduleOutboxRetry;
-    if(!confirm("격리된 예약 실행을 다시 대기열에 넣으시겠습니까? 해당 예약이 활성 상태여야 하며, 기존 실행 식별자는 유지됩니다."))return;
-    button.disabled=true;
-    try{
-      await api("/api/schedules/outbox/"+encodeURIComponent(outboxId)+"/retry",{method:"POST"});
-      toast("수동 재시도 요청 완료");
-      await loadSchedules();
-    }catch(err){toast(err.message);}
-    finally{button.disabled=false;}
-  });
   $("loadSchedules").addEventListener("click",()=>loadSchedules().catch(e=>toast(e.message)));
-  $("loadIntegrity").addEventListener("click",()=>loadIntegrityReport().catch(e=>toast(e.message)));
-  $("integrityMore").addEventListener("click",()=>{if(integrityNextCursor)loadIntegrityReport(integrityNextCursor,true).catch(e=>toast(e.message));});
   $("loadInsights").addEventListener("click",()=>loadInsights().catch(e=>toast(e.message)));
   $("insightList").addEventListener("click",async e=>{
     const button=e.target.closest("button[data-youtube-analytics-refresh]");
@@ -1314,106 +803,5 @@
   const youtubeOAuthResult=new URLSearchParams(window.location.search).get("youtube_oauth");
   if(youtubeOAuthResult==="connected")toast("YouTube OAuth 승인 및 암호화 토큰 저장 완료 · 실계정 API 검증은 별도입니다.");
   else if(youtubeOAuthResult==="error"||youtubeOAuthResult==="denied")toast("YouTube OAuth 연결이 완료되지 않았습니다. 설정과 동의 권한을 확인하세요.");
-  // Keep workspace navigation synchronized with the section currently in view.
-  const workspaceLinks=Array.from(document.querySelectorAll('.main-nav a[href^="#"]'));
-  const workspaceTargets=workspaceLinks.map(link=>{
-    const id=link.getAttribute("href").slice(1);
-    return id==="home" ? document.querySelector(".hero") : document.getElementById(id);
-  }).filter(Boolean);
-  function setActiveWorkspace(targetId){
-    workspaceLinks.forEach(link=>{
-      const active=link.getAttribute("href")==="#"+targetId;
-      if(active){link.setAttribute("aria-current","page");link.classList.add("is-active");}
-      else{link.removeAttribute("aria-current");link.classList.remove("is-active");}
-    });
-  }
-  workspaceLinks.forEach(link=>link.addEventListener("click",()=>setActiveWorkspace(link.getAttribute("href").slice(1))));
-  if("IntersectionObserver" in window){
-    const workspaceObserver=new IntersectionObserver(entries=>{
-      const visible=entries.filter(entry=>entry.isIntersecting).sort((a,b)=>b.intersectionRatio-a.intersectionRatio)[0];
-      if(visible){setActiveWorkspace(visible.target.id||"home");}
-    },{rootMargin:"-18% 0px -68% 0px",threshold:[0,0.15,0.35,0.6]});
-    workspaceTargets.forEach(target=>workspaceObserver.observe(target));
-  }
-  const initialWorkspace=window.location.hash.slice(1);
-  setActiveWorkspace(workspaceLinks.some(link=>link.getAttribute("href")==="#"+initialWorkspace)?initialWorkspace:"home");
-  window.addEventListener("hashchange",()=>{
-    const id=window.location.hash.slice(1);
-    setActiveWorkspace(workspaceLinks.some(link=>link.getAttribute("href")==="#"+id)?id:"home");
-  });
-  // Local, non-destructive timeline editor. It exports an edit decision list, not a rendered MP4.
-  (function initTimelineEditor(){
-    const $id=id=>document.getElementById(id);
-    const input=$id("timelineMediaInput");
-    if(!input)return;
-    const state={clips:[],selected:null};
-    const list=$id("timelineClipList"),preview=$id("timelinePreview"),empty=$id("timelinePreviewEmpty");
-    const status=$id("timelineStatus"),inspector=$id("timelineInspector"),overlay=$id("timelineTitleOverlay");
-    const selected=()=>state.clips.find(c=>c.id===state.selected);
-    const seconds=n=>Number.isFinite(n)?Math.max(0,n):0;
-    function say(message){status.textContent=message;}
-    function setPreview(clip){
-      preview.pause();
-      overlay.hidden=true;overlay.textContent="";
-      if(!clip){preview.removeAttribute("src");preview.load();empty.hidden=false;return;}
-      if(clip.kind==="title"){preview.removeAttribute("src");preview.load();empty.hidden=true;overlay.textContent=clip.text;overlay.hidden=false;return;}
-      preview.src=clip.url;empty.hidden=true;
-      const seek=()=>{try{preview.currentTime=clip.inPoint;}catch{}};
-      if(preview.readyState>=1)seek();else preview.addEventListener("loadedmetadata",seek,{once:true});
-    }
-    function render(){
-      $id("timelineClipCount").textContent=state.clips.length+" CLIPS";
-      $id("timelineTotalDuration").textContent=state.clips.reduce((sum,c)=>sum+Math.max(0,c.outPoint-c.inPoint),0).toFixed(1)+"s";
-      if(!state.clips.length){list.innerHTML='<div class="empty-state">영상 파일 또는 타이틀을 추가하세요.</div>';inspector.hidden=true;setPreview(null);return;}
-      list.replaceChildren();
-      state.clips.forEach((clip,index)=>{
-        const item=document.createElement("div");item.className="timeline-clip"+(clip.id===state.selected?" is-selected":"");item.dataset.clipId=clip.id;
-        const select=document.createElement("button");select.type="button";select.className="timeline-clip-select";select.textContent=(index+1).toString().padStart(2,"0")+" · "+(clip.kind==="title"?"TITLE": "VIDEO")+" · "+clip.name;select.addEventListener("click",()=>{state.selected=clip.id;render();if(clip.kind==="video"){setPreview(clip);say(clip.name+" 선택 · "+clip.inPoint.toFixed(1)+"–"+clip.outPoint.toFixed(1)+"초");}else{overlay.textContent=clip.text;overlay.hidden=false;say("타이틀 클립 미리보기: "+clip.text);}});
-        const range=document.createElement("small");range.textContent=clip.inPoint.toFixed(1)+"s — "+clip.outPoint.toFixed(1)+"s";
-        item.append(select,range);list.append(item);
-      });
-      const clip=selected();inspector.hidden=!clip;
-      if(clip){$id("timelineSelectedName").textContent=clip.name;$id("timelineIn").value=clip.inPoint;$id("timelineOut").value=clip.outPoint;$id("timelineIn").max=clip.duration;$id("timelineOut").max=clip.duration;}
-    }
-    input.addEventListener("change",()=>{
-      for(const file of Array.from(input.files||[])){
-        if(!file.type.startsWith("video/")){say(file.name+" 파일은 동영상 형식이 아닙니다.");continue;}
-        if(file.size>512*1024*1024){say(file.name+" 파일이 512MB 제한을 초과합니다.");continue;}
-        if(state.clips.length>=20){say("한 프로젝트에는 최대 20개 클립까지 추가할 수 있습니다.");break;}
-        const url=URL.createObjectURL(file),clip={id:"clip-"+Math.random().toString(36).slice(2),kind:"video",name:file.name,url,mimeType:file.type,sizeBytes:file.size,duration:0,inPoint:0,outPoint:0};
-        state.clips.push(clip);state.selected=clip.id;
-        const probe=document.createElement("video");probe.preload="metadata";probe.src=url;
-        probe.addEventListener("loadedmetadata",()=>{clip.duration=seconds(probe.duration);clip.outPoint=clip.duration;render();say(file.name+" 메타데이터를 불러왔습니다.");},{once:true});
-        probe.addEventListener("error",()=>say(file.name+" 미리보기 메타데이터를 읽지 못했습니다."),{once:true});
-      }
-      input.value="";render();
-      if(state.clips.length){const clip=selected();setPreview(clip);}
-    });
-    $id("timelineAddTitle").addEventListener("click",()=>{
-      const text=$id("timelineTitleInput").value.trim();if(!text){say("타이틀 문구를 입력하세요.");return;}
-      const clip={id:"title-"+Math.random().toString(36).slice(2),kind:"title",name:text,duration:5,inPoint:0,outPoint:5,text};
-      state.clips.push(clip);state.selected=clip.id;$id("timelineTitleInput").value="";render();say("타이틀 클립을 추가했습니다.");
-    });
-    $id("timelineApplyTrim").addEventListener("click",()=>{
-      const clip=selected();if(!clip)return;
-      const start=Number($id("timelineIn").value),end=Number($id("timelineOut").value);
-      if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start||end>clip.duration){say("시작·종료 구간을 확인하세요. 종료는 원본 길이 이하여야 합니다.");return;}
-      clip.inPoint=start;clip.outPoint=end;render();if(clip.kind==="video"&&(preview.currentTime<start||preview.currentTime>=end))setPreview(clip);say("클립 구간을 적용했습니다.");
-    });
-    function move(delta){const index=state.clips.findIndex(c=>c.id===state.selected),target=index+delta;if(index<0||target<0||target>=state.clips.length)return;[state.clips[index],state.clips[target]]=[state.clips[target],state.clips[index]];render();}
-    $id("timelineMoveUp").addEventListener("click",()=>move(-1));
-    $id("timelineMoveDown").addEventListener("click",()=>move(1));
-    $id("timelineRemove").addEventListener("click",()=>{const clip=selected();if(!clip)return;if(clip.url)URL.revokeObjectURL(clip.url);state.clips=state.clips.filter(c=>c.id!==clip.id);state.selected=state.clips[0]?.id||null;render();const next=selected();setPreview(next);say("선택한 클립을 제거했습니다.");});
-    $id("timelinePlaySelected").addEventListener("click",async()=>{const clip=selected();if(!clip){say("먼저 클립을 선택하세요.");return;}if(clip.kind==="title"){overlay.textContent=clip.text;overlay.hidden=false;say("타이틀 미리보기는 영상 위 렌더링 대상이 아닙니다. 구성표에 포함됩니다.");return;}if(preview.src!==clip.url)setPreview(clip);if(preview.currentTime<clip.inPoint||preview.currentTime>=clip.outPoint)preview.currentTime=clip.inPoint;try{await preview.play();say("선택한 구간을 재생합니다.");}catch{say("브라우저에서 영상 재생을 시작하지 못했습니다.");}});
-    preview.addEventListener("play",()=>{const clip=selected();if(clip?.kind==="video"&&preview.currentTime<clip.inPoint)preview.currentTime=clip.inPoint;});
-    preview.addEventListener("timeupdate",()=>{const clip=selected();if(clip?.kind==="video"&&preview.currentTime>=clip.outPoint){preview.pause();preview.currentTime=clip.outPoint;say("선택한 클립 구간 재생이 끝났습니다.");}});
-    $id("timelineExport").addEventListener("click",()=>{
-      const payload={format:"nexus-edit-decision-list",version:1,exported_at:new Date().toISOString(),rendered:false,clips:state.clips.map((c,order)=>({order:order+1,type:c.kind,name:c.name,source:c.kind==="video"?c.name:undefined,mime_type:c.mimeType||undefined,size_bytes:c.sizeBytes||undefined,text:c.text||undefined,in_seconds:c.inPoint,out_seconds:c.outPoint,duration_seconds:Math.max(0,c.outPoint-c.inPoint)}))};
-      const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"})),a=document.createElement("a");a.href=url;a.download="nexus-edit-decision-list.json";a.click();URL.revokeObjectURL(url);say("편집 구성표(JSON)를 내보냈습니다. MP4 렌더링 파일은 생성하지 않았습니다.");
-    });
-    preview.addEventListener("loadedmetadata",()=>{empty.hidden=true;});
-    window.addEventListener("beforeunload",()=>{for(const clip of state.clips){if(clip.url)URL.revokeObjectURL(clip.url);}});
-    render();
-  })();
-  loadBrands().then(()=>{setConnection(false,"API 인증 필요");}).catch(e=>setConnection(false,"API 연결 실패: "+e.message));
+  loadBrands().then(()=>{setConnection(true,"API 연결됨 · 인증 필요");}).catch(e=>setConnection(false,"API 연결 실패: "+e.message));
 })();
