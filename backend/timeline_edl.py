@@ -50,7 +50,7 @@ def validate_edl(payload: Any) -> dict:
         raise EDLValidationError("unsupported EDL schema or version")
     if payload.get("timebase") != "milliseconds":
         raise EDLValidationError("timebase must be milliseconds")
-    allowed_root = {"schema", "version", "timebase", "clips", "audio_tracks"}
+    allowed_root = {"schema", "version", "timebase", "clips", "audio_tracks", "project_duration_ms"}
     if set(payload) - allowed_root:
         raise EDLValidationError("EDL contains unsupported root fields")
     clips = payload.get("clips")
@@ -101,6 +101,15 @@ def validate_edl(payload: Any) -> dict:
     if max(item["end_ms"] for item in normalized) > MAX_DURATION_MS:
         raise EDLValidationError("timeline exceeds maximum duration")
 
+    has_project_duration = "project_duration_ms" in payload
+    project_duration_ms = None
+    if has_project_duration:
+        project_duration_ms = _number(payload["project_duration_ms"], "project_duration_ms")
+        if (not float(project_duration_ms).is_integer()
+                or not 1 <= project_duration_ms <= MAX_DURATION_MS
+                or project_duration_ms < max(item["end_ms"] for item in normalized)):
+            raise EDLValidationError("project_duration_ms must be a whole-millisecond duration covering all clips")
+
     raw_audio = payload.get("audio_tracks", [])
     if not isinstance(raw_audio, list) or len(raw_audio) > 8:
         raise EDLValidationError("audio_tracks must contain 0 to 8 entries")
@@ -138,7 +147,15 @@ def validate_edl(payload: Any) -> dict:
             "source_in_ms": source_in, "source_out_ms": source_out,
             "gain": gain, "fade_in_ms": fade_in, "fade_out_ms": fade_out,
         })
-    return {
+    if has_project_duration and any(
+            track["start_ms"] + track["source_out_ms"] - track["source_in_ms"] > project_duration_ms
+            for track in audio_tracks):
+        raise EDLValidationError("project_duration_ms must cover all audio tracks")
+
+    result = {
         "schema": SCHEMA, "version": VERSION, "timebase": "milliseconds",
         "clips": normalized, "audio_tracks": audio_tracks,
     }
+    if has_project_duration:
+        result["project_duration_ms"] = int(project_duration_ms)
+    return result
