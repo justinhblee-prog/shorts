@@ -360,7 +360,8 @@ async function waitForServer() {
       window.NexusLocalTimeline.render();
     });
     await page.locator("#timelineSubmitRender").click();
-    await page.locator("#timelineRenderReview").waitFor({state:"visible",timeout:20000});
+    await page.waitForFunction(() => { const video=document.querySelector("#timelineServerPreview"); return video && !video.hidden && (video.getAttribute("src")||"").startsWith("blob:"); }, { timeout: 20000 }).catch(async error => { const debug=await page.locator("#timelineServerPreview").evaluate(el=>({hidden:el.hidden,src:el.getAttribute("src"),reviewHidden:document.querySelector("#timelineRenderReview")?.hidden,status:document.querySelector("#timelineStatus")?.textContent})); throw new Error(error.message+" · private preview state "+JSON.stringify(debug)); });
+    await page.locator("#timelineRenderReview").waitFor({state:"visible",timeout:5000});
     assert.equal(uploadedTimelineAsset,true,"source media was not privately uploaded to the workspace");
     assert.equal(capturedTimelineEdl.schema,"nexus-edit-decision-list");
     assert.equal(capturedTimelineEdl.clips.filter(clip=>clip.type==="video").length,1);
