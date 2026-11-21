@@ -1120,7 +1120,7 @@ class YouTubePublishingTests(unittest.TestCase):
 
         service = NoProgressService()
         publisher = YouTubePublisher(self.uploads, service)
-        with self.assertRaisesRegex(YouTubeUploadError, "outcome is uncertain"):
+        with self.assertRaisesRegex(YouTubeUploadError, "remote outcome requires reconciliation"):
             publisher.upload_approved(
                 "job-1", self.media, self.review, "Approved title",
                 "Approved description",
