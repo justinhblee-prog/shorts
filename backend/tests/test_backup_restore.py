@@ -49,6 +49,17 @@ class BackupRestoreTests(unittest.TestCase):
                     create_backup(self.db, self.media, self.backups)
         self.assertEqual(list(self.backups.iterdir()), [])
 
+
+    def test_backup_rechecks_free_space_after_snapshot_before_archive_creation(self):
+        (self.media / "clip.mp4").write_bytes(b"media-payload")
+        ample = type("DiskUsage", (), {"free": 10**12})()
+        exhausted = type("DiskUsage", (), {"free": 0})()
+        with patch("backup_restore.shutil.disk_usage", side_effect=[ample, exhausted]):
+            with patch.dict(os.environ, {"NEXUS_BACKUP_MIN_FREE_BYTES": "0"}):
+                with self.assertRaisesRegex(BackupRestoreError, "Insufficient free disk space"):
+                    create_backup(self.db, self.media, self.backups)
+        self.assertEqual(list(self.backups.iterdir()), [])
+
     def test_backup_rejects_invalid_minimum_free_space_setting(self):
         with patch.dict(os.environ, {"NEXUS_BACKUP_MIN_FREE_BYTES": "-1"}):
             with self.assertRaisesRegex(BackupRestoreError, "non-negative integer"):
