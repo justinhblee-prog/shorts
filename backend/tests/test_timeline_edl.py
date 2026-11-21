@@ -133,6 +133,27 @@ class TimelineEDLTests(unittest.TestCase):
         with self.assertRaisesRegex(EDLValidationError, "available timeline duration"):
             validate_edl(too_long)
 
+    def test_normalizes_opt_in_source_audio_and_enforces_combined_track_limit(self):
+        payload = {
+            **self.valid,
+            "clips": [{**self.valid["clips"][0], "include_source_audio": True}],
+        }
+        normalized = validate_edl(payload)
+        self.assertTrue(normalized["clips"][0]["include_source_audio"])
+        invalid_flag = {
+            **payload,
+            "clips": [{**payload["clips"][0], "include_source_audio": "yes"}],
+        }
+        with self.assertRaisesRegex(EDLValidationError, "must be boolean"):
+            validate_edl(invalid_flag)
+        bed = {
+            "id": "bed0", "asset_id": "audio0",
+            "start_ms": 0, "source_in_ms": 0, "source_out_ms": 1000,
+        }
+        too_many = [{**bed, "id": f"bed{i}", "asset_id": f"audio{i}"} for i in range(8)]
+        with self.assertRaisesRegex(EDLValidationError, "cannot exceed 8"):
+            validate_edl({**payload, "audio_tracks": too_many})
+
     def test_does_not_mutate_input(self):
         import copy
         payload = copy.deepcopy(self.valid)
