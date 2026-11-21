@@ -155,13 +155,14 @@
         "Exact provider implementation/test head ee5e563330d9e4e1956f24b3ba710fc19ebb048f passed Backend CI 44889554706 and Compose CI 44889554618; added TikTok nested-response boundary tests passed in offline fake transports",
         "YouTube resumable upload completion now requires an object response and non-empty string video ID; malformed responses after remote request start remain reconciliation_required and cannot be retried automatically",
         "Added fake-service regression tests for non-object YouTube upload completion and non-string video IDs; neither is marked uploaded without a valid provider video ID",
-        "Exact YouTube/TikTok offline contract code/test head b4934a69507d120a5cb484234d72c712d5671d3f passed Backend CI 44890001360 (954 tests, font fallback and Playwright browser smoke) and Compose CI 44890002208 (ClamAV, worker isolation, real FFmpeg render/adoption/review, authenticated API E2E, encrypted backup and isolated restore)"
+        "Exact YouTube/TikTok offline contract code/test head b4934a69507d120a5cb484234d72c712d5671d3f passed Backend CI 44890001360 (954 tests, font fallback and Playwright browser smoke) and Compose CI 44890002208 (ClamAV, worker isolation, real FFmpeg render/adoption/review, authenticated API E2E, encrypted backup and isolated restore)",
+        "Exact provider documentation/task-ledger head 7575d24fd058b1a8b615e8ce4bee4268c77ee9cd passed Backend CI 44890149253 and Compose CI 44890149269; repository validation/Playwright and generated-media Compose integration passed"
       ],
       "remaining": [
         "Verify configured providers against actual HTTPS contracts only after operator credentials, spend ceiling, licensing and data-processing approval are supplied",
         "Complete workspace-owned provider connections before enabling independent B2B tenant credentials",
         "Generate and inspect real script, voice track and MP4 with cost/latency/failure/provenance evidence after live gates are approved",
-        "Run exact-head Backend and Compose CI after the latest YouTube response-contract documentation/task-ledger update"
+        "Re-run Backend and Compose CI after any subsequent provider source, test, documentation or task-ledger changes"
       ]
     },
     {
