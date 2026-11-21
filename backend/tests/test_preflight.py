@@ -52,18 +52,21 @@ class PreflightTests(unittest.TestCase):
             database_dir = Path(temp_dir) / "signatures"
             database_dir.mkdir()
             (database_dir / "main.cvd").write_bytes(b"signature-db")
+            (database_dir / "daily.cvd").write_bytes(b"signature-db")
             with patch("preflight.shutil.which", return_value="/usr/bin/clamscan"):
                 ready = build_preflight({
                     "NEXUS_MEDIA_SCAN_ENABLED": "true",
                     "NEXUS_CLAMSCAN_PATH": "/usr/bin/clamscan",
                     "NEXUS_CLAMAV_DATABASE_DIR": str(database_dir),
                     "NEXUS_MEDIA_SCAN_TIMEOUT_SECONDS": "90",
+                    "NEXUS_CLAMAV_MAX_SIGNATURE_AGE_SECONDS": "604800",
                 })
                 invalid_timeout = build_preflight({
                     "NEXUS_MEDIA_SCAN_ENABLED": "true",
                     "NEXUS_CLAMSCAN_PATH": "/usr/bin/clamscan",
                     "NEXUS_CLAMAV_DATABASE_DIR": str(database_dir),
                     "NEXUS_MEDIA_SCAN_TIMEOUT_SECONDS": "0",
+                    "NEXUS_CLAMAV_MAX_SIGNATURE_AGE_SECONDS": "604800",
                 })
             self.assertTrue(ready["checks"]["media_malware_scan"]["configured"])
             self.assertEqual(ready["checks"]["media_malware_scan"]["missing"], [])
@@ -96,6 +99,38 @@ class PreflightTests(unittest.TestCase):
             "NEXUS_MAX_MEDIA_BYTES (ClamAV supports up to 2 GiB)",
             result["missing"],
         )
+
+
+    def test_enabled_media_scan_rejects_stale_signature_database(self):
+        import os
+        import time
+        with tempfile.TemporaryDirectory() as temp_dir:
+            database_dir = Path(temp_dir)
+            for family in ("main", "daily"):
+                target = database_dir / (family + ".cvd")
+                target.write_bytes(b"signature-db")
+                old = time.time() - 8 * 24 * 60 * 60
+                os.utime(target, (old, old))
+            with patch("preflight.shutil.which", return_value="/usr/bin/clamscan"):
+                result = build_preflight({
+                    "NEXUS_MEDIA_SCAN_ENABLED": "true",
+                    "NEXUS_CLAMSCAN_PATH": "/usr/bin/clamscan",
+                    "NEXUS_CLAMAV_DATABASE_DIR": str(database_dir),
+                    "NEXUS_CLAMAV_MAX_SIGNATURE_AGE_SECONDS": "604800",
+                })
+        self.assertFalse(result["checks"]["media_malware_scan"]["configured"])
+        self.assertTrue(any("signatures are stale" in item for item in result["missing"]))
+
+    def test_enabled_media_scan_requires_main_and_daily_databases(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            (Path(temp_dir) / "main.cvd").write_bytes(b"signature-db")
+            with patch("preflight.shutil.which", return_value="/usr/bin/clamscan"):
+                result = build_preflight({
+                    "NEXUS_MEDIA_SCAN_ENABLED": "true",
+                    "NEXUS_CLAMSCAN_PATH": "/usr/bin/clamscan",
+                    "NEXUS_CLAMAV_DATABASE_DIR": temp_dir,
+                })
+        self.assertTrue(any("daily signature database" in item for item in result["missing"]))
 
     def test_enabled_media_scan_fails_preflight_without_signatures(self):
         with tempfile.TemporaryDirectory() as temp_dir:
