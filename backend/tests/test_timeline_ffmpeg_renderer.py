@@ -243,6 +243,26 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
         self.assertIn("8.000", self.commands[0])
         self.assertEqual(len(self.commands), 3)
 
+    def test_mixes_opt_in_source_audio_without_an_audio_bed(self):
+        requested = json.loads(json.dumps(self.payload))
+        requested["edl"]["clips"][0]["include_source_audio"] = True
+        requested["edl"]["audio_tracks"] = []
+        self._rehash(requested)
+        probe = {
+            "duration_ms": 5000, "byte_size": 23,
+            "video_streams": [{"width": 720, "height": 1280, "codec": "h264"}],
+            "audio_streams": 1, "audio_codecs": ["aac"],
+        }
+        with patch("timeline_ffmpeg_renderer.probe_media", return_value=probe):
+            result = self.renderer(
+                requested, stop_event=threading.Event(),
+                workspace_id="ws_demo", principal_id="alice",
+            )
+        audio_graph = self.commands[1][self.commands[1].index("-filter_complex") + 1]
+        self.assertIn("amix=inputs=1", audio_graph)
+        self.assertTrue(Path(result["staged_path"]).is_file())
+        self.assertEqual(len(self.commands), 3)
+
     def test_rejects_requested_source_audio_when_video_has_no_audio_stream(self):
         requested = json.loads(json.dumps(self.payload))
         requested["edl"]["clips"][0]["include_source_audio"] = True
