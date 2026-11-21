@@ -45,3 +45,8 @@ The caller is responsible for gathering authoritative evidence. The evaluator do
 - `destructive_action_performed` is always `false`.
 
 This function does not create tombstones, acquire deletion leases, change rows, touch files, schedule cleanup or authorize deletion. A future purge implementation requires approved legal/product policy, append-only audit records, grace-period cancellation, final reference rechecks, lease fencing, path/hash verification and backup/replica coordination. Unknown state must remain ineligible.
+
+
+## Exact-head validation
+
+Latest evaluator head `50c7f2043cfa70a6cd27d7df9496c680148c2342` passed Backend [run 44886115569](https://github.com/justinhblee-prog/shorts/actions/runs/44886115569) (**939 tests plus Playwright browser smoke**) and Compose [run 44886115567](https://github.com/justinhblee-prog/shorts/actions/runs/44886115567) (service isolation, real FFmpeg render/adoption/review, authenticated API E2E, encrypted backup and isolated restore). These are generated-fixture CI checks, not a production retention rollout or target-host validation.
