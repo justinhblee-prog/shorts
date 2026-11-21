@@ -1602,3 +1602,5 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Backend EDL v1 normalizes and bounds the optional field. FFmpeg pads the end of the video with black frames, applies title overlays after the pad, and mixes audio through the declared duration.
 - Browser smoke covers a 7-second project containing 5 seconds of video and an audio track ending at 6.5 seconds. Backend regression tests cover normalization, invalid durations, audio bounds and renderer filter/mux duration.
 - Exact-head CI pending. This is API-contract/browser smoke and backend regression coverage; target-host and representative customer-media validation remain external.
+
+- The Compose real-media smoke now exercises a 2-second source video extended to a 3-second project, with a title overlay and audio track continuing into the final black second; artifact duration is asserted around 3 seconds. This verifies the actual FFmpeg/ffprobe path, not only mocked unit arguments.
