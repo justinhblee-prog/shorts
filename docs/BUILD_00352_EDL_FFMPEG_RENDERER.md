@@ -46,3 +46,10 @@ GitHub Actions on the integrated Draft PR #467:
 - Configure host-level disk quotas and retention limits for private assets, staging and adopted artifacts.
 - Validate on the actual target host and representative customer media before production use.
 - No provider API, upload to social platforms, public publishing or production deployment is included.
+
+
+## Concurrent artifact capacity race validation
+
+- Added a two-worker/two-workspace concurrent adoption regression. With the installation cap set to exactly one output, both workers start adoption together; SQLite write-lock serialization allows one adoption and rejects the other without losing its staged output.
+- Exact-head commit `2e5eede30bc2712e72b33c5ba988928be3ccaa30`: Backend [44908311824](https://github.com/justinhblee-prog/shorts/actions/runs/44908311824), **921 tests passed** plus authenticated Playwright smoke; Compose [44908311922](https://github.com/justinhblee-prog/shorts/actions/runs/44908311922) passed real FFmpeg render/adoption/review, authenticated API-to-worker private preview, ClamAV, encrypted backup/restore and teardown.
+- This proves the race guard on isolated CI SQLite/filesystem volumes; target-host persistent storage and production quota/monitoring remain unverified.
