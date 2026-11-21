@@ -130,12 +130,12 @@ Automated CI and Compose smoke do not prove:
 
 ## 5.2. Render artifact storage capacity follow-up
 
-- Draft PR [#469](https://github.com/justinhblee-prog/shorts/pull/469) is stacked on #468 via branch `feat/build-00352-render-artifact-cap-2026-11-21`, latest head `41e7410`.
+- Draft PR [#469](https://github.com/justinhblee-prog/shorts/pull/469) is stacked on #468 via branch `feat/build-00352-render-artifact-cap-2026-11-21`, latest head `931232b`.
 - Adds a 20 GiB default installation-wide logical cap for indexed render artifacts, checked under the SQLite adoption write lock, and a 1 GiB default free-space reserve on the artifact filesystem.
 - Zero reserve disables the free-space inspection; inability to inspect capacity fails closed when the reserve is enabled. Existing indexed artifacts are never automatically deleted.
 - Adds regression tests for aggregate cross-workspace accounting, low/unavailable free space and the zero-reserve bypass.
 - This logical cap is not an OS/container hard quota and excludes temporary staging/unindexed files. Retention/deletion and target-host quotas remain open.
-- Exact-head Backend [run `44883306345`](https://github.com/justinhblee-prog/shorts/actions/runs/44883306345) and Compose [run `44883306353`](https://github.com/justinhblee-prog/shorts/actions/runs/44883306353) are in progress.
+- Prior Backend [run `44883306345`](https://github.com/justinhblee-prog/shorts/actions/runs/44883306345) passed; Compose [run `44883306353`](https://github.com/justinhblee-prog/shorts/actions/runs/44883306353) exposed that the worker did not receive the CI zero-reserve override. The worker now receives artifact-cap environment variables explicitly from Compose. Exact-head Backend [run `44883485686`](https://github.com/justinhblee-prog/shorts/actions/runs/44883485686) and Compose [run `44883485694`](https://github.com/justinhblee-prog/shorts/actions/runs/44883485694) are queued.
 
 ## 6. Immediate next actions
 
