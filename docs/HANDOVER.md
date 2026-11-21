@@ -1593,3 +1593,12 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Added 100–400% visual timeline zoom, fit reset, and left/right horizontal navigation controls.
 - The visual timeline canvas scales independently inside its existing horizontally scrollable panel; backend EDL duration semantics are unchanged.
 - Browser smoke covers zoom growth, slider state, fit reset, and navigation control visibility.
+
+
+## BUILD-00352 / BUILD-00361 / BUILD-00362 — Explicit project duration UI and render contract (2026-11-21)
+
+- The timeline editor now exposes an optional project duration in seconds. Blank preserves automatic duration; an explicit value must be greater than zero, at most 3600 seconds, and no shorter than the sequential video timeline.
+- The UI sends `project_duration_ms` only when explicitly entered. The ruler and visual lanes expand to that duration; timed title overlays and audio tracks may extend into the trailing section.
+- Backend EDL v1 normalizes and bounds the optional field. FFmpeg pads the end of the video with black frames, applies title overlays after the pad, and mixes audio through the declared duration.
+- Browser smoke covers a 7-second project containing 5 seconds of video and an audio track ending at 6.5 seconds. Backend regression tests cover normalization, invalid durations, audio bounds and renderer filter/mux duration.
+- Exact-head CI pending. This is API-contract/browser smoke and backend regression coverage; target-host and representative customer-media validation remain external.
