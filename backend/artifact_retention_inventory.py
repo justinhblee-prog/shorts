@@ -1,13 +1,14 @@
 """Workspace-scoped read-only retention inventory.
 
-This module performs SELECT-only inventory queries. It never reads file paths,
-writes database rows, changes queue state, creates tombstones or deletes files.
-Legal-hold, integrity/storage and backup state remain unknown until authoritative
-providers are configured, so inventory results fail closed by construction.
+This module performs bounded SELECT-only inventory queries inside one SQLite
+read transaction. It never reads file paths, writes rows, changes queue state,
+creates tombstones or deletes files. Legal-hold, integrity/storage and backup
+state remain unknown until authoritative providers are configured.
 """
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from artifact_retention import evaluate_retention_candidate
 
@@ -23,6 +24,16 @@ _TERMINAL_REVIEW_STATUSES = {"approved", "rejected", "revision_requested"}
 
 def _query_only(connection):
     connection.execute("PRAGMA query_only=ON")
+
+
+def _same_database_path(*stores):
+    paths = []
+    for store in stores:
+        value = getattr(store, "db_path", None)
+        if not isinstance(value, (str, Path)) or not str(value):
+            return False
+        paths.append(str(Path(value).resolve()))
+    return len(set(paths)) == 1
 
 
 class RetentionInventory:
@@ -53,9 +64,8 @@ class RetentionInventory:
 
         `limit` is applied independently to original assets and render
         artifacts (maximum 400 combined). Caller authorization is checked before
-        any inventory query. The evaluator is passed only explicit state
-        collected from the immutable records; unavailable hold, storage,
-        integrity and backup providers are represented as unknown/false.
+        any inventory query. All three stores must share one SQLite database;
+        all reference counts are read from the same explicit read transaction.
         """
         if not isinstance(workspace_id, str) or not workspace_id:
             raise ValueError("workspace_id is required")
@@ -65,9 +75,13 @@ class RetentionInventory:
             raise ValueError("limit must be between 1 and 200")
         self.workspaces.require_membership(workspace_id, principal_id)
 
+        if not _same_database_path(self.assets, self.artifacts.queue, self.snapshots):
+            raise RetentionInventoryError("asset, artifact and snapshot stores must share one SQLite database")
+
         try:
             with self.snapshots._db() as db:
                 _query_only(db)
+                db.execute("BEGIN")
                 snapshot_rows = db.execute("""
                     SELECT s.id,s.render_job_id,s.payload_json,j.status AS job_status,
                            r.decision AS review_status
@@ -79,8 +93,26 @@ class RetentionInventory:
                     WHERE s.workspace_id=?
                     ORDER BY s.created_at ASC,s.id ASC LIMIT ?
                 """, (workspace_id, limit * 10 + 1)).fetchall()
+                asset_rows = db.execute("""
+                    SELECT id,status,scan_status,created_at,retention_until,byte_size
+                    FROM workspace_media_assets
+                    WHERE workspace_id=?
+                    ORDER BY created_at ASC,id ASC LIMIT ?
+                """, (workspace_id, limit + 1)).fetchall()
+                artifact_rows = db.execute("""
+                    SELECT a.artifact_id,a.job_id,a.snapshot_id,a.created_at,a.byte_size,
+                           j.status AS job_status,r.decision AS review_status
+                    FROM render_artifacts a
+                    LEFT JOIN pipeline_jobs j
+                      ON j.id=a.job_id AND j.workspace_id=a.workspace_id
+                    LEFT JOIN timeline_render_reviews r
+                      ON r.snapshot_id=a.snapshot_id AND r.workspace_id=a.workspace_id
+                    WHERE a.workspace_id=?
+                    ORDER BY a.created_at ASC,a.artifact_id ASC LIMIT ?
+                """, (workspace_id, limit + 1)).fetchall()
+                db.rollback()
         except Exception as exc:
-            raise RetentionInventoryError("snapshot reference inventory failed") from exc
+            raise RetentionInventoryError("consistent read-only retention inventory failed") from exc
 
         asset_references = {}
         snapshot_truncated = len(snapshot_rows) > limit * 10
@@ -129,91 +161,58 @@ class RetentionInventory:
                     state["active"] += 1
 
         candidates = []
-        try:
-            with self.assets.db() as db:
-                _query_only(db)
-                rows = db.execute("""
-                    SELECT id,status,scan_status,created_at,retention_until,byte_size
-                    FROM workspace_media_assets
-                    WHERE workspace_id=?
-                    ORDER BY created_at ASC,id ASC LIMIT ?
-                """, (workspace_id, limit + 1)).fetchall()
-            assets_truncated = len(rows) > limit
-            rows = rows[:limit]
-            for row in rows:
-                refs = asset_references.get(row["id"], {"snapshots": 0, "active": 0})
-                candidate = {
-                    "id": row["id"],
-                    "data_class": "workspace_asset",
-                    "created_at": row["created_at"],
-                    "asset_status": row["status"],
-                    "scan_status": row["scan_status"],
-                    "reference_check_complete": False,
-                    "active_reference_count": refs["active"] if snapshot_inventory_complete else None,
-                    "snapshot_reference_count": refs["snapshots"] if snapshot_inventory_complete else None,
-                    "legal_hold": None,
-                    "integrity_verified": False,
-                    "storage_state_known": False,
-                    "backup_state_known": False,
-                }
-                evaluation = evaluate_retention_candidate(candidate, policy, now=now)
-                candidates.append({
-                    "candidate": candidate,
-                    "retention_until_metadata": row["retention_until"],
-                    "byte_size": row["byte_size"],
-                    "evaluation": evaluation,
-                })
-        except Exception as exc:
-            if isinstance(exc, RetentionInventoryError):
-                raise
-            raise RetentionInventoryError("workspace asset inventory failed") from exc
+        assets_truncated = len(asset_rows) > limit
+        for row in asset_rows[:limit]:
+            refs = asset_references.get(row["id"], {"snapshots": 0, "active": 0})
+            candidate = {
+                "id": row["id"],
+                "data_class": "workspace_asset",
+                "created_at": row["created_at"],
+                "asset_status": row["status"],
+                "scan_status": row["scan_status"],
+                "reference_check_complete": snapshot_inventory_complete,
+                "active_reference_count": refs["active"] if snapshot_inventory_complete else None,
+                "snapshot_reference_count": refs["snapshots"] if snapshot_inventory_complete else None,
+                "legal_hold": None,
+                "integrity_verified": False,
+                "storage_state_known": False,
+                "backup_state_known": False,
+            }
+            evaluation = evaluate_retention_candidate(candidate, policy, now=now)
+            candidates.append({
+                "candidate": candidate,
+                "retention_until_metadata": row["retention_until"],
+                "byte_size": row["byte_size"],
+                "evaluation": evaluation,
+            })
 
-        try:
-            with self.artifacts.queue.db() as db:
-                _query_only(db)
-                rows = db.execute("""
-                    SELECT a.artifact_id,a.job_id,a.snapshot_id,a.created_at,a.byte_size,
-                           j.status AS job_status,r.decision AS review_status
-                    FROM render_artifacts a
-                    LEFT JOIN pipeline_jobs j
-                      ON j.id=a.job_id AND j.workspace_id=a.workspace_id
-                    LEFT JOIN timeline_render_reviews r
-                      ON r.snapshot_id=a.snapshot_id AND r.workspace_id=a.workspace_id
-                    WHERE a.workspace_id=?
-                    ORDER BY a.created_at ASC,a.artifact_id ASC LIMIT ?
-                """, (workspace_id, limit + 1)).fetchall()
-            artifacts_truncated = len(rows) > limit
-            rows = rows[:limit]
-            for row in rows:
-                job_known, job_active = self._job_reference_state(
-                    row["job_status"], row["review_status"]
-                )
-                review_status = row["review_status"] or "pending"
-                candidate = {
-                    "id": row["artifact_id"],
-                    "data_class": "render_artifact",
-                    "created_at": row["created_at"],
-                    "review_status": review_status,
-                    "reference_check_complete": False,
-                    "active_reference_count": 1 if job_active else 0 if job_known else None,
-                    # The immutable EDL snapshot remains linked to the artifact's render job.
-                    "snapshot_reference_count": 1,
-                    "legal_hold": None,
-                    "integrity_verified": False,
-                    "storage_state_known": False,
-                    "backup_state_known": False,
-                }
-                evaluation = evaluate_retention_candidate(candidate, policy, now=now)
-                candidates.append({
-                    "candidate": candidate,
-                    "job_status": row["job_status"],
-                    "byte_size": row["byte_size"],
-                    "evaluation": evaluation,
-                })
-        except Exception as exc:
-            if isinstance(exc, RetentionInventoryError):
-                raise
-            raise RetentionInventoryError("render artifact inventory failed") from exc
+        artifacts_truncated = len(artifact_rows) > limit
+        for row in artifact_rows[:limit]:
+            job_known, job_active = self._job_reference_state(
+                row["job_status"], row["review_status"]
+            )
+            review_status = row["review_status"] or "pending"
+            candidate = {
+                "id": row["artifact_id"],
+                "data_class": "render_artifact",
+                "created_at": row["created_at"],
+                "review_status": review_status,
+                "reference_check_complete": snapshot_inventory_complete and job_known,
+                "active_reference_count": 1 if job_active else 0 if job_known else None,
+                # The immutable EDL snapshot remains linked to the artifact's render job.
+                "snapshot_reference_count": 1,
+                "legal_hold": None,
+                "integrity_verified": False,
+                "storage_state_known": False,
+                "backup_state_known": False,
+            }
+            evaluation = evaluate_retention_candidate(candidate, policy, now=now)
+            candidates.append({
+                "candidate": candidate,
+                "job_status": row["job_status"],
+                "byte_size": row["byte_size"],
+                "evaluation": evaluation,
+            })
 
         reason_counts = {}
         eligible_count = 0
@@ -232,9 +231,8 @@ class RetentionInventory:
             "candidates": candidates,
             "truncated": assets_truncated or artifacts_truncated or snapshot_truncated,
             "snapshot_reference_inventory_complete": snapshot_inventory_complete,
-            "reference_check_complete": False,
-            "reference_snapshot_consistency": "non_atomic",
+            "reference_check_complete": snapshot_inventory_complete,
+            "reference_snapshot_consistency": "atomic_read_transaction",
             "read_only": True,
             "destructive_action_performed": False,
         }
-
