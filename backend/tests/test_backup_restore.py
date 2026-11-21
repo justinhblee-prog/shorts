@@ -212,7 +212,8 @@ class BackupRestoreTests(unittest.TestCase):
     def test_truncated_gzip_archive_fails_as_restore_error_during_space_preflight(self):
         backup = Path(create_backup(self.db, self.media, self.backups)["backup_path"])
         truncated = self.backups / "truncated.tar.gz"
-        truncated.write_bytes(backup.read_bytes()[:-8])
+        payload = backup.read_bytes()
+        truncated.write_bytes(payload[:max(20, len(payload) // 2)])
         with self.assertRaisesRegex(BackupRestoreError, "cannot be read during space preflight"):
             restore_backup(
                 truncated, self.db, self.media, self.backups, confirm_restore=True
