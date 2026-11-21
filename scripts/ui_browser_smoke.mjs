@@ -366,8 +366,11 @@ async function waitForServer() {
     assert.equal(capturedTimelineEdl.clips.filter(clip=>clip.type==="video").length,1);
     assert.equal(capturedTimelineEdl.clips.find(clip=>clip.type==="video").asset_id,"asset-smoke");
     assert.equal(capturedTimelineEdl.clips.find(clip=>clip.type==="title").text,"Render smoke");
-    assert.equal(await page.locator("#timelineServerPreview").isVisible(),true,"rendered review artifact preview missing");
-    assert.match(await page.locator("#timelineServerPreview").getAttribute("src"),/^blob:/,"private artifact should be fetched as an authenticated browser blob");
+    const previewDebug=await page.locator("#timelineServerPreview").evaluate(el=>({hidden:el.hidden,hasHidden:el.hasAttribute("hidden"),src:el.getAttribute("src"),display:getComputedStyle(el).display,visibility:getComputedStyle(el).visibility,rect:(()=>{const r=el.getBoundingClientRect();return {width:r.width,height:r.height,top:r.top,left:r.left};})(),parentDisplay:getComputedStyle(el.parentElement).display,parentRect:(()=>{const r=el.parentElement.getBoundingClientRect();return {width:r.width,height:r.height};})()}));
+    console.log("[ui-smoke] private artifact preview DOM",JSON.stringify(previewDebug));
+    assert.equal(previewDebug.hidden,false,"rendered review artifact preview must be unhidden");
+    assert.match(previewDebug.src||"",/^blob:/,"private artifact should be fetched as an authenticated browser blob");
+
     await page.locator("#timelineApproveRender").click();
     await page.waitForFunction(()=>document.querySelector("#timelineRenderReview").hidden===true);
     assert.equal(capturedTimelineDecision.decision,"approved");
