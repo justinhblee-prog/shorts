@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import shutil
 import logging
@@ -44,6 +45,7 @@ from preflight import build_preflight
 from timeline_edl import validate_edl, EDLValidationError
 from workspace_access import resolve_workspace_membership, resolve_workspace_access, WorkspaceAccessConfigurationError
 from workspace_store import WorkspaceStore, WorkspaceDenied, WorkspaceConflict, WorkspaceNotFound
+from artifact_retention_inventory import RetentionInventory, RetentionInventoryError
 from worker_auth import authenticate_worker, WorkerAuthConfigurationError, WorkerAuthenticationError
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
@@ -135,6 +137,9 @@ render_artifact_store=RenderArtifactStore(
     require_audio=os.getenv("NEXUS_RENDER_REQUIRE_AUDIO","false").lower() == "true",
 )
 media_stager=MediaStager()
+retention_inventory=RetentionInventory(
+    asset_store,render_artifact_store,timeline_render_store,workspace_store
+)
 
 class Enqueue(BaseModel):
     job_type:str=Field(min_length=1,max_length=100)
@@ -1118,6 +1123,33 @@ def decide_workspace_render(
         raise HTTPException(422, str(exc))
 
 
+
+
+@app.get("/api/operator/workspaces/{workspace_id}/retention-inventory")
+def get_workspace_retention_inventory(
+    workspace_id:str,
+    limit:int=Query(default=100,ge=1,le=200),
+    x_review_token:str|None=Header(default=None),
+):
+    """Return a workspace-authorized, read-only retention inventory."""
+    principal=require_review_permission(x_review_token,"operations.read")
+    resolved_workspace=resolve_operator_workspace_scope(principal,workspace_id)
+    if not resolved_workspace:
+        raise HTTPException(403,"Workspace scope is required for retention inventory")
+    try:
+        policy_raw=os.getenv("NEXUS_RETENTION_POLICY_JSON","{}")
+        try:
+            policy=json.loads(policy_raw)
+        except (TypeError,ValueError,json.JSONDecodeError):
+            raise HTTPException(503,"Retention policy configuration is invalid")
+        return retention_inventory.list_workspace(
+            resolved_workspace,principal,policy,
+            now=datetime.now(timezone.utc).isoformat(),limit=limit,
+        )
+    except RetentionInventoryError as exc:
+        raise HTTPException(503,"Read-only retention inventory is unavailable") from exc
+    except PermissionError as exc:
+        raise HTTPException(403,"Workspace membership is required") from exc
 
 
 @app.post("/api/timeline/renders",status_code=202)
