@@ -47,6 +47,11 @@ async function waitForServer() {
     assert.equal(await app.locator(".topbar").evaluate(el => getComputedStyle(el).position), "fixed");
     assert.equal(await app.locator(".topbar").evaluate(el => Math.round(el.getBoundingClientRect().width)), 258);
     assert.equal(await app.locator(".hero-visual").evaluate(el => getComputedStyle(el).display), "grid");
+    assert.equal(await app.locator(".command-center").count(), 1);
+    assert.equal(await app.locator(".command-grid").count(), 1);
+    assert.equal(await app.locator(".gate-list li").count(), 4);
+    assert.equal(await app.locator("#overviewTrends").count(), 1);
+    assert.match(await app.locator("body").textContent(), /운영 커맨드 센터/);
     assert.equal(await app.locator(".button-primary").first().evaluate(el => getComputedStyle(el).backgroundImage.includes("linear-gradient")), true);
     await frame.waitFor();
     await page.waitForFunction(() => {
@@ -147,6 +152,8 @@ async function waitForServer() {
       viewport: window.innerWidth,
       document: document.documentElement.scrollWidth,
     }));
+    const mobileCommandGrid = await page.locator(".command-grid").evaluate(el => getComputedStyle(el).gridTemplateColumns);
+    assert.ok(!mobileCommandGrid.includes(","), "Command center must stack into one column on mobile: " + mobileCommandGrid);
     assert.ok(
       mobileDimensions.document <= mobileDimensions.viewport,
       "Dashboard horizontal overflow at 320px: " + JSON.stringify(mobileDimensions)
