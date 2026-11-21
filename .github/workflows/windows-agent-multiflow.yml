@@ -47,6 +47,12 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Cache local Ollama model
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: ollama-qwen2.5-coder-7b-v1
+
       - name: Install and start isolated Ollama runtime
         shell: bash
         run: |
