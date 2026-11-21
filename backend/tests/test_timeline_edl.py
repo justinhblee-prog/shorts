@@ -126,5 +126,40 @@ class TimelineEDLTests(unittest.TestCase):
             with self.subTest(duration=duration, audio_end=audio_end), self.assertRaises(EDLValidationError):
                 validate_edl(invalid)
 
+    def test_normalizes_adjacent_crossfade_and_rejects_unsafe_transitions(self):
+        first = {
+            "id": "video-a", "type": "video", "start_ms": 0, "end_ms": 5000,
+            "asset_id": "asset_a", "source_in_ms": 0, "source_out_ms": 5000,
+        }
+        second = {
+            "id": "video-b", "type": "video", "start_ms": 4500, "end_ms": 8500,
+            "asset_id": "asset_b", "source_in_ms": 1000, "source_out_ms": 5000,
+        }
+        transition = {
+            "from_clip_id": "video-a", "to_clip_id": "video-b",
+            "type": "crossfade", "duration_ms": 500,
+        }
+        payload = {
+            "schema": SCHEMA, "version": 1, "timebase": "milliseconds",
+            "clips": [first, second], "transitions": [transition],
+        }
+        normalized = validate_edl(payload)
+        self.assertEqual(normalized["transitions"], [transition])
+
+        invalid_cases = (
+            [{**transition, "duration_ms": 5001}],
+            [{**transition, "duration_ms": 5000}],
+            [{**transition, "type": "wipe"}],
+            [{**transition, "to_clip_id": "video-a"}],
+            [transition, transition],
+            [{**transition, "duration_ms": 500.5}],
+        )
+        for invalid in invalid_cases:
+            with self.subTest(transitions=invalid), self.assertRaises(EDLValidationError):
+                validate_edl({**payload, "transitions": invalid})
+
+        with self.assertRaises(EDLValidationError):
+            validate_edl({**payload, "transitions": [{**transition, "extra": True}]})
+
 if __name__ == "__main__":
     unittest.main()
