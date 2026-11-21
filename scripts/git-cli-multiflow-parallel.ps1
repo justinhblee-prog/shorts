@@ -87,8 +87,23 @@ if($Worker){
   if(-not(& git -C $taskData.worktree status --porcelain)){throw "Agent produced no changes."}
   $validator=Join-Path $taskData.worktree "scripts/devflow.py"
   if(-not(Test-Path -LiteralPath $validator)){throw "Task-worktree DevFlow validator is missing: $validator"}
-  & python $validator validate
-  if($LASTEXITCODE -ne 0){throw "Task-worktree validation failed."}
+  # Validation executes agent-authored code/tests, so strip supervisor credentials
+  # from that process tree too; restore them only for the later GitHub PR operation.
+  $validationSecrets=@{}
+  foreach($entry in @(Get-ChildItem Env:)){
+   if($entry.Name -match '(?i)(TOKEN|API_KEY|SECRET|PASSWORD|CREDENTIAL|PRIVATE_KEY|ACCESS_KEY|AUTHORIZATION)' -or
+      $entry.Name -match '(?i)^(GH_|GITHUB_|AWS_|AZURE_|OPENAI_|ANTHROPIC_)'){
+    $validationSecrets[$entry.Name]=$entry.Value
+    Remove-Item -LiteralPath ("Env:"+$entry.Name)
+   }
+  }
+  try{
+   & python $validator validate
+   $validationExit=$LASTEXITCODE
+  }finally{
+   foreach($name in $validationSecrets.Keys){Set-Item -LiteralPath ("Env:"+$name) -Value $validationSecrets[$name]}
+  }
+  if($validationExit -ne 0){throw "Task-worktree validation failed."}
   foreach($n in @(".env",".env.local","credentials.json","secrets.json")){
    $secret=Get-ChildItem $taskData.worktree -Force -Recurse -File -Filter $n -ErrorAction SilentlyContinue|Where-Object{$_.FullName -notmatch '[\\/](\.git|node_modules|\.venv)[\\/]'}
    if($secret){throw "Potential secret file: $n"}
