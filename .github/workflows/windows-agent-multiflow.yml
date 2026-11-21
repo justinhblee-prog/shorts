@@ -15,7 +15,7 @@ on:
       max_tasks:
         description: Maximum tasks to process in this run (1-3)
         required: true
-        default: "1"
+        default: "2"
         type: choice
         options:
           - "1"
@@ -109,7 +109,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $rawCount = "${{ inputs.max_tasks }}"
-          if ([string]::IsNullOrWhiteSpace($rawCount)) { $rawCount = "1" }
+          if ([string]::IsNullOrWhiteSpace($rawCount)) { $rawCount = "2" }
           $count = [int]$rawCount
           if ($count -lt 1 -or $count -gt 3) { throw "max_tasks must be between 1 and 3." }
           $python = (Get-Command python -ErrorAction Stop).Source
