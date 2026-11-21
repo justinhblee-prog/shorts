@@ -59,3 +59,12 @@ No credentials, account connections, provider scopes, external uploads or public
 ## Latest exact-head validation
 
 The latest provider implementation and tests at `ee5e563330d9e4e1956f24b3ba710fc19ebb048f` passed Backend [run 44889554706](https://github.com/justinhblee-prog/shorts/actions/runs/44889554706) and Compose [run 44889554618](https://github.com/justinhblee-prog/shorts/actions/runs/44889554618). Backend validation and Playwright browser smoke passed; Compose exercised ClamAV readiness, worker isolation, generated-media FFmpeg render/adoption/review, authenticated API E2E, encrypted backup and isolated restore. This follow-up changes only documentation/task-ledger evidence; exact-head reruns are required.
+
+
+## YouTube upload completion response hardening
+
+- The resumable upload completion response must be an object, and its `id` must be a non-empty string before the local upload is finalized as uploaded.
+- A malformed response or invalid video ID after the remote upload request has started leaves the attempt in `reconciliation_required`; automatic retry remains blocked until an operator reconciles the remote outcome.
+- Added offline fake-service tests for non-object completion responses and non-string video IDs, asserting that neither is recorded as a confirmed upload.
+- Exact code/test head `b4934a69507d120a5cb484234d72c712d5671d3f` passed Backend [run 44890001360](https://github.com/justinhblee-prog/shorts/actions/runs/44890001360): **954 tests**, font fallback and Playwright browser smoke. Compose [run 44890002208](https://github.com/justinhblee-prog/shorts/actions/runs/44890002208) passed ClamAV readiness, worker isolation, real FFmpeg render/adoption/review, authenticated upload-to-worker/private-preview E2E, encrypted backup and isolated restore.
+- These tests use fake provider services and generated media. They do not establish live Google/YouTube HTTPS behavior or customer account compatibility.
