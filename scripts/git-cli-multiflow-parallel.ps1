@@ -177,7 +177,7 @@ foreach($activeTask in @($manifest.tasks|Where-Object{$activeWorktreeIds -contai
  $activeWorktreeScopes+=Get-TaskScopePaths $activeTask
 }
 $completedStateScopes=@()
-foreach($completedTask in @($manifest.tasks|Where-Object{$state.tasks[[string]$_.id] -and $state.tasks[[string]$_.id].status -eq "draft_pr_created"})){
+foreach($completedTask in @($manifest.tasks|Where-Object{$_.status -in @("ready","in_progress") -and $state.tasks[[string]$_.id] -and $state.tasks[[string]$_.id].status -eq "draft_pr_created"})){
  $completedStateScopes+=Get-TaskScopePaths $completedTask
 }
 $openFiles=@()
