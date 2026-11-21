@@ -404,6 +404,17 @@ async function waitForServer() {
     assert.equal(await page.locator("#timelineVisualTrack .timeline-visual-lane").count(),3,"visual timeline should render video, title and audio lanes");
     assert.equal(await page.locator("#timelineVisualTrack .timeline-segment.is-video").count(),2);
     assert.equal(await page.locator("#timelineVisualTrack .timeline-segment.is-title").count(),1);
+    const videoTimelineSegments=page.locator("#timelineVisualTrack .timeline-segment.is-video");
+    assert.equal(await videoTimelineSegments.first().getAttribute("aria-pressed"),"true","selected timeline clip must expose its selected state");
+    assert.match(await videoTimelineSegments.first().getAttribute("aria-label"),/영상 클립/,"video timeline segment needs a descriptive accessible name");
+    await videoTimelineSegments.nth(1).click();
+    assert.equal(await videoTimelineSegments.nth(1).getAttribute("aria-pressed"),"true","activating a timeline segment must expose selection to assistive technology");
+    assert.equal(await videoTimelineSegments.first().getAttribute("aria-pressed"),"false");
+    assert.equal(await page.locator("#timelineMediaShelf .timeline-media-card[aria-pressed='true']").count(),1,"timeline selection must stay synchronized with the media shelf");
+    await page.locator("#timelineMediaShelf .timeline-media-card").filter({hasText:"timeline-smoke-a.mp4"}).click();
+    assert.equal(await videoTimelineSegments.first().getAttribute("aria-pressed"),"true","media shelf selection must update timeline accessibility state");
+    const titleTimelineSegment=page.locator("#timelineVisualTrack .timeline-segment.is-title");
+    assert.match(await titleTimelineSegment.getAttribute("aria-label"),/타이틀 오버레이/,"title segment needs a descriptive accessible name");
     assert.equal(await page.locator("#timelineVisualDuration").textContent(),"7.0s");
     const initialTimelineWidth=await page.locator("#timelineVisualTrack").evaluate(el=>el.getBoundingClientRect().width);
     await page.locator("#timelineZoomIn").click();
