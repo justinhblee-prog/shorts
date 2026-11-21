@@ -95,7 +95,7 @@ A deterministic regression harness runs the detached supervisor against a dispos
 ## Flow and safety gates
 
 1. Select tasks in `ready` or `in_progress` whose dependencies are all `completed`.
-2. Skip tasks already represented by an open PR, preventing duplicate work.
+2. Skip tasks already represented by an open PR, scanning the PR title, body and head/base branch names for the task ID so PRs with descriptive titles are still recognized.
 3. Enforce the manifest's `max_parallel_worktrees` cap and require a clean primary checkout.
 4. Create a timestamped branch and isolated Git worktree from the configured base.
 5. Invoke the configured agent with the task scope and acceptance criteria.
@@ -106,7 +106,7 @@ The `-Run` path now dispatches independent eligible tasks to separate PowerShell
 
 ## Empty queue behavior
 
-If the planner reports `No eligible tasks without an existing open PR`, it found no task that simultaneously passes the dependency/status gates and the open-PR duplicate check. `blocked_external` tasks remain excluded until their external prerequisites are explicitly resolved; do not change their status merely to force execution.
+If the planner reports `No runnable tasks. Open-PR, dependency, and external gates remain enforced.`, it found no task that simultaneously passes the dependency/status gates and the open-PR duplicate check. The duplicate check searches task IDs across open PR titles, bodies and branch metadata, not only titles. `blocked_external` tasks remain excluded until their external prerequisites are explicitly resolved; do not change their status merely to force execution.
 
 ## Parallel worker state and recovery
 
