@@ -49,6 +49,10 @@ if($ValidateOnly){
  Write-Host "Task=$TaskName; User=$identity; Repository=$root; MaxTasks=$MaxTasks; PollIntervalSeconds=$PollIntervalSeconds"
  exit 0
 }
+$preflight=Join-Path $root "scripts/git-cli-agent-config.ps1"
+if(-not(Test-Path -LiteralPath $preflight)){throw "Agent CLI preflight script is missing: $preflight"}
+& $preflight -Check
+if($LASTEXITCODE -ne 0){throw "Agent CLI preflight failed; scheduled supervisor was not registered."}
 if($task -and -not $Replace){throw "Scheduled task '$TaskName' already exists. Use -Replace to update it or -Uninstall to remove it."}
 if($PSCmdlet.ShouldProcess($TaskName,"Register scheduled DevFlow supervisor at user logon")){
  if($task -and $Replace -and $task.State -eq "Running"){Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue}
