@@ -50,7 +50,6 @@ if($ValidateOnly){
 }
 if($task -and -not $Replace){throw "Scheduled task '$TaskName' already exists. Use -Replace to update it or -Uninstall to remove it."}
 if($PSCmdlet.ShouldProcess($TaskName,"Register scheduled DevFlow supervisor at user logon")){
- if($task){Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false}
  Register-ScheduledTask -TaskName $TaskName -InputObject $definition -Force | Out-Null
  if($StartNow){Start-ScheduledTask -TaskName $TaskName}
  Write-Host "Scheduled task '$TaskName' registered for user logon."
