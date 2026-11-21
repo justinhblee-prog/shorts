@@ -263,7 +263,7 @@
       ]
     },
     {
-      "id": "BUILD-00363",
+      "id": "BUILD-00389",
       "title": "Make DevFlow discover and replenish executable work from unfinished task criteria",
       "priority": 1,
       "status": "ready",
@@ -286,7 +286,7 @@
         "Keep dependency, external gate, no-merge, no-deploy, no-publish and human-review safeguards"
       ],
       "external_gates": [],
-      "notes": "Automation engine backlog discovery. Stacked on the current BUILD-00352 implementation branch; do not modify the protected task manifest."
+      "notes": "Use a globally unused task ID; BUILD-00363 is already referenced by legacy open PRs #345 and #346."
     }
   ]
 }
