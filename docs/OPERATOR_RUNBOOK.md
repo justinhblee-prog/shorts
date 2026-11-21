@@ -736,3 +736,13 @@ This protects local database consistency only. It does not make the external pro
 - Check `docker compose ps` and require API, worker, scheduler, metrics collector and backup to report `healthy`.
 - The backup service updates `/backups/.last-success` only after an encrypted archive is successfully created. Set `NEXUS_BACKUP_HEALTH_MAX_AGE_SECONDS` to adjust the maximum acceptable age; default is 48 hours for a daily schedule.
 - A process health probe confirms the expected PID-1 worker/scheduler/collector command is alive; it does not replace operational monitoring of job throughput or provider errors.
+
+## Render artifact capacity and cleanup
+
+- `NEXUS_RENDER_ARTIFACT_MAX_BYTES` is an installation-wide logical cap for indexed render artifacts (default 20 GiB). The worker checks the sum of indexed artifact byte sizes inside the SQLite write transaction immediately before adoption, so concurrent adoptions cannot exceed the configured indexed-artifact cap.
+- `NEXUS_RENDER_ARTIFACT_MIN_FREE_BYTES` is the minimum free space required on the artifact filesystem before adoption (default 1 GiB; set to `0` only when intentionally disabling this preflight). If filesystem capacity cannot be inspected, adoption fails closed.
+- The logical cap counts indexed adopted artifacts only. It is not an OS/container quota, does not reserve physical blocks, and does not include render staging files or unindexed crash leftovers. Keep host/container filesystem quotas and monitoring enabled.
+- If the logical cap is reached or the free-space reserve is not met, the render is not adopted; the worker discards the staged output and the job remains failed/retryable according to its queue policy. Existing indexed artifacts are not automatically deleted.
+- The render worker reconciles crash-left staging outputs and unindexed generated artifact files every five minutes with a two-hour grace period. It logs removed file/directory/byte counts and failure types. This cleanup is restricted to generated orphan paths; it is not an indexed artifact retention/deletion policy.
+- Indexed artifacts remain immutable and retained until a separately reviewed retention/deletion policy is implemented. Do not manually remove indexed files or database rows as a capacity workaround; use the approved lifecycle once available.
+

@@ -30,7 +30,8 @@ class ArtifactAdoptionError(RuntimeError):
 
 class RenderArtifactStore:
     def __init__(self, queue, staging_root, artifact_root, max_bytes=2_000_000_000,
-                 ffprobe_path=None, require_audio=False, max_duration_ms=3_600_000):
+                 ffprobe_path=None, require_audio=False, max_duration_ms=3_600_000,
+                 max_total_bytes=20 * 1024**3, min_free_bytes=1024**3):
         if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 1:
             raise ValueError("max_bytes must be a positive integer")
         self.queue = queue
@@ -42,9 +43,17 @@ class RenderArtifactStore:
         if (isinstance(max_duration_ms, bool) or not isinstance(max_duration_ms, int)
                 or not 1 <= max_duration_ms <= 3_600_000):
             raise ValueError("max_duration_ms must be between 1 and 3600000")
+        if (isinstance(max_total_bytes, bool) or not isinstance(max_total_bytes, int)
+                or max_total_bytes < 1):
+            raise ValueError("max_total_bytes must be a positive integer")
+        if (isinstance(min_free_bytes, bool) or not isinstance(min_free_bytes, int)
+                or min_free_bytes < 0):
+            raise ValueError("min_free_bytes must be a non-negative integer")
         self.ffprobe_path = ffprobe_path
         self.require_audio = require_audio
         self.max_duration_ms = max_duration_ms
+        self.max_total_bytes = max_total_bytes
+        self.min_free_bytes = min_free_bytes
         self.staging_root.mkdir(parents=True, exist_ok=True)
         self.artifact_root.mkdir(parents=True, exist_ok=True)
         if self.staging_root == self.artifact_root:
@@ -115,6 +124,13 @@ class RenderArtifactStore:
             raise ArtifactAdoptionError("staged output must be inside the private staging root") from exc
         if not source.is_file():
             raise ArtifactAdoptionError("staged output must be a regular file")
+        if self.min_free_bytes:
+            try:
+                free_bytes = shutil.disk_usage(self.artifact_root).free
+            except OSError as exc:
+                raise ArtifactAdoptionError("artifact storage free space cannot be inspected") from exc
+            if free_bytes < self.min_free_bytes:
+                raise ArtifactAdoptionError("artifact storage free space is below the configured reserve")
         suffix = source.suffix.lower()
         if suffix not in _ALLOWED_SUFFIXES:
             raise ArtifactAdoptionError("render output extension is not allowed")
@@ -142,6 +158,13 @@ class RenderArtifactStore:
             with self.queue.db() as db:
                 db.execute("BEGIN IMMEDIATE")
                 self.queue._assert_worker_generation(db, worker_id, generation_token)
+                total = db.execute(
+                    "SELECT COALESCE(SUM(byte_size),0) AS total_bytes FROM render_artifacts"
+                ).fetchone()["total_bytes"]
+                if total + size > self.max_total_bytes:
+                    raise ArtifactAdoptionError(
+                        "installation render artifact storage cap would be exceeded"
+                    )
                 job = db.execute(
                     "SELECT * FROM pipeline_jobs WHERE id=? AND workspace_id=?",
                     (job_id, workspace_id),

@@ -1,6 +1,8 @@
 import hashlib
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from unittest.mock import patch
 from pathlib import Path
 
@@ -28,7 +30,7 @@ class RenderArtifactStoreTests(unittest.TestCase):
             self.worker, job_type="timeline_render", generation_token=self.generation
         )
         self.store = RenderArtifactStore(
-            self.queue, self.staging, self.artifacts, max_bytes=1024
+            self.queue, self.staging, self.artifacts, max_bytes=1024, min_free_bytes=0
         )
         self.staged = self.staging / "output.mp4"
         self.staged.write_bytes(b"verified-render-fixture")
@@ -57,6 +59,154 @@ class RenderArtifactStoreTests(unittest.TestCase):
         self.assertEqual(record["artifact_sha256"], hashlib.sha256(b"verified-render-fixture").hexdigest())
         self.assertFalse(self.staged.exists())
         self.assertTrue((self.artifacts / result["storage_key"]).is_file())
+
+    def test_installation_cap_rejects_adoption_without_moving_staged_output(self):
+        limited = RenderArtifactStore(
+            self.queue, self.staging, self.artifacts,
+            max_bytes=1024, max_total_bytes=1, min_free_bytes=0,
+        )
+        original = self.store
+        self.store = limited
+        try:
+            with self.assertRaisesRegex(ArtifactAdoptionError, "storage cap"):
+                self.adopt()
+        finally:
+            self.store = original
+        self.assertTrue(self.staged.exists())
+        self.assertEqual(list(self.artifacts.iterdir()), [])
+
+    def test_installation_cap_counts_existing_artifacts_across_workspaces(self):
+        first = self.adopt()
+        second_snapshot = "edl_" + "b" * 32
+        second_sha = hashlib.sha256(b"second-snapshot").hexdigest()
+        second_job = self.queue.enqueue(
+            "timeline_render",
+            {"snapshot_id": second_snapshot, "snapshot_sha256": second_sha, "edl": {}},
+            workspace_id="ws_other",
+        )
+        second_claim = self.queue.claim(
+            self.worker, job_type="timeline_render", generation_token=self.generation
+        )
+        second_staged = self.staging / "second.mp4"
+        second_staged.write_bytes(b"second-render-fixture")
+        first_size = self.store.get(first["artifact_id"], "ws_test")["byte_size"]
+        second_size = second_staged.stat().st_size
+        limited = RenderArtifactStore(
+            self.queue, self.staging, self.artifacts,
+            max_total_bytes=first_size + second_size - 1, min_free_bytes=0,
+        )
+        with self.assertRaisesRegex(ArtifactAdoptionError, "storage cap"):
+            limited.adopt(
+                second_job["id"], self.worker, second_claim["lease_token"],
+                self.generation, "ws_other", second_snapshot, second_sha, second_staged,
+            )
+        self.assertTrue(second_staged.exists())
+        self.assertEqual(len(list(self.artifacts.glob("rart_*.mp4"))), 1)
+
+    def test_installation_cap_serializes_concurrent_cross_workspace_adoptions(self):
+        payload = b"same-sized-concurrent-render"
+        self.staged.write_bytes(payload)
+
+        other_worker = "render-worker-2"
+        other_generation = self.queue.register_worker(other_worker)["generation_token"]
+        other_snapshot = "edl_" + "c" * 32
+        other_sha = hashlib.sha256(b"other-snapshot").hexdigest()
+        other_job = self.queue.enqueue(
+            "timeline_render",
+            {"snapshot_id": other_snapshot, "snapshot_sha256": other_sha, "edl": {}},
+            workspace_id="ws_other",
+        )
+        other_claim = self.queue.claim(
+            other_worker, job_type="timeline_render", generation_token=other_generation
+        )
+        other_staged = self.staging / "other-concurrent.mp4"
+        other_staged.write_bytes(payload)
+
+        # The cap fits exactly one output. Both workers start adoption together;
+        # SQLite BEGIN IMMEDIATE must serialize the aggregate read + artifact insert.
+        limited = RenderArtifactStore(
+            self.queue, self.staging, self.artifacts,
+            max_bytes=1024, max_total_bytes=len(payload), min_free_bytes=0,
+        )
+        gate = Barrier(2)
+
+        def adopt_one(args):
+            gate.wait(timeout=5)
+            try:
+                limited.adopt(**args)
+                return "adopted"
+            except ArtifactAdoptionError as exc:
+                if "storage cap" not in str(exc):
+                    raise
+                return "capacity_rejected"
+
+        first_args = {
+            "job_id": self.job["id"],
+            "worker_id": self.worker,
+            "lease_token": self.claimed["lease_token"],
+            "generation_token": self.generation,
+            "workspace_id": "ws_test",
+            "snapshot_id": self.snapshot_id,
+            "snapshot_sha256": self.snapshot_sha,
+            "staged_path": self.staged,
+        }
+        second_args = {
+            "job_id": other_job["id"],
+            "worker_id": other_worker,
+            "lease_token": other_claim["lease_token"],
+            "generation_token": other_generation,
+            "workspace_id": "ws_other",
+            "snapshot_id": other_snapshot,
+            "snapshot_sha256": other_sha,
+            "staged_path": other_staged,
+        }
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            outcomes = list(pool.map(adopt_one, (first_args, second_args)))
+
+        self.assertCountEqual(outcomes, ["adopted", "capacity_rejected"])
+        with self.queue.db() as db:
+            count = db.execute("SELECT COUNT(*) AS n FROM render_artifacts").fetchone()["n"]
+        self.assertEqual(count, 1)
+        self.assertEqual(len(list(self.artifacts.glob("rart_*.mp4"))), 1)
+        rejected = self.staged if self.staged.exists() else other_staged
+        self.assertTrue(rejected.exists())
+
+    def test_zero_artifact_free_space_reserve_disables_filesystem_preflight(self):
+        with patch("render_artifact_store.shutil.disk_usage", side_effect=OSError("unavailable")):
+            result = self.adopt()
+        self.assertEqual(result["status"], "review_pending")
+        self.assertFalse(self.staged.exists())
+
+    def test_artifact_volume_reserve_fails_closed_when_free_space_is_low(self):
+        limited = RenderArtifactStore(
+            self.queue, self.staging, self.artifacts,
+            max_total_bytes=1024, min_free_bytes=1024,
+        )
+        class Usage:
+            free = 0
+        with patch("render_artifact_store.shutil.disk_usage", return_value=Usage()):
+            with self.assertRaisesRegex(ArtifactAdoptionError, "free space"):
+                limited.adopt(
+                    self.job["id"], self.worker, self.claimed["lease_token"],
+                    self.generation, "ws_test", self.snapshot_id,
+                    self.snapshot_sha, self.staged,
+                )
+        self.assertTrue(self.staged.exists())
+        self.assertEqual(list(self.artifacts.iterdir()), [])
+
+    def test_artifact_volume_reserve_fails_closed_when_free_space_cannot_be_inspected(self):
+        limited = RenderArtifactStore(
+            self.queue, self.staging, self.artifacts,
+            max_total_bytes=1024, min_free_bytes=1,
+        )
+        with patch("render_artifact_store.shutil.disk_usage", side_effect=OSError("unavailable")):
+            with self.assertRaisesRegex(ArtifactAdoptionError, "cannot be inspected"):
+                limited.adopt(
+                    self.job["id"], self.worker, self.claimed["lease_token"],
+                    self.generation, "ws_test", self.snapshot_id,
+                    self.snapshot_sha, self.staged,
+                )
+        self.assertTrue(self.staged.exists())
 
     def test_rejects_wrong_snapshot_without_moving_output(self):
         with self.assertRaisesRegex(ArtifactAdoptionError, "snapshot"):
@@ -143,7 +293,7 @@ class RenderArtifactStoreTests(unittest.TestCase):
         binary.write_bytes(b"fixture-binary")
         store = RenderArtifactStore(
             self.queue, self.staging, self.artifacts,
-            ffprobe_path=binary, require_audio=True,
+            ffprobe_path=binary, require_audio=True, min_free_bytes=0,
         )
         probe = {
             "duration_ms": 12345,

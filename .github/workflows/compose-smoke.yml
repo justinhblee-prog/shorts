@@ -49,6 +49,7 @@ jobs:
               "NEXUS_RENDER_HEIGHT": "568",
               "NEXUS_RENDER_FPS": "30",
               "NEXUS_RENDER_TIMEOUT_SECONDS": "180",
+              "NEXUS_RENDER_ARTIFACT_MIN_FREE_BYTES": "0",
               "NEXUS_MAX_ASSET_BYTES": "20000000",
               "NEXUS_MAX_RENDER_BYTES": "20000000",
           }

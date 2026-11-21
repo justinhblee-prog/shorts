@@ -50,6 +50,12 @@ HEIGHT = _integer_env("NEXUS_RENDER_HEIGHT", 1920, 16, 8192)
 FPS = _integer_env("NEXUS_RENDER_FPS", 30, 1, 60)
 MAX_INPUT_BYTES = _integer_env("NEXUS_RENDER_MAX_INPUT_BYTES", 2_000_000_000, 1, 10_000_000_000)
 MAX_OUTPUT_BYTES = _integer_env("NEXUS_RENDER_MAX_OUTPUT_BYTES", 2_000_000_000, 1, 10_000_000_000)
+MAX_ARTIFACT_BYTES = _integer_env(
+    "NEXUS_RENDER_ARTIFACT_MAX_BYTES", 20 * 1024**3, 1, 10_000_000_000_000
+)
+MIN_ARTIFACT_FREE_BYTES = _integer_env(
+    "NEXUS_RENDER_ARTIFACT_MIN_FREE_BYTES", 1024**3, 0, 10_000_000_000_000
+)
 TIMEOUT_SECONDS = _integer_env("NEXUS_RENDER_TIMEOUT_SECONDS", 900, 1, 3600)
 WORKER_ID = os.getenv("NEXUS_RENDER_WORKER_ID", "").strip() or (
     "nexus-render-" + socket.gethostname()
@@ -106,6 +112,8 @@ def build_worker():
         queue, STAGING_ROOT, ARTIFACT_ROOT,
         max_bytes=MAX_OUTPUT_BYTES, ffprobe_path=FFPROBE_PATH,
         require_audio=False, max_duration_ms=3_600_000,
+        max_total_bytes=MAX_ARTIFACT_BYTES,
+        min_free_bytes=MIN_ARTIFACT_FREE_BYTES,
     )
     renderer = TimelineFFmpegRenderer(
         STAGING_ROOT, workspace_asset_resolver(assets),

@@ -31,6 +31,14 @@ GitHub Actions on the integrated Draft PR #467:
 - Compose integration smoke passed: current ClamAV database readiness and EICAR rejection, service readiness, render-worker isolation/resource limits, real FFmpeg/ffprobe fixture render and artifact adoption/review, authenticated API upload → separate worker render → approval → private preview, and scheduled encrypted backup plus isolated restore.
 - The authenticated E2E uses generated MP4 media and isolated Docker volumes. It proves the Compose integration path, not arbitrary customer-media compatibility, physical-device QA, target-host persistence/quotas, or live YouTube/TikTok provider validation.
 
+## Render artifact storage guard
+
+- `NEXUS_RENDER_ARTIFACT_MAX_BYTES` defaults to 20 GiB and caps the installation-wide sum of indexed adopted render artifacts. The aggregate is checked inside the SQLite write transaction immediately before adoption, preventing concurrent workers from exceeding the logical indexed-artifact cap.
+- `NEXUS_RENDER_ARTIFACT_MIN_FREE_BYTES` defaults to 1 GiB. Adoption fails closed if the artifact filesystem has less free space than the configured reserve or free space cannot be inspected; `0` disables only this preflight.
+- This is not a physical filesystem quota or block reservation. The logical cap excludes temporary staging and unindexed orphan files. Host/container quotas and monitoring remain necessary.
+- When capacity is exhausted, the staged output is not adopted and the worker's normal failure path discards it. Existing indexed artifacts are preserved; no automatic deletion is performed.
+- The worker's five-minute orphan reconciliation and two-hour grace period remove only crash-left staging and unindexed generated files. Indexed artifact retention/deletion is a separate policy and remains open.
+
 ## Remaining production gates
 
 - Pin FFmpeg/ffprobe to reviewed versions and verify against an independently maintained checksum manifest; the image currently generates its manifest from the installed binaries.
@@ -38,3 +46,10 @@ GitHub Actions on the integrated Draft PR #467:
 - Configure host-level disk quotas and retention limits for private assets, staging and adopted artifacts.
 - Validate on the actual target host and representative customer media before production use.
 - No provider API, upload to social platforms, public publishing or production deployment is included.
+
+
+## Concurrent artifact capacity race validation
+
+- Added a two-worker/two-workspace concurrent adoption regression. With the installation cap set to exactly one output, both workers start adoption together; SQLite write-lock serialization allows one adoption and rejects the other without losing its staged output.
+- Exact-head commit `2e5eede30bc2712e72b33c5ba988928be3ccaa30`: Backend [44908311824](https://github.com/justinhblee-prog/shorts/actions/runs/44908311824), **921 tests passed** plus authenticated Playwright smoke; Compose [44908311922](https://github.com/justinhblee-prog/shorts/actions/runs/44908311922) passed real FFmpeg render/adoption/review, authenticated API-to-worker private preview, ClamAV, encrypted backup/restore and teardown.
+- This proves the race guard on isolated CI SQLite/filesystem volumes; target-host persistent storage and production quota/monitoring remain unverified.
