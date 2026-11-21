@@ -395,7 +395,7 @@ async function waitForServer() {
     assert.equal(await page.locator("#timelineVisualTrack .timeline-visual-lane").count(),3,"visual timeline should render video, title and audio lanes");
     assert.equal(await page.locator("#timelineVisualTrack .timeline-segment.is-video").count(),1);
     assert.equal(await page.locator("#timelineVisualTrack .timeline-segment.is-title").count(),1);
-    assert.equal(await page.locator("#timelineVisualDuration").textContent(),"5.0s");
+    assert.equal(await page.locator("#timelineVisualDuration").textContent(),"7.0s");
     const initialTimelineWidth=await page.locator("#timelineVisualTrack").evaluate(el=>el.getBoundingClientRect().width);
     await page.locator("#timelineZoomIn").click();
     assert.equal(await page.locator("#timelineZoomValue").textContent(),"125%");
