@@ -102,7 +102,8 @@ class FrontendPortalTests(unittest.TestCase):
     def test_backend_cors_is_exact_origin_opt_in_and_disallows_credentials(self):
         app_py = (ROOT / "backend" / "app.py").read_text(encoding="utf-8")
         env = (ROOT / ".env.example").read_text(encoding="utf-8")
-        self.assertIn('os.getenv("NEXUS_CORS_ORIGINS", "")', app_py)
+        self.assertIn("parse_cors_origins()", app_py)
+        self.assertIn("def parse_cors_origins", (ROOT / "backend" / "cors_config.py").read_text(encoding="utf-8"))
         self.assertIn("allow_credentials=False", app_py)
         self.assertIn('allow_headers=["Content-Type", "X-Review-Token"]', app_py)
         self.assertIn("NEXUS_CORS_ORIGINS=", env)
