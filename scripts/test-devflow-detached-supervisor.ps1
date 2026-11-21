@@ -19,6 +19,8 @@ try {
  Set-Content -LiteralPath (Join-Path $scripts "git-cli-agent-config.ps1") -Value 'param([switch]$Check)'
  $counter = Join-Path $scripts "cycle-count.txt"
  $stub = @'
+[CmdletBinding()]
+param([switch]$Run, [int]$MaxTasks = 1)
 $count = 0
 $counter = Join-Path $PSScriptRoot "cycle-count.txt"
 if (Test-Path $counter) { $count = [int](Get-Content $counter -Raw) }
@@ -29,9 +31,21 @@ if ($count -eq 1) { exit 1 }
 exit 0
 '@
  Set-Content -LiteralPath (Join-Path $scripts "start-devflow-autopilot.ps1") -Value $stub
- Set-Location $repo
- & (Join-Path $scripts "start-devflow-detached.ps1") -Supervisor -RunId "supervisor-loop-test" -MaxTasks 1 -PollIntervalSeconds 1 -MaxCycles 2
- if ($LASTEXITCODE -ne 0) { throw "Supervisor did not recover successfully; exit=$LASTEXITCODE" }
+ $psi = [Diagnostics.ProcessStartInfo]::new()
+ $psi.FileName = (Get-Command pwsh -ErrorAction Stop).Source
+ $psi.WorkingDirectory = $repo
+ $psi.UseShellExecute = $false
+ foreach ($arg in @("-NoProfile", "-File", (Join-Path $scripts "start-devflow-detached.ps1"), "-Supervisor", "-RunId", "supervisor-loop-test", "-MaxTasks", "1", "-PollIntervalSeconds", "1", "-MaxCycles", "2")) {
+  [void]$psi.ArgumentList.Add($arg)
+ }
+ $process = [Diagnostics.Process]::new()
+ $process.StartInfo = $psi
+ if (-not $process.Start()) { throw "Could not start isolated supervisor test process." }
+ if (-not $process.WaitForExit(120000)) {
+  try { $process.Kill($true) } catch {}
+  throw "Detached supervisor regression timed out."
+ }
+ if ($process.ExitCode -ne 0) { throw "Supervisor did not recover successfully; exit=$($process.ExitCode)" }
  $cycles = [int](Get-Content -LiteralPath $counter -Raw)
  if ($cycles -ne 2) { throw "Expected exactly two scheduler cycles, observed $cycles." }
  $statusPath = Join-Path (Join-Path $parent "repo-multiflow-logs") "supervisor-loop-test.status.json"
