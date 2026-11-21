@@ -143,6 +143,41 @@ def validate_edl(payload: Any) -> dict:
                 "type": "crossfade", "duration_ms": int(transition_duration),
             })
 
+    gaps = []
+    if "gaps" in payload:
+        raw_gaps = payload["gaps"]
+        if not isinstance(raw_gaps, list) or len(raw_gaps) > max(0, len(video_clips) - 1):
+            raise EDLValidationError("gaps must describe at most one black gap per adjacent video pair")
+        gap_pairs = set()
+        for index, raw in enumerate(raw_gaps):
+            prefix = f"gaps[{index}]"
+            expected_fields = {"after_clip_id", "before_clip_id", "duration_ms"}
+            if not isinstance(raw, dict) or set(raw) != expected_fields:
+                raise EDLValidationError(f"{prefix} has unsupported or missing fields")
+            after_id, before_id = raw["after_clip_id"], raw["before_clip_id"]
+            if not isinstance(after_id, str) or not isinstance(before_id, str):
+                raise EDLValidationError(f"{prefix} clip references must be strings")
+            pair = (after_id, before_id)
+            if pair in gap_pairs:
+                raise EDLValidationError(f"{prefix} duplicates an adjacent black gap")
+            gap_pairs.add(pair)
+            adjacent = any(
+                video_clips[position]["id"] == after_id
+                and video_clips[position + 1]["id"] == before_id
+                for position in range(len(video_clips) - 1)
+            )
+            if not adjacent:
+                raise EDLValidationError(f"{prefix} must reference adjacent video clips in timeline order")
+            gap_duration = _number(raw["duration_ms"], f"{prefix}.duration_ms")
+            if not gap_duration.is_integer() or gap_duration < 100 or gap_duration > 10000:
+                raise EDLValidationError(f"{prefix}.duration_ms must be a whole duration from 100 to 10000 ms")
+            gaps.append({
+                "after_clip_id": after_id, "before_clip_id": before_id,
+                "duration_ms": int(gap_duration),
+            })
+        if gap_pairs.intersection(transition_pairs):
+            raise EDLValidationError("an adjacent video pair cannot have both a crossfade and a black gap")
+
     project_duration = None
     if "project_duration_ms" in payload:
         project_duration = _number(payload["project_duration_ms"], "project_duration_ms")
@@ -201,4 +236,6 @@ def validate_edl(payload: Any) -> dict:
         result["project_duration_ms"] = int(project_duration)
     if "transitions" in payload:
         result["transitions"] = transitions
+    if "gaps" in payload:
+        result["gaps"] = gaps
     return result
