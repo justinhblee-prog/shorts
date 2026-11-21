@@ -188,6 +188,16 @@ Automated CI and Compose smoke do not prove:
 - It never writes, tombstones, schedules cleanup or deletes. Legal hold, per-object integrity/storage and backup/replica state remain unknown and continue to block all candidates.
 - Exact API head `4cdc96286cc6468760c8339c0ebe7dfc34aea47c` passed Backend [run 44887993545](https://github.com/justinhblee-prog/shorts/actions/runs/44887993545) (backend validation and Playwright browser smoke) and Compose [run 44887993469](https://github.com/justinhblee-prog/shorts/actions/runs/44887993469) (real FFmpeg render/adoption/review, authenticated API E2E, encrypted backup and isolated restore). This is generated-fixture CI evidence, not target-host or customer-media retention validation.
 
+
+## 5.4. Retention inventory: per-object integrity evidence
+
+- Draft PR [#474](https://github.com/justinhblee-prog/shorts/pull/474) latest head `741730c3787f449f950d98bd4b3142192021a18e`; exact-head Backend [run 44888403066](https://github.com/justinhblee-prog/shorts/actions/runs/44888403066) and Compose [run 44888403123](https://github.com/justinhblee-prog/shorts/actions/runs/44888403123) passed.
+- The authenticated `GET /api/operator/workspaces/{workspace_id}/retention-inventory` requires `operations.read` and resolved workspace membership. Policy is supplied explicitly by `NEXUS_RETENTION_POLICY_JSON`; invalid configuration and storage errors fail closed.
+- Original assets are verified using the existing workspace asset store's no-follow regular-file open and persisted byte-size/SHA-256 comparison. Render artifacts are verified through the immutable artifact store's root-confined lookup and checksum/size comparison.
+- Integrity/storage evidence is a point-in-time filesystem observation after the atomic SQLite reference snapshot. Only status and evidence source are exposed; no path, storage key, raw digest or media bytes.
+- Current backup code verifies archive-manifest database/media checksums during restore, but there is no per-object backup/replica registry. Legal-hold state also has no authoritative provider. Both remain unknown and block every eligibility decision. No files, backups or indexed artifacts were deleted.
+- Latest inventory increment docs/task ledger head: `741730c`. Backend suite and Playwright smoke passed; Compose exercised service isolation, ClamAV readiness, FFmpeg render/adoption/review, authenticated upload/preview, encrypted backup and isolated restore.
+
 ## 6. Immediate next actions
 
 1. Keep all Draft PRs open and unmerged; preserve dependency ordering (#452 before #456/#453).
