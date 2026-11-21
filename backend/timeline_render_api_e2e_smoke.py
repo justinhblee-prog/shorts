@@ -121,7 +121,7 @@ def main():
 
         # The standard EICAR test string must be detected by the live database.
         eicar = (
-            b"X5O!P%@AP[4\\\\PZX54(P^)7CC)7}$"
+            b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$"
             b"EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
         )
         infected = request(
