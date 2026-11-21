@@ -68,8 +68,12 @@ class WorkerScratchWorkspace:
         self.path.mkdir(mode=0o700, parents=False, exist_ok=False)
         try:
             self._write_lease()
-            self._previous = (os.environ.get("TMPDIR"), tempfile.tempdir)
+            self._previous = (
+                os.environ.get("TMPDIR"), tempfile.tempdir,
+                os.environ.get("NEXUS_MEDIA_STAGING_TEMP_DIR"),
+            )
             os.environ["TMPDIR"] = str(self.path)
+            os.environ["NEXUS_MEDIA_STAGING_TEMP_DIR"] = str(self.path)
             tempfile.tempdir = str(self.path)
         except Exception:
             shutil.rmtree(self.path, ignore_errors=True)
@@ -99,11 +103,15 @@ class WorkerScratchWorkspace:
 
     def close(self):
         if self._previous is not None:
-            previous_tmpdir, previous_cached = self._previous
+            previous_tmpdir, previous_cached, previous_media_temp = self._previous
             if previous_tmpdir is None:
                 os.environ.pop("TMPDIR", None)
             else:
                 os.environ["TMPDIR"] = previous_tmpdir
+            if previous_media_temp is None:
+                os.environ.pop("NEXUS_MEDIA_STAGING_TEMP_DIR", None)
+            else:
+                os.environ["NEXUS_MEDIA_STAGING_TEMP_DIR"] = previous_media_temp
             tempfile.tempdir = previous_cached
             self._previous = None
         if not self._owns_directory():
