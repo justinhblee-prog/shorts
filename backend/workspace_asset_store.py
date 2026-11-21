@@ -11,6 +11,7 @@ import json
 import os
 import re
 import sqlite3
+import stat
 import tempfile
 import uuid
 from contextlib import contextmanager
@@ -219,6 +220,33 @@ class WorkspaceAssetStore:
         except (TypeError, ValueError):
             raise AssetError("stored media probe metadata is invalid")
         return result
+
+    def verify_integrity(self, workspace_id, principal_id, asset_id):
+        """Verify current private bytes against the registered SHA-256 without exposing a path."""
+        metadata = self.get_asset(workspace_id, principal_id, asset_id)
+        path = self._workspace_dir(workspace_id) / (asset_id + ".blob")
+        if path.is_symlink() or not path.is_file():
+            raise AssetNotFound("asset binary is unavailable")
+        flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(str(path), flags)
+        try:
+            opened = os.fstat(descriptor)
+            if not stat.S_ISREG(opened.st_mode):
+                raise AssetError("asset storage object is not a regular file")
+            current = os.stat(str(path), follow_symlinks=False)
+            if (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino):
+                raise AssetError("asset storage object changed during verification")
+            digest = hashlib.sha256()
+            size = 0
+            with os.fdopen(descriptor, "rb", closefd=False) as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    size += len(chunk)
+                    digest.update(chunk)
+            if size != metadata["byte_size"] or digest.hexdigest() != metadata["sha256"]:
+                raise AssetError("asset integrity verification failed")
+            return {"verified": True, "byte_size": size, "scan_status": metadata["scan_status"]}
+        finally:
+            os.close(descriptor)
 
     def path_for_scan(self, workspace_id, principal_id, asset_id):
         """Resolve a pending private asset for an internal scanner/probe only."""

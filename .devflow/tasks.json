@@ -94,7 +94,24 @@
         "Exact source-audio crossfade head 4f216cb passed Backend CI 44885345510 (928 tests plus Playwright browser smoke) and Compose CI 44885345520 (real FFmpeg picture/source-audio crossfade, authenticated API E2E, review/private preview and encrypted backup/isolated restore)",
         "Added pure read-only retention eligibility evaluator requiring explicit versioned policy, per-class retention days and grace period; missing policy/state, active or immutable references, holds, unverified integrity, unknown storage/backup state, pending scans/reviews and malformed timestamps fail closed",
         "Retention evaluator returns deterministic reason codes and UTC expiry/grace timestamps only; no database/filesystem/queue mutation, tombstone or deletion is performed",
-        "Exact evaluator head 50c7f20 passed Backend CI 44886115569 (939 tests plus Playwright browser smoke) and Compose CI 44886115567 (service isolation, real FFmpeg render/adoption/review, authenticated API E2E and encrypted backup/isolated restore)"
+        "Exact evaluator head 50c7f20 passed Backend CI 44886115569 (939 tests plus Playwright browser smoke) and Compose CI 44886115567 (service isolation, real FFmpeg render/adoption/review, authenticated API E2E and encrypted backup/isolated restore)",
+        "Added workspace-authorized bounded read-only retention inventory using SQLite query_only SELECT connections; reports workspace-scoped source assets, immutable snapshot references, render jobs/reviews and indexed artifact metadata without exposing storage paths",
+        "Inventory reports observed reference counts and blocker reason codes; malformed/truncated/unknown job state fails closed. Cross-store reads are explicitly non-atomic and reference_check_complete remains false; legal hold, integrity/storage and backup state remain unknown, so no candidate can become eligible",
+        "Exact inventory head cb09e67 passed Backend CI 44886936983 (943 tests plus Playwright browser smoke) and Compose CI 44886936974 (service isolation, real FFmpeg render/adoption/review, authenticated API E2E and encrypted backup/restore)",
+        "Retention inventory now requires all three stores to share one SQLite database and performs asset, snapshot, job, review and artifact reads inside one query_only read transaction; mismatched paths fail closed",
+        "Reference checks are marked complete only when the bounded snapshot scan is untruncated and all snapshot payload/job states are understood; malformed or unknown state remains incomplete",
+        "Exact atomic retention inventory head 130dd2e passed Backend CI 44887197433 (944 tests plus Playwright browser smoke) and Compose CI 44887197535 (service isolation, real FFmpeg render/adoption/review, authenticated API E2E, encrypted backup and isolated restore)",
+        "Exposed workspace-scoped GET retention inventory endpoint guarded by operations.read and resolved workspace membership; policy is read from explicit NEXUS_RETENTION_POLICY_JSON and malformed configuration fails closed",
+        "Added API regression tests for authorization, workspace scope, explicit policy parsing, sanitized storage errors and read-only response semantics",
+        "Exact authenticated retention inventory API head 4cdc962 passed Backend CI 44887993545 (backend validation and Playwright browser smoke) and Compose CI 44887993469 (real FFmpeg integration, authenticated API E2E, encrypted backup and isolated restore)",
+        "Added read-only WorkspaceAssetStore.verify_integrity: workspace-authorized no-follow regular-file open, byte-size and SHA-256 comparison without returning storage paths",
+        "Retention inventory verifies each active source asset against registered SHA-256 and each render artifact through RenderArtifactStore.get; exposes only verification status/source and aggregate verified/unverified counts",
+        "Per-object integrity/storage checks are explicitly point-in-time observations after the atomic SQLite reference snapshot; missing, mismatched or unavailable objects fail closed",
+        "Backup manifest has per-file hashes but no authoritative per-object backup/replica registry; backup_state_known and legal_hold remain unknown and block all retention eligibility",
+        "Exact retention inventory/API/integrity head 741730c3787f449f950d98bd4b3142192021a18e passed Backend CI 44888403066 (scripts/validate.sh, font fallback and Playwright browser smoke) and Compose CI 44888403123 (ClamAV readiness, worker isolation, real FFmpeg render/adoption/review, authenticated upload-to-worker/private-preview E2E, encrypted backup and isolated restore)",
+        "Read-only asset and render-artifact integrity observations are now implemented through existing stores; they are point-in-time filesystem checks after the SQLite snapshot and do not provide storage lifecycle, legal-hold or object-level backup/replica evidence",
+        "Exact retention documentation/task-ledger head dd8a1a161db97729ca4c984bd5ce8d1cc2224f18 passed Backend CI 44889450213 and Compose CI 44889450217; full repository validation/Playwright and generated-media FFmpeg/API/backup integration passed",
+        "Exact feature/docs/task-ledger head b99c3143c96aeaaa420acca03dec64e3ef86ac67 passed Backend CI 44889623438 and Compose CI 44889623410; full backend validation/Playwright and generated-media Compose integration passed"
       ],
       "remaining": [
         "Validate representative customer media on the target runtime, including uncommon codecs, variable frame rates and long-duration inputs",
@@ -103,7 +120,9 @@
         "Validate five-minute orphan reconciliation and its logs on the target persistent filesystem; add durable metrics/alerts. Indexed artifact retention/deletion remains a separate policy gate.",
         "Run end-to-end authenticated API upload → current ClamAV signature scan → render queue → worker adoption → review preview using production-like persistent storage; CI now exercises real ClamAV scanning and EICAR rejection with generated media on isolated Docker volumes, but target storage remains unvalidated.",
         "Measure production workload resource usage and enforce disk quota/network egress policy on the target host",
-        "Obtain owner/legal approval for retention periods, grace windows, legal holds, export/review windows and backup/replica deletion semantics; only then design a separate tombstone/purge workflow. The current evaluator is read-only and no indexed artifacts or source media are deleted."
+        "Obtain owner/legal approval for retention periods, grace windows, legal holds, export/review windows and backup/replica deletion semantics; only then design a separate tombstone/purge workflow. The current evaluator is read-only and no indexed artifacts or source media are deleted.",
+        "Add authoritative legal-hold and per-object backup/replica state providers; storage lifecycle state remains unknown. Keep candidates blocked until these providers and owner/legal policy inputs exist; no tombstone or purge.",
+        "Re-run exact-head Backend and Compose CI after this final validation-note/task-ledger update"
       ]
     },
     {

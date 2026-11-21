@@ -97,6 +97,20 @@ class WorkspaceAssetStoreTests(unittest.TestCase):
         with self.assertRaisesRegex(AssetError, "integrity"):
             self.store.open_clean_asset("ws_studio", "alice", result["asset_id"])
 
+    def test_read_only_integrity_verification_checks_pending_and_detects_tampering(self):
+        result = self.store.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"pending-integrity"), "pending.mp4"
+        )
+        evidence = self.store.verify_integrity("ws_studio", "alice", result["asset_id"])
+        self.assertTrue(evidence["verified"])
+        self.assertEqual(evidence["scan_status"], "pending")
+        binary = self.root / "private-media" / "ws_studio" / (result["asset_id"] + ".blob")
+        binary.write_bytes(b"tampered")
+        with self.assertRaisesRegex(AssetError, "integrity"):
+            self.store.verify_integrity("ws_studio", "alice", result["asset_id"])
+        with self.assertRaises(WorkspaceDenied):
+            self.store.verify_integrity("ws_studio", "mallory", result["asset_id"])
+
     def test_resolves_verified_clean_asset_path_for_authorized_render_worker(self):
         payload = b"render-source"
         result = self.store.register_stream(
