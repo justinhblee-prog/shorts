@@ -105,7 +105,7 @@ if(& git -C $root status --porcelain){throw "Primary checkout must be clean."}
 & gh auth status *> $null;if($LASTEXITCODE -ne 0){throw "GitHub CLI authentication required."}
 if(-not $env:DEVFLOW_AGENT_COMMAND -or -not $env:DEVFLOW_AGENT_ARGS_JSON){throw "Configure DEVFLOW_AGENT_COMMAND and DEVFLOW_AGENT_ARGS_JSON."}
 $manifest=Get-Content (Join-Path $root ".devflow/tasks.json") -Raw -Encoding UTF8|ConvertFrom-Json
-$open=& gh pr list --state open --json title,body,headRefName,baseRefName --limit 100;if($LASTEXITCODE -ne 0){throw "Cannot inspect open PRs; stopping safely."}
+$open=& gh pr list --state open --json title,body,headRefName,baseRefName --limit 1000;if($LASTEXITCODE -ne 0){throw "Cannot inspect open PRs; stopping safely."}
 $openIds=@($open|ConvertFrom-Json|ForEach-Object{
  $prText=@($_.title,$_.body,$_.headRefName,$_.baseRefName) -join "`n"
  [regex]::Matches($prText,'BUILD-[0-9]{5}')|ForEach-Object{$_.Value}
