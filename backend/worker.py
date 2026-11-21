@@ -13,6 +13,7 @@ from production_pipeline import (ProductionPipeline, ProductionStore,
                                  ProductionLeaseConflict, ProviderError, PolicyBlocked)
 from queue_store import JobQueue, LeaseConflict
 from worker_runtime import heartbeat_interval, request_worker_shutdown
+from worker_scratch import WorkerScratchWorkspace
 
 
 DB_PATH = os.getenv("NEXUS_DB_PATH", "data/nexus.sqlite3")
@@ -39,11 +40,13 @@ def handle_shutdown_signal(signum, frame):
     )
 
 
-def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None):
+def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None, scratch=None):
     interval = HEARTBEAT_SECONDS if interval is None else max(0, interval)
     while not heartbeat_stop.wait(interval):
         try:
             queue.heartbeat(job_id, WORKER_ID, token)
+            if scratch is not None:
+                scratch.heartbeat()
         except LeaseConflict as exc:
             lost_lease.set()
             stopping.set()
@@ -65,6 +68,9 @@ def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None):
 
 
 def run_once():
+    WorkerScratchWorkspace.prune_expired(
+        grace_seconds=int(os.getenv("NEXUS_WORKER_SCRATCH_GRACE_SECONDS", "3600"))
+    )
     if queue.is_paused():
         return False
     # Recovery failures escape: no claim may occur while state is uncertain.
@@ -79,10 +85,15 @@ def run_once():
     global active_job_id, active_lost_lease_event
     active_job_id = job["id"]
     active_lost_lease_event = lost_lease
+    scratch = WorkerScratchWorkspace(
+        job["id"], WORKER_ID, job["lease_token"], lease_seconds=LEASE_SECONDS,
+        grace_seconds=int(os.getenv("NEXUS_WORKER_SCRATCH_GRACE_SECONDS", "3600")),
+    )
     heartbeat = threading.Thread(
-        target=heartbeat_loop, args=(job["id"], job["lease_token"], lost_lease, heartbeat_stop),
+        target=heartbeat_loop, args=(job["id"], job["lease_token"], lost_lease, heartbeat_stop, None, scratch),
         daemon=True)
     try:
+        scratch.start()
         heartbeat.start()
         # Close the enqueue/worker race: repair a missing production row after claim.
         # Start the heartbeat first so SIGTERM or lease loss during reconciliation
@@ -161,6 +172,10 @@ def run_once():
         heartbeat_stop.set()
         if heartbeat.is_alive():
             heartbeat.join(timeout=5)
+        try:
+            scratch.close()
+        except Exception as exc:
+            print(f"scratch_cleanup_failed job={job['id']} error={type(exc).__name__}")
         active_job_id = None
         active_lost_lease_event = None
     return True
