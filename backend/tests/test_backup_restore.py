@@ -209,6 +209,17 @@ class BackupRestoreTests(unittest.TestCase):
             )
         self.assertEqual(self._db_value(), "before")
 
+    def test_truncated_gzip_archive_fails_as_restore_error_during_space_preflight(self):
+        backup = Path(create_backup(self.db, self.media, self.backups)["backup_path"])
+        truncated = self.backups / "truncated.tar.gz"
+        truncated.write_bytes(backup.read_bytes()[:-8])
+        with self.assertRaisesRegex(BackupRestoreError, "cannot be read during space preflight"):
+            restore_backup(
+                truncated, self.db, self.media, self.backups, confirm_restore=True
+            )
+        self.assertEqual(self._db_value(), "before")
+        self.assertFalse(list(self.root.glob("nexus-restore-*")))
+
     def test_restore_rejects_unsafe_archive_member_before_changing_live_data(self):
         backup = create_backup(self.db, self.media, self.backups)["backup_path"]
         corrupt = self.backups / "unsafe-path.tar.gz"
