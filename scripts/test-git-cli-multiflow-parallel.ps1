@@ -28,7 +28,8 @@ try{
    @{id="BUILD-99003";title="parallel fixture C";status="ready";priority=3;depends_on=@();scope=@("write an isolated marker");acceptance=@("marker exists")},
    @{id="BUILD-99004";title="dependent fixture D";status="ready";priority=4;depends_on=@("BUILD-99001");scope=@("must remain gated");acceptance=@("must not run before dependency completion")},
    @{id="BUILD-99005";title="open PR duplicate fixture E";status="ready";priority=5;depends_on=@();scope=@("must be skipped by open PR metadata");acceptance=@("must not be dispatched when an open PR body references this task ID")},
-   @{id="BUILD-99006";title="automation self-reference fixture F";status="ready";priority=6;depends_on=@();scope=@("must run even when the supervisor PR body references this task ID");acceptance=@("must not be suppressed by the currently checked-out supervisor PR")}
+   @{id="BUILD-99006";title="automation self-reference fixture F";status="ready";priority=6;depends_on=@();scope=@("must run even when the supervisor PR body references this task ID");acceptance=@("must not be suppressed by the currently checked-out supervisor PR")},
+   @{id="BUILD-99007";title="open PR file conflict fixture G";status="ready";priority=7;depends_on=@();scope=@("scripts/open-pr-file.py");acceptance=@("must not run when an open PR already changes this path")}
   )
  }
  $manifest|ConvertTo-Json -Depth 20|Set-Content (Join-Path $seed ".devflow/tasks.json") -Encoding utf8
@@ -44,6 +45,7 @@ try{
  $fakeGh=@(
   "@echo off",
   'if "%1 %2"=="pr list" (echo [{"title":"Timeline integration","body":"Implements BUILD-99005","headRefName":"feat/timeline-integration","baseRefName":"main"},{"title":"DevFlow automation","body":"Queues BUILD-99006","headRefName":"main","baseRefName":"main"}] & exit /b 0)',
+  'if "%1 %2"=="pr view" (echo scripts/open-pr-file.py & exit /b 0)',
   'if "%1 %2"=="pr create" (echo https://example.invalid/draft & exit /b 0)',
   'if "%1 %2"=="auth status" exit /b 0',
   "exit /b 0"
@@ -106,6 +108,7 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  if($stateData.tasks."BUILD-99004"){throw "Dependency-gated task unexpectedly entered worker state."}
  if($stateData.tasks."BUILD-99005"){throw "Task with an open PR body reference was unexpectedly dispatched."}
  if($stateData.tasks."BUILD-99003"){throw "Task with an overlapping file scope was unexpectedly dispatched."}
+ if($stateData.tasks."BUILD-99007"){throw "Task overlapping files from an open PR was unexpectedly dispatched."}
  Write-Host "PASS: three fake agents overlapped (start spread $($delta)ms); overlapping scopes were deferred and isolated Draft PR branches were pushed."
 }finally{
  $env:PATH=$originalPath
