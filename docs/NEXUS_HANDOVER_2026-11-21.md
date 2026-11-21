@@ -209,9 +209,18 @@ Automated CI and Compose smoke do not prove:
 - BUILD-00353 remains externally blocked for live HTTPS contract checks, real script/voice/video generation, provider cost/latency evidence and publishing. Current OAuth stores are singleton/global; workspace-owned provider connections remain design-only in `WORKSPACE_PROVIDER_CONNECTION_CONTRACT.md`.
 - No credentials, scopes, connected accounts, external uploads or public posts were changed. No live network calls were made.
 
+
+## 5.6. Mainline CI incident and corrective Draft PR
+
+- Current main HEAD is `c6749aff5761d19bfcc7cceae6b4950bc6cca7c4`. It contains a single test-only commit that added `backend/tests/test_artifact_retention_inventory_api.py` without its implementation module. The main Backend check [run 44887974099](https://github.com/justinhblee-prog/shorts/actions/runs/44887974099) failed during test discovery with `ModuleNotFoundError: artifact_retention_inventory`; 467 tests ran, one import error.
+- This test-only commit was an accidental direct write to main caused by omitting the branch argument in a file-create operation. No other file was included in that main commit.
+- Corrective Draft PR [#476](https://github.com/justinhblee-prog/shorts/pull/476) removes only the orphan test file through a separate branch and reviewable PR. Exact corrective head `86f27e79eecba46573cd0db568299cb508940c1b` passed Backend [run 44889142479](https://github.com/justinhblee-prog/shorts/actions/runs/44889142479): 466 tests.
+- PR #476 remains Draft/open/unmerged. Main remains red until an authorized reviewer merges the correction or otherwise restores consistency; no merge, force push or history rewrite was performed.
+- Current main branch protection is still disabled (`protected=false`, enforcement `off`); ruleset listing returns zero rulesets. This is an independent governance blocker. Do not make any further default-branch writes; all future file mutations must pass an explicit feature/docs branch argument.
+
 ## 6. Immediate next actions
 
-1. Keep all Draft PRs open and unmerged; preserve dependency ordering (#452 before #456/#453).
+1. Keep all Draft PRs open and unmerged; review corrective PR #476 before considering mainline CI restored. Preserve dependency ordering (#452 before #456/#453).
 2. Reconcile #444 with the current #436 baseline, then revalidate the complete #444→#448→#449→#450→#452→#453/#456 stack at exact heads.
 3. Revalidate the latest docs/task-ledger head for PR #471, then review PR #472's non-destructive retention design. Revalidate PR #474's latest docs/task-ledger head, then continue only read-only inventory observability. Keep all destructive retention operations blocked until owner/legal policy inputs and authoritative hold/storage/backup providers are approved.
 4. Review the fresh Vercel preview manually on physical PC/tablet/mobile devices; headless Playwright coverage is now in place.
