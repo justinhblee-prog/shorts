@@ -50,7 +50,7 @@ def validate_edl(payload: Any) -> dict:
         raise EDLValidationError("unsupported EDL schema or version")
     if payload.get("timebase") != "milliseconds":
         raise EDLValidationError("timebase must be milliseconds")
-    allowed_root = {"schema", "version", "timebase", "clips", "audio_tracks", "project_duration_ms"}
+    allowed_root = {"schema", "version", "timebase", "clips", "audio_tracks", "project_duration_ms", "transitions"}
     if set(payload) - allowed_root:
         raise EDLValidationError("EDL contains unsupported root fields")
     clips = payload.get("clips")
@@ -100,6 +100,48 @@ def validate_edl(payload: Any) -> dict:
 
     if max(item["end_ms"] for item in normalized) > MAX_DURATION_MS:
         raise EDLValidationError("timeline exceeds maximum duration")
+
+    if "transitions" in payload:
+        raw_transitions = payload["transitions"]
+        video_clips = [item for item in normalized if item["type"] == "video"]
+        if not isinstance(raw_transitions, list) or len(raw_transitions) > max(0, len(video_clips) - 1):
+            raise EDLValidationError("transitions must describe at most one transition per adjacent video pair")
+        transition_pairs = set()
+        transitions = []
+        for index, raw in enumerate(raw_transitions):
+            prefix = f"transitions[{index}]"
+            expected_fields = {"from_clip_id", "to_clip_id", "type", "duration_ms"}
+            if not isinstance(raw, dict) or set(raw) != expected_fields:
+                raise EDLValidationError(f"{prefix} has unsupported or missing fields")
+            from_id, to_id = raw["from_clip_id"], raw["to_clip_id"]
+            if not isinstance(from_id, str) or not isinstance(to_id, str):
+                raise EDLValidationError(f"{prefix} clip references must be strings")
+            pair = (from_id, to_id)
+            if pair in transition_pairs:
+                raise EDLValidationError(f"{prefix} duplicates an adjacent clip transition")
+            transition_pairs.add(pair)
+            adjacent = any(
+                video_clips[position]["id"] == from_id
+                and video_clips[position + 1]["id"] == to_id
+                for position in range(len(video_clips) - 1)
+            )
+            if not adjacent:
+                raise EDLValidationError(f"{prefix} must reference adjacent video clips in timeline order")
+            if raw["type"] != "crossfade":
+                raise EDLValidationError(f"{prefix}.type must be crossfade")
+            transition_duration = _number(raw["duration_ms"], f"{prefix}.duration_ms")
+            from_clip = next(item for item in video_clips if item["id"] == from_id)
+            to_clip = next(item for item in video_clips if item["id"] == to_id)
+            from_length = from_clip["source_out_ms"] - from_clip["source_in_ms"]
+            to_length = to_clip["source_out_ms"] - to_clip["source_in_ms"]
+            if (not transition_duration.is_integer() or transition_duration < 100
+                    or transition_duration > 5000
+                    or transition_duration >= min(from_length, to_length)):
+                raise EDLValidationError(f"{prefix}.duration_ms is outside safe clip overlap bounds")
+            transitions.append({
+                "from_clip_id": from_id, "to_clip_id": to_id,
+                "type": "crossfade", "duration_ms": int(transition_duration),
+            })
 
     project_duration = None
     if "project_duration_ms" in payload:
@@ -157,4 +199,6 @@ def validate_edl(payload: Any) -> dict:
     }
     if project_duration is not None:
         result["project_duration_ms"] = int(project_duration)
+    if "transitions" in payload:
+        result["transitions"] = transitions
     return result
