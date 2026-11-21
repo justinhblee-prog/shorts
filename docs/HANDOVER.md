@@ -1294,3 +1294,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Compose [44894747315](https://github.com/justinhblee-prog/shorts/actions/runs/44894747315) passed ClamAV readiness, isolated render worker, real FFmpeg render/adoption/review, authenticated upload-to-worker/private-preview E2E, encrypted backup and isolated restore.
 - The provider branch's Compose run still reports the previously identified cleanup profile warnings because its workflow copy predates PR #477. PR #477 exact-head Compose [44893900087](https://github.com/justinhblee-prog/shorts/actions/runs/44893900087) independently verifies the corrected teardown and clean removal of updater, volumes and network.
 - Latest PR #475 remains Draft/open/unmerged. No live provider credentials or external upload/publish actions were used.
+
+
+## BUILD-00353 task-ledger final exact-head validation — 2026-11-21
+
+- Final PR #475 docs/task-ledger head `c43884bcbdb67ff79031b3025fe3e8f02a8c7be3` passed Backend [44894928685](https://github.com/justinhblee-prog/shorts/actions/runs/44894928685): **962 tests**, repository validation, Korean font fallback and Playwright browser smoke.
+- Compose [44894928693](https://github.com/justinhblee-prog/shorts/actions/runs/44894928693) passed ClamAV readiness, isolated worker, real FFmpeg render/adoption/review, authenticated API E2E, encrypted backup and isolated restore.
+- The provider PR's Compose workflow copy still emits the known profile teardown warnings. Draft PR #477 exact-head Compose [44893900087](https://github.com/justinhblee-prog/shorts/actions/runs/44893900087) separately verifies corrected cleanup with no resource-in-use warnings.
+- The final docs/task-ledger commit made no source behavior changes. PR #475 remains Draft/open/unmerged.
