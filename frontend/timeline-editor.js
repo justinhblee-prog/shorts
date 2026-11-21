@@ -51,8 +51,9 @@
         const video=document.createElement("video");video.src=clip.url;video.muted=true;video.playsInline=true;video.preload="metadata";
         video.setAttribute("aria-hidden","true");
         video.addEventListener("loadedmetadata",()=>{
-          const target=Math.min(Math.max(0,clip.inPoint+0.12),Math.max(0,video.duration-0.08));
-          try{video.currentTime=target;}catch{}
+          const mediaDuration=Number.isFinite(video.duration)?video.duration:0;
+          const target=Math.min(Math.max(0,clip.inPoint+0.12),Math.max(0,mediaDuration-0.08));
+          if(Number.isFinite(target))try{video.currentTime=target;}catch{}
         },{once:true});
         video.addEventListener("seeked",()=>video.pause(),{once:true});
         video.addEventListener("error",()=>thumb.classList.add("is-unavailable"),{once:true});
@@ -72,7 +73,7 @@
       else if(clip.assetId){status.textContent="서버 검사 대기";status.classList.add("is-pending");}
       else{status.textContent="로컬 원본";status.classList.add("is-local");}
       body.append(name,meta,status);card.append(thumb,body);
-      card.addEventListener("click",()=>{local()?.selectClip?.(clip.id);renderTimelineViews();});
+      card.addEventListener("click",()=>{local()?.selectClip?.(clip.id);});
       shelf.append(card);
     }
     const selected=local()?.state.clips.find(clip=>clip.id===local()?.state.selected);
