@@ -195,12 +195,16 @@
       }
       const segment=document.createElement("button");
       segment.type="button";segment.className="timeline-segment is-video"+(local()?.state.selected===clip.id?" is-selected":"");
+      segment.setAttribute("aria-pressed",String(local()?.state.selected===clip.id));
+      segment.setAttribute("aria-label",clip.name+" 영상 클립 · "+formatTime(length));
       segment.style.left=(start/duration*100)+"%";segment.style.width=(length/duration*100)+"%";segment.textContent=clip.name;segment.title=clip.name+" · "+formatTime(length);
       segment.addEventListener("click",()=>local()?.selectClip?.(clip.id));cursor=start+length;previousVideo=clip;return segment;
     });
     addLane("TITLE","is-title",titles,clip=>{
       const start=Math.min(clip.inPoint,duration),end=Math.min(clip.outPoint,duration),segment=document.createElement("button");
       segment.type="button";segment.className="timeline-segment is-title"+(local()?.state.selected===clip.id?" is-selected":"");
+      segment.setAttribute("aria-pressed",String(local()?.state.selected===clip.id));
+      segment.setAttribute("aria-label",(clip.text||clip.name)+" 타이틀 오버레이 · "+formatTime(end-start));
       segment.style.left=(start/duration*100)+"%";segment.style.width=(Math.max(0,end-start)/duration*100)+"%";segment.textContent=clip.text||clip.name;segment.title=clip.text||clip.name;
       segment.addEventListener("click",()=>local()?.selectClip?.(clip.id));return segment;
     });
