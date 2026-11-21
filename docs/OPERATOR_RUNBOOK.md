@@ -33,7 +33,7 @@ Never put credentials into source files, UI code, query strings or commit messag
 
 Browser/API deployment settings:
 - `NEXUS_API_BIND_ADDRESS` defaults to `127.0.0.1`; the host-published API port is loopback-only. Keep it that way when a host-level HTTPS reverse proxy forwards to `127.0.0.1:8502`.
-- `NEXUS_CORS_ORIGINS` is a comma-separated allowlist of exact browser origins, including scheme and host, with no path and no wildcard. Set it to the deployed frontend origin (for example, `https://studio.example.com`).
+- `NEXUS_CORS_ORIGINS` is a comma-separated allowlist of exact browser origins, including scheme and host, with no path, query, credentials, wildcard or opaque `null` origin. Remote origins must use HTTPS; HTTP is allowed only for localhost/loopback development. Entries are normalized and duplicates removed. Set it to the deployed frontend origin (for example, `https://studio.example.com`). Invalid configuration fails API startup.
 - The reverse proxy must terminate HTTPS, forward `X-Review-Token`, and allow `OPTIONS` preflight requests. Do not expose the raw API port directly to the public internet.
 - Set `NEXUS_API_BIND_ADDRESS=0.0.0.0` only when an external firewall/private ingress prevents public access to the raw port and the deployment has been reviewed. Do not use it as a shortcut for HTTPS.
 
