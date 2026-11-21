@@ -262,7 +262,7 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
         unsafe = json.loads(json.dumps(with_gap))
         unsafe["edl"].pop("gaps")
         self._rehash(unsafe)
-        with self.assertRaisesRegex(TimelineRenderError, "explicit crossfade overlap or black-gap interval"):
+        with self.assertRaisesRegex(TimelineRenderError, "undeclared gaps or overlaps"):
             self.renderer(
                 unsafe, stop_event=threading.Event(),
                 workspace_id="ws_demo", principal_id="alice",
