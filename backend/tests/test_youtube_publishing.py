@@ -156,7 +156,7 @@ class YouTubePublishingTests(unittest.TestCase):
 
         publisher = YouTubePublisher(self.uploads, MalformedService())
         with self.assertRaisesRegex(YouTubeUploadError, "valid video ID"):
-            publisher.upload_private_approved(
+            publisher.upload_approved(
                 "job-1", self.media, self.review, "Approved title",
                 "Approved description", operator_id="operator-1",
             )
