@@ -2,7 +2,7 @@
   const $ = id => document.getElementById(id);
   const api = () => window.NexusStudioApi;
   const local = () => window.NexusLocalTimeline;
-  const state = { audios:[], snapshotId:"", workspaceId:"", artifactId:"", rendering:false, outputUrl:"" };
+  const state = { audios:[], snapshotId:"", workspaceId:"", artifactId:"", rendering:false, outputUrl:"", zoom:1 };
   const say = (message,mode="info") => {
     const el=$("timelineStatus");if(el){el.textContent=message;el.dataset.state=mode;}
   };
@@ -99,8 +99,19 @@
       }
     }
   }
+  function applyTimelineZoom(value){
+    state.zoom=Math.min(4,Math.max(1,Math.round(Number(value)*4)/4));
+    const root=$("timelineVisualTrack");if(root)root.style.minWidth=Math.round(620*state.zoom)+"px";
+    const slider=$("timelineZoomLevel");if(slider)slider.value=String(state.zoom);
+    const label=$("timelineZoomValue");if(label)label.textContent=Math.round(state.zoom*100)+"%";
+  }
+  function scrollTimeline(direction){
+    const panel=document.querySelector(".timeline-visual-track-panel");if(!panel)return;
+    panel.scrollBy({left:direction*Math.max(180,Math.round(panel.clientWidth*.75)),behavior:"smooth"});
+  }
   function renderVisualTrack(){
     const root=$("timelineVisualTrack");if(!root)return;
+    root.style.minWidth=Math.round(620*state.zoom)+"px";
     const clips=local()?.state.clips||[];
     const videos=clips.filter(clip=>clip.kind==="video");
     const titles=clips.filter(clip=>clip.kind==="title");
@@ -389,6 +400,13 @@
     window.addEventListener("nexus:timeline-updated",renderTimelineViews);
     window.addEventListener("nexus:auth-changed",()=>{clearPrivatePreview();renderTimelineViews();if(!api()?.hasToken())say("API 인증이 초기화되었습니다. 렌더링을 계속하려면 다시 연결하세요.");});
     $("timelineMediaFilter").addEventListener("input",renderMediaShelf);
+    $("timelineZoomLevel").addEventListener("input",event=>applyTimelineZoom(event.target.value));
+    $("timelineZoomIn").addEventListener("click",()=>applyTimelineZoom(state.zoom+.25));
+    $("timelineZoomOut").addEventListener("click",()=>applyTimelineZoom(state.zoom-.25));
+    $("timelineZoomFit").addEventListener("click",()=>applyTimelineZoom(1));
+    $("timelineScrollLeft").addEventListener("click",()=>scrollTimeline(-1));
+    $("timelineScrollRight").addEventListener("click",()=>scrollTimeline(1));
+    applyTimelineZoom(state.zoom);
     renderAudioTracks();workspaceChanged();renderTimelineViews();
   }
   if($("timelineEditor")){
