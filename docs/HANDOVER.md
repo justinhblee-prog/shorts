@@ -1569,3 +1569,12 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - PR #480 remains Draft/open/unmerged. Vercel deployment is being created for this exact head; no production deploy or public publishing.
 
 - The static Vercel preview is deployed from b91db13d3c71c5f0ae28583da471b9ffbe5874b8 at https://nexus-studio-pro-ui-preview-j7gg655lv-justinhblee-9540.vercel.app/preview.html. It exposes an API-origin field in Settings; the API host must allow this preview origin via CORS. The operator token stays in page memory, not localStorage.
+
+
+## BUILD-00352 — Explicit project duration and trailing black gap (2026-11-21)
+
+- EDL v1 now optionally accepts `project_duration_ms` as a whole-millisecond duration bounded to 1–3,600,000 ms and never shorter than the final sequential video clip.
+- When present, audio tracks must finish within the declared project duration. Title overlays may extend into the trailing duration but cannot exceed it.
+- FFmpeg renderer uses a bounded `tpad` black-frame tail, applies timed title overlays after padding, and mixes/muxes audio to the declared duration. EDL snapshots without the optional field retain their previous normalized digest shape and render duration.
+- Regression tests cover normalization, invalid/short durations, audio bounds and the FFmpeg filter/mix duration contract. Exact-head CI is pending.
+- Target-host media and persistent-storage validation remains external; no deploy or publishing was performed.
