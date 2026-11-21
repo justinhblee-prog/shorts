@@ -81,7 +81,8 @@
         "Real-media Compose smoke generates a fixture video and verifies title overlay, audio mix, ffprobe output, lease-fenced artifact adoption, pending review and immutable artifact-hash approval",
         "CI fault-injection coverage verifies process-generation lease loss cancels rendering, discards staged output, allows queue recovery/reclaim, and removes only expired generated staging files",
         "Timeline render worker is opt-in behind the Compose render profile; Compose CI asserts it is absent from the default profile and enabled explicitly for integration smoke",
-        "Exact-head integration validation passed: Backend run 44882235365 (914 tests plus Playwright browser smoke) and Compose run 44882235333 (ClamAV database readiness/EICAR detection, worker isolation, real FFmpeg render/adoption/review, authenticated API upload-to-worker render/approval/private preview, encrypted backup and isolated restore). CI uses generated media and isolated Docker volumes; target-host/provider validation remains."
+        "Exact-head integration validation passed: Backend run 44882235365 (914 tests plus Playwright browser smoke) and Compose run 44882235333 (ClamAV database readiness/EICAR detection, worker isolation, real FFmpeg render/adoption/review, authenticated API upload-to-worker render/approval/private preview, encrypted backup and isolated restore). CI uses generated media and isolated Docker volumes; target-host/provider validation remains.",
+        "Optional EDL v1 project_duration_ms with whole-millisecond bounds, video coverage validation, audio bounds and FFmpeg black-tail padding; legacy snapshots without the field retain prior digest and render behavior."
       ],
       "remaining": [
         "Validate representative customer media on the target runtime, including uncommon codecs, variable frame rates and long-duration inputs",
@@ -90,7 +91,6 @@
         "Schedule and monitor artifact orphan reconciliation and retention cleanup in the production worker service",
         "Run end-to-end authenticated API upload → current ClamAV signature scan → render queue → worker adoption → review preview using production-like persistent storage; CI now exercises real ClamAV scanning and EICAR rejection with generated media on isolated Docker volumes, but target storage remains unvalidated.",
         "Measure production workload resource usage and enforce disk quota/network egress policy on the target host",
-        "Implement EDL overlap transitions and explicit project-duration/trailing-gap semantics",
         "Define indexed artifact retention/deletion policy and disk quotas; current worker reconciliation removes orphaned staging and unindexed artifact files only"
       ]
     },
@@ -168,7 +168,8 @@
         "Validate EDL server-side before idempotent render submission; show actual job status",
         "Preview only the integrity-checked private review artifact and record artifact-bound human decisions",
         "Never auto-publish or expose public upload controls from this editor",
-        "Verify the editor workflow with browser automation and responsive layout checks"
+        "Verify the editor workflow with browser automation and responsive layout checks",
+        "Allow an optional explicit project duration longer than the sequential video clips; render the trailing duration as black and keep titles/audio within the declared duration."
       ],
       "external_gates": [
         "A reachable API host built from the BUILD-00352 integration branch, with CORS allowing the Vercel preview origin and an operator token with workspace.read and media.manage permissions",
@@ -183,12 +184,12 @@
         "Added optional audio-bed upload with gain and fade controls",
         "Added a Playwright API-contract smoke for upload → validate → render → private preview → human review",
         "Exact-head validation passed on branch head abcfd823edefdc3d4044a45a99385577cc38053c: backend validation + authenticated timeline editor API-contract Playwright + responsive workbench smoke passed in run 44901290376; Compose real-media FFmpeg/ClamAV upload-render-review/private-preview integration passed in run 44901290337.",
-        "Extended the media-shelf and visual multi-lane timeline UI to support up to eight independent audio tracks with timeline placement, source trim, gain, fade-in and fade-out; the audio lane visualizes track offsets."
+        "Extended the media-shelf and visual multi-lane timeline UI to support up to eight independent audio tracks with timeline placement, source trim, gain, fade-in and fade-out; the audio lane visualizes track offsets.",
+        "Added optional project duration input to the timeline editor; sends project_duration_ms only when explicitly set, allows timed titles and audio tracks to extend into the trailing black section, and validates the duration against the full video timeline."
       ],
       "remaining": [
         "Validate the Vercel preview against a live authenticated API deployed from the BUILD-00352 integration branch; browser UI contract tests currently use API mocks",
         "Run real customer-media clean/infected scan and FFmpeg render on the target host with its ClamAV signatures, ffprobe, worker and persistent storage",
-        "Add explicit project-duration/timeline controls in a later increment.",
         "Validate representative codecs, variable frame rates and longer inputs; transitions, gaps and overlaps remain outside the current UI EDL v1 subset"
       ]
     },
@@ -231,12 +232,12 @@
         "Bound shelf cards and timeline segments to the existing local clip selection and preview state",
         "Extended browser and responsive smoke assertions for media shelf, visual timeline and inspector behavior",
         "Integrated multi-track audio controls into the media-shelf branch so the visual timeline displays independent audio segments at their configured offsets.",
-        "Added 100–400% timeline zoom controls, fit reset and horizontal navigation buttons while preserving the scrollable visual timeline."
+        "Added 100–400% timeline zoom controls, fit reset and horizontal navigation buttons while preserving the scrollable visual timeline.",
+        "Visual timeline ruler and lane layout expand to the explicitly requested project duration so trailing black duration and overlays/audio extending beyond the video sequence remain visible."
       ],
       "remaining": [
         "Run exact-head backend, Playwright and responsive CI; do not mark complete until all pass",
-        "Validate thumbnail extraction with representative real customer codecs and large files",
-        "Add explicit project-duration controls after the backend EDL v1 contract defines trailing-gap and duration semantics."
+        "Validate thumbnail extraction with representative real customer codecs and large files"
       ]
     }
   ]
