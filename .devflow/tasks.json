@@ -110,7 +110,8 @@
         "Backup manifest has per-file hashes but no authoritative per-object backup/replica registry; backup_state_known and legal_hold remain unknown and block all retention eligibility",
         "Exact retention inventory/API/integrity head 741730c3787f449f950d98bd4b3142192021a18e passed Backend CI 44888403066 (scripts/validate.sh, font fallback and Playwright browser smoke) and Compose CI 44888403123 (ClamAV readiness, worker isolation, real FFmpeg render/adoption/review, authenticated upload-to-worker/private-preview E2E, encrypted backup and isolated restore)",
         "Read-only asset and render-artifact integrity observations are now implemented through existing stores; they are point-in-time filesystem checks after the SQLite snapshot and do not provide storage lifecycle, legal-hold or object-level backup/replica evidence",
-        "Exact retention documentation/task-ledger head dd8a1a161db97729ca4c984bd5ce8d1cc2224f18 passed Backend CI 44889450213 and Compose CI 44889450217; full repository validation/Playwright and generated-media FFmpeg/API/backup integration passed"
+        "Exact retention documentation/task-ledger head dd8a1a161db97729ca4c984bd5ce8d1cc2224f18 passed Backend CI 44889450213 and Compose CI 44889450217; full repository validation/Playwright and generated-media FFmpeg/API/backup integration passed",
+        "Exact feature/docs/task-ledger head b99c3143c96aeaaa420acca03dec64e3ef86ac67 passed Backend CI 44889623438 and Compose CI 44889623410; full backend validation/Playwright and generated-media Compose integration passed"
       ],
       "remaining": [
         "Validate representative customer media on the target runtime, including uncommon codecs, variable frame rates and long-duration inputs",
@@ -120,7 +121,8 @@
         "Run end-to-end authenticated API upload → current ClamAV signature scan → render queue → worker adoption → review preview using production-like persistent storage; CI now exercises real ClamAV scanning and EICAR rejection with generated media on isolated Docker volumes, but target storage remains unvalidated.",
         "Measure production workload resource usage and enforce disk quota/network egress policy on the target host",
         "Obtain owner/legal approval for retention periods, grace windows, legal holds, export/review windows and backup/replica deletion semantics; only then design a separate tombstone/purge workflow. The current evaluator is read-only and no indexed artifacts or source media are deleted.",
-        "Add authoritative legal-hold and per-object backup/replica state providers; storage lifecycle state remains unknown. Keep candidates blocked until these providers and owner/legal policy inputs exist; no tombstone or purge."
+        "Add authoritative legal-hold and per-object backup/replica state providers; storage lifecycle state remains unknown. Keep candidates blocked until these providers and owner/legal policy inputs exist; no tombstone or purge.",
+        "Re-run exact-head Backend and Compose CI after this final validation-note/task-ledger update"
       ]
     },
     {
