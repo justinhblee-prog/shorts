@@ -259,6 +259,14 @@ class TikTokOAuthManager:
         return data
 
     def _save_token_response(self, data):
+        scope = data.get("scope")
+        if not isinstance(scope, str) or not scope.strip():
+            raise TikTokOAuthError("TikTok OAuth returned invalid scope metadata")
+        token_type = data.get("token_type")
+        if token_type is not None and (
+            not isinstance(token_type, str) or token_type.strip().lower() != "bearer"
+        ):
+            raise TikTokOAuthError("TikTok OAuth returned an unsupported token type")
         required = ("access_token", "refresh_token", "open_id")
         if any(not isinstance(data.get(key), str) or not data[key] for key in required):
             raise TikTokOAuthError("TikTok OAuth token response is missing required token fields")
@@ -276,8 +284,8 @@ class TikTokOAuthManager:
             "open_id": data["open_id"],
             "access_token_encrypted": self.cipher.encrypt(data["access_token"].encode()).decode(),
             "refresh_token_encrypted": self.cipher.encrypt(data["refresh_token"].encode()).decode(),
-            "scope": str(data.get("scope") or ""),
-            "token_type": str(data.get("token_type") or "Bearer"),
+            "scope": scope.strip(),
+            "token_type": token_type.strip() if isinstance(token_type, str) else "Bearer",
             "access_expires_at": _stamp(now + timedelta(seconds=access_seconds)),
             "refresh_expires_at": _stamp(now + timedelta(seconds=refresh_seconds)),
         }

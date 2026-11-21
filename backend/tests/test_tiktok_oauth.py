@@ -177,6 +177,23 @@ class TikTokOAuthTests(unittest.TestCase):
                     self.manager._save_token_response(payload)
                 self.assertIsNone(self.store.token_record())
 
+    def test_token_response_rejects_malformed_scope_and_token_type_metadata(self):
+        base = {
+            "access_token": "access", "refresh_token": "refresh",
+            "open_id": "creator-123", "scope": "user.info.basic,video.publish",
+            "token_type": "Bearer", "expires_in": 3600, "refresh_expires_in": 86400,
+        }
+        for field, value in (
+            ("scope", ["user.info.basic", "video.publish"]),
+            ("scope", ""),
+            ("token_type", ["Bearer"]),
+            ("token_type", "MAC"),
+        ):
+            with self.subTest(field=field, value=value):
+                with self.assertRaisesRegex(TikTokOAuthError, "scope metadata|token type"):
+                    self.manager._save_token_response({**base, field: value})
+                self.assertIsNone(self.store.token_record())
+
     def test_refresh_rotates_and_persists_the_new_refresh_token(self):
         self.manager._save_token_response({
             "access_token": "access-old",

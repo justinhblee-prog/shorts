@@ -131,3 +131,11 @@ The Compose integration assertions passed. Its teardown did report the media-sca
 - Compose [44894747315](https://github.com/justinhblee-prog/shorts/actions/runs/44894747315) passed ClamAV readiness, isolated render worker, real FFmpeg render/adoption/review, authenticated API E2E and encrypted backup/restore.
 - This PR branch's workflow copy still emits the known profile-cleanup resource warnings. Draft PR #477 exact-head Compose [44893900087](https://github.com/justinhblee-prog/shorts/actions/runs/44893900087) validates the corrected cleanup separately, with all containers, volumes and network removed.
 - No live provider requests, account credentials, external uploads or public posts were used.
+
+
+## OAuth token metadata type validation
+
+- Google and TikTok token responses now require a non-empty string `scope` value before any token material is persisted.
+- When `token_type` is present, it must be a string identifying Bearer token authentication (case-insensitive). Unsupported values and JSON arrays/objects fail closed; an omitted token type retains the provider-compatible Bearer default.
+- Offline fake-transport tests cover empty/array scopes, array token types and unsupported token-type values. These checks prevent malformed provider metadata from being stringified into an apparently connected OAuth record.
+- No live provider calls or credentials are used.
