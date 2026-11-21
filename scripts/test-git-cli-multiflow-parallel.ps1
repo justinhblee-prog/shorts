@@ -43,7 +43,7 @@ try{
  & git -C $checkout config user.email "multiflow-test@example.invalid"
  $fakeGh=@(
   "@echo off",
-  'if "%1 %2"=="pr list" (echo [{"title":"Timeline integration","body":"Implements BUILD-99005","headRefName":"feat/timeline-integration","baseRefName":"main"}] & exit /b 0)',
+  'if "%1 %2"=="pr list" (echo [{"title":"Timeline integration","body":"Implements BUILD-99005","headRefName":"feat/timeline-integration","baseRefName":"main"},{"title":"DevFlow automation","body":"Queues BUILD-99006","headRefName":"main","baseRefName":"main"}] & exit /b 0)',
   'if "%1 %2"=="pr create" (echo https://example.invalid/draft & exit /b 0)',
   'if "%1 %2"=="auth status" exit /b 0',
   "exit /b 0"
