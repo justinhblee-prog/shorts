@@ -137,7 +137,7 @@ if(& git -C $root status --porcelain){throw "Primary checkout must be clean."}
 & gh auth status *> $null;if($LASTEXITCODE -ne 0){throw "GitHub CLI authentication required."}
 if(-not $env:DEVFLOW_AGENT_COMMAND -or -not $env:DEVFLOW_AGENT_ARGS_JSON){throw "Configure DEVFLOW_AGENT_COMMAND and DEVFLOW_AGENT_ARGS_JSON."}
 $manifest=Get-Content (Join-Path $root ".devflow/tasks.json") -Raw -Encoding UTF8|ConvertFrom-Json
-$open=& gh pr list --state open --json title,body,headRefName,baseRefName,files --limit 1000;if($LASTEXITCODE -ne 0){throw "Cannot inspect open PRs; stopping safely."}
+$open=& gh pr list --state open --json number,title,body,headRefName,baseRefName --limit 1000;if($LASTEXITCODE -ne 0){throw "Cannot inspect open PRs; stopping safely."}
 $openPrs=@($open|ConvertFrom-Json)
 $supervisorBranch=[string]$env:GITHUB_REF_NAME
 if(-not $supervisorBranch){
@@ -172,9 +172,10 @@ $activeWorktreeIds=@([regex]::Matches(($activeWorktreeText -join "`n"),'(?i)BUIL
 $openFiles=@()
 foreach($pr in $openPrs){
  if($supervisorBranch -and [string]$pr.headRefName -eq $supervisorBranch){continue}
- foreach($file in @($pr.files)){
-  $path=if($file -is [string]){[string]$file}else{[string]$file.path}
-  if($path){$openFiles+=($path.Replace("\\","/").ToLowerInvariant())}
+ $prFiles=& gh pr view ([string]$pr.number) --json files --jq ".files[].path"
+ if($LASTEXITCODE -ne 0){throw "Cannot inspect changed files for open PR #$($pr.number); refusing overlapping dispatch."}
+ foreach($path in @($prFiles)){
+  if($path){$openFiles+=(([string]$path).Replace("\\","/").ToLowerInvariant())}
  }
 }
 $eligible=@();$acceptedScopes=@()
