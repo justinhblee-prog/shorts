@@ -206,6 +206,7 @@ foreach($t in @($eligible|Select-Object -First $MaxTasks)){
  if($prior -and $prior.status -eq "running"){
   if(Test-LeaseHeld ([string]$t.id) $stateDir){continue}
   Set-State $statePath ([string]$t.id) "failed" "Recovered stale running state; previous worker lease is no longer held."
+  continue
  }
  if($prior -and $prior.status -eq "queued" -and (Test-LeaseHeld ([string]$t.id) $stateDir)){continue}
  $queue.Enqueue($t)
