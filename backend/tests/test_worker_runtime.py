@@ -26,6 +26,13 @@ class WorkerRuntimeTests(unittest.TestCase):
             self.assertEqual(os.environ.get("TMPDIR"), original)
             self.assertEqual(tempfile.tempdir, cached)
 
+    def test_scratch_available_bytes_reports_filesystem_capacity(self):
+        import tempfile
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as root:
+            with patch("worker_scratch.shutil.disk_usage", return_value=type("Usage", (), {"free": 12345})()):
+                self.assertEqual(WorkerScratchWorkspace.available_bytes(root=root), 12345)
+
     def test_lease_heartbeat_does_not_follow_planted_temp_symlink(self):
         import tempfile
         with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as outside:
