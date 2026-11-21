@@ -108,6 +108,29 @@ class BackupRestoreTests(unittest.TestCase):
         self.assertEqual(self._db_value(), "before")
         self.assertFalse(list(self.root.glob("nexus-restore-*")))
 
+    def test_restore_same_volume_checks_combined_staging_capacity(self):
+        (self.media / "clip.mp4").write_bytes(b"media")
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        ample = type("DiskUsage", (), {"free": 10**12})()
+        # Both targets share this test filesystem: the combined DB + media
+        # staging size must be checked in one capacity request.
+        with patch("backup_restore.shutil.disk_usage", return_value=ample) as disk_usage:
+            with patch.dict(os.environ, {"NEXUS_RESTORE_MIN_FREE_BYTES": "0"}):
+                restore_backup(backup, self.db, self.media, self.backups, confirm_restore=True)
+        self.assertEqual(disk_usage.call_count, 1)
+
+    def test_restore_cleans_replacement_staging_when_pre_restore_backup_fails(self):
+        (self.media / "clip.mp4").write_bytes(b"media")
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        with patch("backup_restore.create_backup", side_effect=BackupRestoreError("backup unavailable")):
+            with self.assertRaisesRegex(BackupRestoreError, "backup unavailable"):
+                restore_backup(backup, self.db, self.media, self.backups, confirm_restore=True)
+        self.assertEqual(self._db_value(), "before")
+        self.assertEqual((self.media / "clip.mp4").read_bytes(), b"media")
+        self.assertFalse(list(self.root.glob("nexus-restore-*")))
+        self.assertFalse(list(self.root.glob("media.restore-*")))
+        self.assertFalse(list(self.root.glob("nexus.sqlite3.restore-*")))
+
     def test_restore_requires_explicit_confirmation_and_creates_pre_restore_backup(self):
         (self.media / "clip.mp4").write_bytes(b"old")
         backup = create_backup(self.db, self.media, self.backups)["backup_path"]
