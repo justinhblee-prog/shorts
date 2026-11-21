@@ -1,4 +1,4 @@
-name: Windows self-hosted Agent multi-flow
+name: Ollama Agent multi-flow
 
 on:
   push:
@@ -15,54 +15,76 @@ on:
       max_tasks:
         description: Maximum tasks to process in this run (1-3)
         required: true
-        default: "3"
+        default: "1"
         type: choice
         options:
           - "1"
           - "2"
           - "3"
-      agent_smoke_test:
-        description: Run one isolated real Agent CLI request instead of project tasks
-        required: true
-        default: false
-        type: boolean
 
 permissions:
   contents: write
   pull-requests: write
 
 concurrency:
-  group: windows-agent-multiflow
+  group: ollama-agent-multiflow
   cancel-in-progress: false
 
 jobs:
   run-agent:
     if: github.ref == 'refs/heads/fix/devflow-supervisor-poll-loop-2026-11-21'
-    runs-on: [self-hosted, Windows, X64, shorts-agent]
+    runs-on: ubuntu-24.04
     timeout-minutes: 360
     steps:
-      - name: Checkout approved automation branch
+      - name: Checkout automation supervisor
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref_name }}
           clean: true
 
-      - name: Verify Windows execution environment
+      - name: Install PowerShell and Python
+        uses: microsoft/setup-powershell@v1
+
+      - name: Install GitHub CLI
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gh
+
+      - name: Install and start isolated Ollama runtime
+        shell: bash
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          nohup ollama serve > "$RUNNER_TEMP/ollama.log" 2>&1 &
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 90 ]; then
+              cat "$RUNNER_TEMP/ollama.log"
+              exit 1
+            fi
+            sleep 2
+          done
+          ollama pull qwen2.5-coder:7b
+
+      - name: Verify hosted execution environment and agent contract
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = "Stop"
-          if ($PSVersionTable.PSVersion.Major -lt 7) { throw "PowerShell 7+ is required." }
           foreach ($tool in @("git", "gh", "python", "pwsh")) {
             if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { throw "Missing required tool: $tool" }
           }
           gh auth status
           $ollama = Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -TimeoutSec 10
-          if (-not ($ollama.models | Where-Object { $_.name -eq "qwen2.5-coder:7b" })) { throw "Required local Ollama model qwen2.5-coder:7b is not available." }
+          if (-not ($ollama.models | Where-Object { $_.name -eq "qwen2.5-coder:7b" })) { throw "Required Ollama model qwen2.5-coder:7b is not available." }
+          $env:DEVFLOW_AGENT_COMMAND = (Get-Command python -ErrorAction Stop).Source
+          $env:DEVFLOW_AGENT_ARGS_JSON = ConvertTo-Json -Compress -InputObject @((Join-Path $PWD "scripts/ollama-agent.py"), "--prompt-file", "{prompt_file}", "--model", "qwen2.5-coder:7b")
           & "$PWD/scripts/git-cli-agent-config.ps1" -Check
           if ($LASTEXITCODE -ne 0) { throw "Agent CLI preflight failed." }
-          Write-Host "PASS: self-hosted Windows runner, GitHub auth, clean checkout and Agent CLI configuration."
+          Write-Host "PASS: GitHub auth, PowerShell, Python, isolated Ollama model and task manifest."
 
       - name: Verify detached supervisor polling and failure recovery
         shell: pwsh
@@ -71,45 +93,30 @@ jobs:
           & "$PWD/scripts/test-devflow-detached-supervisor.ps1"
           if ($LASTEXITCODE -ne 0) { throw "Detached supervisor regression failed with exit code $LASTEXITCODE." }
 
-      - name: Run isolated real Agent CLI smoke test
-        if: github.event_name == 'workflow_dispatch' && inputs.agent_smoke_test
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $ErrorActionPreference = "Stop"
-          & "$PWD/scripts/test-real-agent-cli.ps1" -TimeoutSeconds 300
-          if ($LASTEXITCODE -ne 0) { throw "Real Agent CLI smoke test failed with exit code $LASTEXITCODE." }
-
       - name: Verify real local Ollama tool-call protocol
-        if: github.event_name != 'workflow_dispatch' || inputs.agent_smoke_test != true
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           & python "$PWD/scripts/test_ollama_tool_protocol.py" --model "qwen2.5-coder:7b"
-          if ($LASTEXITCODE -ne 0) { throw "Local Ollama tool-call protocol verification failed with exit code $LASTEXITCODE." }
+          if ($LASTEXITCODE -ne 0) { throw "Ollama tool-call protocol verification failed with exit code $LASTEXITCODE." }
 
       - name: Run real multi-flow workers
-        if: github.event_name != 'workflow_dispatch' || inputs.agent_smoke_test != true
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = "Stop"
           $rawCount = "${{ inputs.max_tasks }}"
-          if ([string]::IsNullOrWhiteSpace($rawCount)) { $rawCount = "3" }
+          if ([string]::IsNullOrWhiteSpace($rawCount)) { $rawCount = "1" }
           $count = [int]$rawCount
           if ($count -lt 1 -or $count -gt 3) { throw "max_tasks must be between 1 and 3." }
-          # Worker processes execute from isolated task worktrees. Anchor the shared
-          # Ollama agent script to this runner checkout so relative paths do not break.
           $python = (Get-Command python -ErrorAction Stop).Source
           $agentScript = Join-Path $PWD "scripts/ollama-agent.py"
-          if (-not (Test-Path -LiteralPath $agentScript)) { throw "Local Ollama agent script is missing: $agentScript" }
+          if (-not (Test-Path -LiteralPath $agentScript)) { throw "Ollama agent script is missing: $agentScript" }
           $env:DEVFLOW_AGENT_COMMAND = $python
           $env:DEVFLOW_AGENT_ARGS_JSON = ConvertTo-Json -Compress -InputObject @($agentScript, "--prompt-file", "{prompt_file}", "--model", "qwen2.5-coder:7b")
-          Write-Host "Using runner-checkout Agent script with isolated worker prompt files."
           & "$PWD/scripts/start-devflow-autopilot.ps1" -Run -MaxTasks $count
-          if ($LASTEXITCODE -ne 0) { throw "Real Agent multi-flow run failed with exit code $LASTEXITCODE." }
+          if ($LASTEXITCODE -ne 0) { throw "Real Ollama multi-flow run failed with exit code $LASTEXITCODE." }
 
       - name: Collect execution evidence
         if: always()
@@ -130,7 +137,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: windows-agent-multiflow-${{ github.run_id }}
+          name: ollama-agent-multiflow-${{ github.run_id }}
           path: multiflow-evidence/**
           if-no-files-found: warn
           retention-days: 14
