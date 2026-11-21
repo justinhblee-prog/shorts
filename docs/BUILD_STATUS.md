@@ -1173,3 +1173,16 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Refresh the top-level validation checkpoint to the latest verified BUILD-00140 CI run.
 - Replace the stale 408-test summary with the current 466-test result and link to the exact GitHub Actions run.
 - Keep all live-provider, account, deployment and revenue limitations explicit.
+
+
+## 2026-11-21 repository readiness checkpoint
+
+- Snapshot main HEAD: `c0bf340bd95e2485bc2c4eaf8ffe48d60943a6c4` (commit message: local Ollama tool-call protocol verification).
+- This checkpoint is documentation only; it does not promote any Draft PR or alter production configuration.
+- The current `main` branch API reports `protected=false`, `protection.enabled=false`, and required status-check enforcement `off`. Repository ruleset listing returned zero rulesets. Therefore GitHub does not currently enforce PR-only updates or required checks on `main`; this is a critical repository-governance blocker and must be corrected in repository Settings before unattended development is trusted.
+- The exact main HEAD had zero GitHub Actions workflow runs and zero check-runs at inspection time; do not infer a passing CI baseline from another branch.
+- Open PR audit: PRs #311–#315 and #318 were individually confirmed open, Draft, and unmerged. The first two 100-item pages of open PRs contained only Draft PRs; the `draft:false` search returned zero results.
+- Latest branch evidence: PR #463 head `b3e1ef6ae1a6fbdc6851a5015c4be2520671ed65` has Backend tests passing in runs [44877045770](https://github.com/justinhblee-prog/shorts/actions/runs/44877045770) and [44877041841](https://github.com/justinhblee-prog/shorts/actions/runs/44877041841). No responsive-preview browser-smoke run was found for that exact head. PR #462 head `c895df98a96894eb097b26a50b59f15ba1388875` has Backend tests passing in run [44874507461](https://github.com/justinhblee-prog/shorts/actions/runs/44874507461).
+- The mainline documentation tree did not contain `docs/RELEASE_READINESS.md` at this snapshot; this PR adds the release-gate ledger without replacing existing roadmap history.
+- Local Ollama installation is user-reported, but no connected Windows self-hosted runner, model invocation, or automated Draft PR round-trip has been verified from GitHub.
+- Next safe work: enable main branch protection/ruleset with PR review and required checks; then validate the exact integrated FFmpeg/render branch head and complete browser preview smoke. Keep every PR Draft/Open and do not merge or push directly to main.
