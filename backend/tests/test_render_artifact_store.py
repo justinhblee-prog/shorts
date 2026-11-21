@@ -28,7 +28,7 @@ class RenderArtifactStoreTests(unittest.TestCase):
             self.worker, job_type="timeline_render", generation_token=self.generation
         )
         self.store = RenderArtifactStore(
-            self.queue, self.staging, self.artifacts, max_bytes=1024
+            self.queue, self.staging, self.artifacts, max_bytes=1024, min_free_bytes=0
         )
         self.staged = self.staging / "output.mp4"
         self.staged.write_bytes(b"verified-render-fixture")
@@ -57,6 +57,80 @@ class RenderArtifactStoreTests(unittest.TestCase):
         self.assertEqual(record["artifact_sha256"], hashlib.sha256(b"verified-render-fixture").hexdigest())
         self.assertFalse(self.staged.exists())
         self.assertTrue((self.artifacts / result["storage_key"]).is_file())
+
+    def test_installation_cap_rejects_adoption_without_moving_staged_output(self):
+        limited = RenderArtifactStore(
+            self.queue, self.staging, self.artifacts,
+            max_bytes=1024, max_total_bytes=1, min_free_bytes=0,
+        )
+        original = self.store
+        self.store = limited
+        try:
+            with self.assertRaisesRegex(ArtifactAdoptionError, "storage cap"):
+                self.adopt()
+        finally:
+            self.store = original
+        self.assertTrue(self.staged.exists())
+        self.assertEqual(list(self.artifacts.iterdir()), [])
+
+    def test_installation_cap_counts_existing_artifacts_across_workspaces(self):
+        first = self.adopt()
+        second_snapshot = "edl_" + "b" * 32
+        second_sha = hashlib.sha256(b"second-snapshot").hexdigest()
+        second_job = self.queue.enqueue(
+            "timeline_render",
+            {"snapshot_id": second_snapshot, "snapshot_sha256": second_sha, "edl": {}},
+            workspace_id="ws_other",
+        )
+        second_claim = self.queue.claim(
+            self.worker, job_type="timeline_render", generation_token=self.generation
+        )
+        second_staged = self.staging / "second.mp4"
+        second_staged.write_bytes(b"second-render-fixture")
+        first_size = self.store.get(first["artifact_id"], "ws_test")["byte_size"]
+        second_size = second_staged.stat().st_size
+        limited = RenderArtifactStore(
+            self.queue, self.staging, self.artifacts,
+            max_total_bytes=first_size + second_size - 1, min_free_bytes=0,
+        )
+        with self.assertRaisesRegex(ArtifactAdoptionError, "storage cap"):
+            limited.adopt(
+                second_job["id"], self.worker, second_claim["lease_token"],
+                self.generation, "ws_other", second_snapshot, second_sha, second_staged,
+            )
+        self.assertTrue(second_staged.exists())
+        self.assertEqual(len(list(self.artifacts.glob("rart_*.mp4"))), 1)
+
+    def test_artifact_volume_reserve_fails_closed_when_free_space_is_low(self):
+        limited = RenderArtifactStore(
+            self.queue, self.staging, self.artifacts,
+            max_total_bytes=1024, min_free_bytes=1024,
+        )
+        class Usage:
+            free = 0
+        with patch("render_artifact_store.shutil.disk_usage", return_value=Usage()):
+            with self.assertRaisesRegex(ArtifactAdoptionError, "free space"):
+                limited.adopt(
+                    self.job["id"], self.worker, self.claimed["lease_token"],
+                    self.generation, "ws_test", self.snapshot_id,
+                    self.snapshot_sha, self.staged,
+                )
+        self.assertTrue(self.staged.exists())
+        self.assertEqual(list(self.artifacts.iterdir()), [])
+
+    def test_artifact_volume_reserve_fails_closed_when_free_space_cannot_be_inspected(self):
+        limited = RenderArtifactStore(
+            self.queue, self.staging, self.artifacts,
+            max_total_bytes=1024, min_free_bytes=1,
+        )
+        with patch("render_artifact_store.shutil.disk_usage", side_effect=OSError("unavailable")):
+            with self.assertRaisesRegex(ArtifactAdoptionError, "cannot be inspected"):
+                limited.adopt(
+                    self.job["id"], self.worker, self.claimed["lease_token"],
+                    self.generation, "ws_test", self.snapshot_id,
+                    self.snapshot_sha, self.staged,
+                )
+        self.assertTrue(self.staged.exists())
 
     def test_rejects_wrong_snapshot_without_moving_output(self):
         with self.assertRaisesRegex(ArtifactAdoptionError, "snapshot"):
@@ -143,7 +217,7 @@ class RenderArtifactStoreTests(unittest.TestCase):
         binary.write_bytes(b"fixture-binary")
         store = RenderArtifactStore(
             self.queue, self.staging, self.artifacts,
-            ffprobe_path=binary, require_audio=True,
+            ffprobe_path=binary, require_audio=True, min_free_bytes=0,
         )
         probe = {
             "duration_ms": 12345,
