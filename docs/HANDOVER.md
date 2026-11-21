@@ -1548,3 +1548,13 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Exact-head Actions validation pending.
 
 - BUILD-00351 exact checkpoint `1dbd12852bf41c9c58c11a801a30d9d3000daffa` passed 725 backend tests and the health-aware five-service Compose integration: [backend 44506538368](https://github.com/justinhblee-prog/shorts/actions/runs/44506538368), [Compose 44506538484](https://github.com/justinhblee-prog/shorts/actions/runs/44506538484). Worker, scheduler, metrics collector and backup reported healthy; backup success marker and encrypted isolated restore were verified.
+
+
+## BUILD-00361 — authenticated timeline editor integration — 2026-11-21
+
+- The UI branch feat/nexus-timeline-editor-2026-11-21 is based on the exact BUILD-00352 renderer integration head a3c61e146c660c73eb74cd952d614de581a3e950; it preserves the fixed sidebar, workspace selector, keyboard search and workspace-scoped API headers.
+- The production floor adds live Discover/Create/Review/Measure indicators, a private review-video spotlight and the persistent queue rail.
+- The existing browser-local timeline remains non-destructive and retains source preview, trim, reorder, title overlay and JSON export. The new authenticated render controls create workspaces, upload source video/audio to private workspace storage, require server-side ClamAV/ffprobe clean attestation, validate EDL v1, submit an idempotent render, poll status, download the integrity-checked review artifact and record an artifact-bound human decision.
+- EDL v1 client subset: sequential video clips, timed title overlays and one optional audio bed with gain/fades. No transitions, gaps, overlaps, arbitrary paths/URLs or public publishing.
+- .devflow/tasks.json now tracks BUILD-00361 as in progress. The UI API-contract browser smoke has been added but exact-head CI is pending; no success claim until it passes.
+- External validation remains: point the Vercel preview at a reachable API built from BUILD-00352, use an operator token with workspace.read and media.manage, and validate target-host ClamAV signatures, ffprobe, worker and persistent storage with representative media.
