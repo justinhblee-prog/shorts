@@ -24,8 +24,8 @@ try{
   policy=@{default_base="main";max_parallel_worktrees=3;auto_merge=$false;auto_deploy=$false}
   tasks=@(
    @{id="BUILD-99001";title="parallel fixture A";status="ready";priority=1;depends_on=@();scope=@("write an isolated marker");acceptance=@("marker exists")},
-   @{id="BUILD-99002";title="parallel fixture B";status="ready";priority=2;depends_on=@();scope=@("write an isolated marker");acceptance=@("marker exists")},
-   @{id="BUILD-99003";title="parallel fixture C";status="ready";priority=3;depends_on=@();scope=@("write an isolated marker");acceptance=@("marker exists")},
+   @{id="BUILD-99002";title="parallel fixture B";status="ready";priority=2;depends_on=@();scope=@("scripts/shared-scope.py");acceptance=@("marker exists")},
+   @{id="BUILD-99003";title="parallel fixture C";status="ready";priority=3;depends_on=@();scope=@("scripts/shared-scope.py");acceptance=@("marker exists")},
    @{id="BUILD-99004";title="dependent fixture D";status="ready";priority=4;depends_on=@("BUILD-99001");scope=@("must remain gated");acceptance=@("must not run before dependency completion")},
    @{id="BUILD-99005";title="open PR duplicate fixture E";status="ready";priority=5;depends_on=@();scope=@("must be skipped by open PR metadata");acceptance=@("must not be dispatched when an open PR body references this task ID")},
    @{id="BUILD-99006";title="automation self-reference fixture F";status="ready";priority=6;depends_on=@();scope=@("must run even when the supervisor PR body references this task ID");acceptance=@("must not be suppressed by the currently checked-out supervisor PR")},
@@ -44,7 +44,7 @@ try{
  & git -C $checkout config user.email "multiflow-test@example.invalid"
  $fakeGh=@(
   "@echo off",
-  'if "%1 %2"=="pr list" (echo [{"title":"Timeline integration","body":"Implements BUILD-99005","headRefName":"feat/timeline-integration","baseRefName":"main"},{"title":"DevFlow automation","body":"Queues BUILD-99006","headRefName":"main","baseRefName":"main"}] & exit /b 0)',
+  'if "%1 %2"=="pr list" (echo [{"number":101,"title":"Timeline integration","body":"Implements BUILD-99005","headRefName":"feat/timeline-integration","baseRefName":"main"},{"number":102,"title":"DevFlow automation","body":"Queues BUILD-99006","headRefName":"main","baseRefName":"main"}] & exit /b 0)',
   'if "%1 %2"=="pr view" (echo scripts/open-pr-file.py & exit /b 0)',
   'if "%1 %2"=="pr create" (echo https://example.invalid/draft & exit /b 0)',
   'if "%1 %2"=="auth status" exit /b 0',
@@ -81,7 +81,7 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  $events=@(Get-Content $log|ForEach-Object{$p=$_.Split('|');[pscustomobject]@{kind=$p[0];ms=[long]$p[1];pid=$p[2]}})
  $starts=@($events|Where-Object kind -eq "start")
  $ends=@($events|Where-Object kind -eq "end")
- if($starts.Count -ne 4 -or $ends.Count -ne 4){throw "Expected four complete fake-agent runs, including the task mentioned by the supervisor PR; got starts=$($starts.Count), ends=$($ends.Count)."}
+ if($starts.Count -ne 3 -or $ends.Count -ne 3){throw "Expected three complete fake-agent runs; overlapping and open-PR scopes must be deferred; got starts=$($starts.Count), ends=$($ends.Count)."}
  $delta=[Math]::Abs($starts[0].ms-$starts[1].ms)
  if($delta -gt 2500){throw "Three workers did not overlap; start spread was $($delta)ms."}
  if($timer.Elapsed.TotalSeconds -gt 25){throw "Parallel run took too long ($($timer.Elapsed.TotalSeconds)s), expected overlapping workers; worker start-time overlap is asserted separately."}
