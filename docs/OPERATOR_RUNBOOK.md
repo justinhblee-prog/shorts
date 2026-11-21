@@ -46,6 +46,7 @@ Open `http://localhost:8502/`. The API, worker and scheduler use the same persis
 
 1. In the Studio section, choose an active brand, market and language, then submit a topic.
 2. The durable queue dispatches `short_video_production` to the worker.
+3. The worker creates a private per-job scratch directory under `NEXUS_WORKER_SCRATCH_DIR` (default `/app/data/worker-scratch`) before provider execution. Python temporary files use this directory for the job lifetime; the worker refreshes its lease marker alongside the queue heartbeat and removes the directory only while its job/worker/lease-token ownership still matches. On startup/idle polling, only direct-child job directories with valid, expired lease metadata older than the configured grace are pruned. Missing, malformed, replaced or symlinked markers fail closed. Set `NEXUS_WORKER_SCRATCH_GRACE_SECONDS` to at least 300 seconds (default 3600). The directory resides on the persistent application data volume; monitor that volume's physical free space separately.
 3. The worker calls script, voice and renderer providers. Missing credentials or malformed provider responses fail the stage; no placeholder artifact is accepted.
 4. The production enters `review_pending`. Open the remote renderer artifact link and inspect the real output.
 5. Use **미디어 스테이징** or the approved-upload queue. Staging reads the saved artifact URL from the production record; the operator cannot supply an arbitrary URL.
