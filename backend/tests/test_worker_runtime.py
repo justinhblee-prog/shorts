@@ -26,6 +26,22 @@ class WorkerRuntimeTests(unittest.TestCase):
             self.assertEqual(os.environ.get("TMPDIR"), original)
             self.assertEqual(tempfile.tempdir, cached)
 
+    def test_lease_heartbeat_does_not_follow_planted_temp_symlink(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as outside:
+            target = Path(outside) / "victim.txt"
+            target.write_text("keep-me", encoding="utf-8")
+            workspace = WorkerScratchWorkspace("job", "worker", "token", root=root)
+            workspace.start()
+            try:
+                planted = workspace.path / ".lease-update.tmp"
+                planted.symlink_to(target)
+                workspace.heartbeat()
+                self.assertEqual(target.read_text(encoding="utf-8"), "keep-me")
+                self.assertTrue(planted.is_symlink())
+            finally:
+                self.assertTrue(workspace.close())
+
     def test_scratch_pruner_removes_only_expired_valid_job_directory(self):
         import hashlib
         import json
