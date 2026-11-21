@@ -1136,6 +1136,24 @@ class TikTokPublishingTests(unittest.TestCase):
         )
         self.assertEqual(stale["status"], "send_to_inbox")
 
+    def test_api_call_rejects_non_object_error_envelope(self):
+        self.transport.responses[0] = (200, {"data": {}, "error": []})
+        with self.assertRaisesRegex(TikTokPublishError, "error field"):
+            self.publisher._call(
+                "https://open.tiktokapis.com/v2/post/publish/creator_info/query/",
+                payload={},
+            )
+
+    def test_api_call_rejects_error_object_without_string_code(self):
+        self.transport.responses[0] = (200, {
+            "data": {}, "error": {"code": 0},
+        })
+        with self.assertRaisesRegex(TikTokPublishError, "error object"):
+            self.publisher._call(
+                "https://open.tiktokapis.com/v2/post/publish/creator_info/query/",
+                payload={},
+            )
+
     def test_status_fetch_rejects_falsey_non_list_video_ids_without_state_change(self):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
