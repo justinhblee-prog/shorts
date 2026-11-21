@@ -158,7 +158,7 @@ class YouTubePublishingTests(unittest.TestCase):
         with self.assertRaisesRegex(YouTubeUploadError, "valid video ID"):
             publisher.upload_approved(
                 "job-1", self.media, self.review, "Approved title",
-                "Approved description", operator_id="operator-1",
+                "Approved description",
             )
         record = self.uploads.get("job-1")
         self.assertEqual(record["status"], "reconciliation_required")
