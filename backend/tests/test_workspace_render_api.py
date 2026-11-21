@@ -3,7 +3,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from fastapi import HTTPException
 from starlette.requests import Request
@@ -70,6 +70,34 @@ class WorkspaceRenderApiTests(unittest.TestCase):
         self.assertEqual(captured["args"], ("ws_studio", "alice", "clip.mp4"))
         self.assertEqual(result["scan_status"], "pending")
         self.assertFalse(result["renderable"])
+
+    def test_workspace_upload_keeps_asset_id_when_scanner_returns_database_row(self):
+        with (
+            patch.object(app_module, "require_review_permission", return_value="alice"),
+            patch.object(app_module, "resolve_workspace_access", return_value=None),
+            patch.object(app_module.workspace_asset_store, "max_asset_bytes", 100),
+            patch.object(app_module.workspace_asset_store, "register_stream", return_value={
+                "asset_id": "asset_" + "a" * 32,
+                "workspace_id": "ws_studio",
+                "scan_status": "pending",
+                "size_bytes": 13,
+            }),
+            patch.object(app_module, "ClamAVScanner"),
+            patch.object(app_module, "run_in_threadpool", new=AsyncMock(return_value={
+                "id": "asset_" + "a" * 32,
+                "workspace_id": "ws_studio",
+                "scan_status": "clean",
+                "byte_size": 13,
+            })),
+            patch.dict(os.environ, {"NEXUS_MEDIA_SCAN_ENABLED": "true"}),
+        ):
+            result = asyncio.run(app_module.upload_workspace_asset(
+                "ws_studio", self.request(b"video-fixture"), "clip.mp4", "operator-token"
+            ))
+        self.assertEqual(result["asset"]["asset_id"], "asset_" + "a" * 32)
+        self.assertEqual(result["asset"]["id"], "asset_" + "a" * 32)
+        self.assertTrue(result["renderable"])
+        self.assertEqual(result["scan_engine"], "clamav")
 
     def test_upload_rejects_oversized_body_and_unsupported_media(self):
         request = self.request(b"four")
