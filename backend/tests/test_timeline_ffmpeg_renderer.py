@@ -123,7 +123,7 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
         self.assertEqual(self.commands[0][self.commands[0].index("-fs") + 1], str(self.renderer.max_output_bytes))
         self.assertIn("scale=720:1280", video_graph)
         self.assertIn("atrim=start=0.500:duration=5.000", audio_graph)
-        self.assertIn("amix=inputs=1", audio_graph)
+        self.assertIn("amix=inputs=3", audio_graph)
         self.assertIn("-c:v", self.commands[2])
         self.assertEqual(self.commands[0].count("-protocol_whitelist"), 1)
         self.assertIn("file,pipe", self.commands[0])
@@ -210,10 +210,12 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
 
     def test_renders_declared_crossfade_with_absolute_timeline_offset(self):
         transitioned = json.loads(json.dumps(self.payload))
+        transitioned["edl"]["clips"][0]["include_source_audio"] = True
         transitioned["edl"]["clips"].append({
             "id": "clip2", "type": "video", "start_ms": 3000,
             "end_ms": 8000, "asset_id": "asset_video",
             "source_in_ms": 6000, "source_out_ms": 11000,
+            "include_source_audio": True,
         })
         transitioned["edl"]["transitions"] = [{
             "id": "xfade1", "type": "crossfade",
@@ -233,9 +235,26 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
             )
         graph = self.commands[0][self.commands[0].index("-filter_complex") + 1]
         self.assertIn("xfade=transition=fade:duration=2.000:offset=3.000", graph)
+        audio_graph = self.commands[1][self.commands[1].index("-filter_complex") + 1]
+        self.assertIn("afade=t=out", audio_graph)
+        self.assertIn("afade=t=in", audio_graph)
+        self.assertIn("amix=inputs=3", audio_graph)
         self.assertEqual(result["duration_ms"], 8000)
         self.assertIn("8.000", self.commands[0])
         self.assertEqual(len(self.commands), 3)
+
+    def test_rejects_requested_source_audio_when_video_has_no_audio_stream(self):
+        requested = json.loads(json.dumps(self.payload))
+        requested["edl"]["clips"][0]["include_source_audio"] = True
+        self._rehash(requested)
+        with patch(
+            "timeline_ffmpeg_renderer.probe_source_media",
+            return_value={"duration_ms": 12000, "has_video": True, "has_audio": False},
+        ), self.assertRaisesRegex(TimelineRenderError, "source audio was requested"):
+            self.renderer(
+                requested, stop_event=threading.Event(),
+                workspace_id="ws_demo", principal_id="alice",
+            )
 
     def test_renders_title_overlay_from_bounded_utf8_text_file(self):
         titled = json.loads(json.dumps(self.payload))
