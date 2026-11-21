@@ -89,6 +89,25 @@ class FrontendPortalTests(unittest.TestCase):
         for section in ("id=\"studio\"","id=\"discovery\"","id=\"review\"","id=\"operations\""):
             self.assertIn(section, html)
 
+    def test_frontend_can_connect_to_an_explicit_backend_origin(self):
+        frontend = ROOT / "frontend"
+        app_js = (frontend / "app.js").read_text(encoding="utf-8")
+        html = (frontend / "index.html").read_text(encoding="utf-8")
+        self.assertIn("normalizeApiOrigin", app_js)
+        self.assertIn("nexusApiOrigin", app_js)
+        self.assertIn('(apiOrigin||window.location.origin)+path', app_js)
+        self.assertIn('id="apiOriginInput"', html)
+        self.assertIn("HTTPS 주소만 허용", html)
+
+    def test_backend_cors_is_exact_origin_opt_in_and_disallows_credentials(self):
+        app_py = (ROOT / "backend" / "app.py").read_text(encoding="utf-8")
+        env = (ROOT / ".env.example").read_text(encoding="utf-8")
+        self.assertIn('os.getenv("NEXUS_CORS_ORIGINS", "")', app_py)
+        self.assertIn("allow_credentials=False", app_py)
+        self.assertIn('allow_headers=["Content-Type", "X-Review-Token"]', app_py)
+        self.assertIn("NEXUS_CORS_ORIGINS=", env)
+        self.assertNotIn("allow_origins=[\"*\"]", app_py)
+
     def test_external_media_urls_require_https_without_embedded_credentials(self):
         app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
         self.assertIn("function safeExternalMediaUrl(value)", app_js)
