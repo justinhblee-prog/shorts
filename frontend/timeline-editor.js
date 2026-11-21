@@ -121,7 +121,8 @@
     const titles=clips.filter(clip=>clip.kind==="title");
     const transition=transitionSettings();
     const rawVideoDuration=videos.reduce((sum,clip)=>sum+Math.max(0,clip.outPoint-clip.inPoint),0);
-    const videoDuration=Math.max(0,rawVideoDuration-(transition.type==="crossfade"?Math.max(0,videos.length-1)*transition.durationMs/1000:0));
+    const joins=Math.max(0,videos.length-1);
+    const videoDuration=Math.max(0,rawVideoDuration+(transition.type==="black-gap"?joins*transition.durationMs/1000:0)-(transition.type==="crossfade"?joins*transition.durationMs/1000:0));
     const requestedDuration=Number($("timelineProjectDuration")?.value||0);
     const duration=Math.max(videoDuration,Number.isFinite(requestedDuration)&&requestedDuration>0?requestedDuration:0);
     $("timelineVisualDuration").textContent=formatTime(duration);
@@ -148,11 +149,14 @@
     addLane("VIDEO","is-video",videos,(clip,track)=>{
       const length=Math.max(0,clip.outPoint-clip.inPoint);
       const overlap=previousVideo&&transition.type==="crossfade"?transition.durationMs/1000:0;
-      const start=Math.max(0,cursor-overlap);
-      if(overlap>0){
-        const marker=document.createElement("span");marker.className="timeline-transition-marker";
-        marker.style.left=(start/duration*100)+"%";marker.style.width=(overlap/duration*100)+"%";
-        marker.textContent="DISSOLVE";marker.title="크로스페이드 · "+formatTime(overlap);marker.setAttribute("aria-label",marker.title);track.append(marker);
+      const blackGap=previousVideo&&transition.type==="black-gap"?transition.durationMs/1000:0;
+      const start=Math.max(0,cursor-overlap+blackGap);
+      if(overlap>0||blackGap>0){
+        const marker=document.createElement("span");marker.className="timeline-transition-marker"+(blackGap>0?" is-black-gap":"");
+        marker.style.left=((blackGap>0?cursor:start)/duration*100)+"%";marker.style.width=((overlap||blackGap)/duration*100)+"%";
+        marker.textContent=blackGap>0?"BLACK":"DISSOLVE";
+        marker.title=(blackGap>0?"검은 화면":"크로스페이드")+" · "+formatTime(overlap||blackGap);
+        marker.setAttribute("aria-label",marker.title);track.append(marker);
       }
       const segment=document.createElement("button");
       segment.type="button";segment.className="timeline-segment is-video"+(local()?.state.selected===clip.id?" is-selected":"");
@@ -259,7 +263,7 @@
     if(!localState||localState.clips.length>20)throw new Error("EDL v1은 영상과 타이틀을 합쳐 최대 20개 클립을 지원합니다.");
     const clips=await ensureVideoAssets(workspaceId);
     const audioTracksInput=await ensureAudioAssets(workspaceId);
-    const transition=transitionSettings(),transitions=[];
+    const transition=transitionSettings(),transitions=[],gaps=[];
     let cursor=0,previousClip=null,previousDuration=0;
     const edlClips=[];
     for(const clip of clips){
@@ -268,10 +272,12 @@
       if(sourceOut<=sourceIn)throw new Error(clip.name+" · 유효하지 않은 소스 구간입니다.");
       const duration=sourceOut-sourceIn;
       const overlap=previousClip&&transition.type==="crossfade"?transition.durationMs:0;
+      const gap=previousClip&&transition.type==="black-gap"?transition.durationMs:0;
       if(overlap>0&&(overlap>=duration||overlap>=previousDuration))throw new Error("크로스페이드 길이는 연결된 두 영상 클립 각각의 길이보다 짧아야 합니다.");
-      const start=Math.max(0,cursor-overlap);
+      const start=Math.max(0,cursor-overlap+gap);
       edlClips.push({id:clip.id,type:"video",start_ms:start,end_ms:start+duration,asset_id:clip.assetId,source_in_ms:sourceIn,source_out_ms:sourceOut});
       if(overlap>0)transitions.push({from_clip_id:previousClip.id,to_clip_id:clip.id,type:"crossfade",duration_ms:overlap});
+      if(gap>0)gaps.push({after_clip_id:previousClip.id,before_clip_id:clip.id,duration_ms:gap});
       cursor=start+duration;previousClip=clip;previousDuration=duration;
     }
     if(cursor<=0)throw new Error("렌더링할 영상 구간이 없습니다.");
@@ -301,6 +307,7 @@
     });
     const edl={schema:"nexus-edit-decision-list",version:1,timebase:"milliseconds",clips:edlClips,audio_tracks:audioTracks};
     if(transitions.length)edl.transitions=transitions;
+    if(gaps.length)edl.gaps=gaps;
     if(projectDurationRaw)edl.project_duration_ms=projectDurationMs;
     return edl;
   }
