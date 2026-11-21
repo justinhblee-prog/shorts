@@ -30,14 +30,20 @@ class TimelineRenderWorkerServiceConfigTests(unittest.TestCase):
                 self.calls.append(("artifacts", grace_seconds))
                 return {"removed": 3, "removed_bytes": 40}
 
+            def storage_usage(self):
+                return {"files": 7, "used_bytes": 700, "max_bytes": 1000, "available_bytes": 300}
+
         store = Store()
         with self.assertLogs("nexus.timeline_render_worker", level="INFO") as captured:
             result = reconcile_artifacts(store)
         self.assertEqual(store.calls, [("staging", 7200), ("artifacts", 7200)])
         self.assertEqual(result["removed"], 6)
         self.assertEqual(result["staging"]["removed_bytes"] + result["artifacts"]["removed_bytes"], 70)
+        self.assertEqual(result["storage"]["available_bytes"], 300)
         self.assertIn("removed_staging_files=2", captured.output[0])
         self.assertIn("removed_artifacts=3", captured.output[0])
+        self.assertIn("artifact_storage_used_bytes=700", captured.output[0])
+        self.assertIn("artifact_storage_quota_bytes=1000", captured.output[0])
 
     def test_integer_environment_values_are_bounded_decimal_values(self):
         with patch.dict(os.environ, {"NEXUS_RENDER_WIDTH": "720"}):
