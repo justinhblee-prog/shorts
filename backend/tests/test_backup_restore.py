@@ -114,9 +114,10 @@ class BackupRestoreTests(unittest.TestCase):
         ample = type("DiskUsage", (), {"free": 10**12})()
         # Both targets share this test filesystem: the combined DB + media
         # staging size must be checked in one capacity request.
-        with patch("backup_restore.shutil.disk_usage", return_value=ample) as disk_usage:
-            with patch.dict(os.environ, {"NEXUS_RESTORE_MIN_FREE_BYTES": "0"}):
-                restore_backup(backup, self.db, self.media, self.backups, confirm_restore=True)
+        with patch("backup_restore.create_backup", return_value={"backup_path": str(backup)}):
+            with patch("backup_restore.shutil.disk_usage", return_value=ample) as disk_usage:
+                with patch.dict(os.environ, {"NEXUS_RESTORE_MIN_FREE_BYTES": "0"}):
+                    restore_backup(backup, self.db, self.media, self.backups, confirm_restore=True)
         self.assertEqual(disk_usage.call_count, 1)
 
     def test_restore_cleans_replacement_staging_when_pre_restore_backup_fails(self):
