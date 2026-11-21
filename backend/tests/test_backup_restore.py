@@ -39,6 +39,25 @@ class BackupRestoreTests(unittest.TestCase):
         with sqlite3.connect(self.db) as connection:
             return connection.execute("SELECT value FROM sample").fetchone()[0]
 
+
+    def test_backup_fails_before_staging_when_free_space_is_insufficient(self):
+        (self.media / "clip.mp4").write_bytes(b"media-payload")
+        low_space = type("DiskUsage", (), {"free": 0})()
+        with patch("backup_restore.shutil.disk_usage", return_value=low_space):
+            with patch.dict(os.environ, {"NEXUS_BACKUP_MIN_FREE_BYTES": "0"}):
+                with self.assertRaisesRegex(BackupRestoreError, "Insufficient free disk space"):
+                    create_backup(self.db, self.media, self.backups)
+        self.assertEqual(list(self.backups.iterdir()), [])
+
+    def test_backup_rejects_invalid_minimum_free_space_setting(self):
+        with patch.dict(os.environ, {"NEXUS_BACKUP_MIN_FREE_BYTES": "-1"}):
+            with self.assertRaisesRegex(BackupRestoreError, "non-negative integer"):
+                create_backup(self.db, self.media, self.backups)
+        with patch.dict(os.environ, {"NEXUS_BACKUP_MIN_FREE_BYTES": "invalid"}):
+            with self.assertRaisesRegex(BackupRestoreError, "non-negative integer"):
+                create_backup(self.db, self.media, self.backups)
+        self.assertEqual(list(self.backups.iterdir()), [])
+
     def test_backup_contains_consistent_database_and_media_manifest(self):
         (self.media / "clip.mp4").write_bytes(b"ftyp-test-media")
         (self.media / "nested").mkdir()
