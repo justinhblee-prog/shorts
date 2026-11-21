@@ -1,10 +1,12 @@
 import os
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
 
 import app as app_module
+import development_jobs as development_jobs_module
 from development_jobs import DevelopmentJobStore
 from fastapi import HTTPException
 
@@ -168,14 +170,25 @@ class DevelopmentJobApiTests(unittest.TestCase):
         self.assertTrue(all(events["events"][i]["timestamp"] <= events["events"][i+1]["timestamp"] for i in range(len(events["events"]) - 1)))
 
     def test_pagination_limit_truncates_results(self):
-        claimed = self.store.claim_ready("runner-visible-id")
-        self.store.touch_worker(
-            "runner-visible-id", hostname="private-runner-host",
-            current_job_id=self.job["id"],
-        )
-        with mock.patch.object(app_module, "require_review_permission"):
-            jobs = app_module.development_jobs(status="leased", limit=1, x_review_token="operator-token")
-        self.assertEqual(len(jobs["items"]), 1)
+        second = self.store.create(title="Second pagination fixture", priority=101)
+        third = self.store.create(title="Third pagination fixture", priority=102)
+        claimed_ids = {
+            self.store.claim_ready("runner-visible-id-1")["id"],
+            self.store.claim_ready("runner-visible-id-2")["id"],
+            self.store.claim_ready("runner-visible-id-3")["id"],
+        }
+        self.assertEqual(claimed_ids, {self.job["id"], second["id"], third["id"]})
+        with (
+            mock.patch.object(app_module, "_get_development_job_store", return_value=self.store),
+            mock.patch.object(app_module, "require_review_permission"),
+        ):
+            one = app_module.development_jobs(status="leased", limit=1, x_review_token="operator-token")
+            two = app_module.development_jobs(status="leased", limit=2, x_review_token="operator-token")
+            all_jobs = app_module.development_jobs(status="leased", limit=20, x_review_token="operator-token")
+        self.assertEqual(len(all_jobs["items"]), 3)
+        self.assertEqual(len(two["items"]), 2)
+        self.assertEqual(len(one["items"]), 1)
+        self.assertEqual(len({item["id"] for item in two["items"]}), 2)
 
     def test_maximum_page_size_enforced(self):
         claimed = self.store.claim_ready("runner-visible-id")
@@ -189,19 +202,22 @@ class DevelopmentJobApiTests(unittest.TestCase):
             self.assertEqual(limit_error.exception.status_code, 422)
 
     def test_stable_chronological_ordering(self):
-        claimed = self.store.claim_ready("runner-visible-id")
-        self.store.touch_worker(
-            "runner-visible-id", hostname="private-runner-host",
-            current_job_id=self.job["id"],
-        )
-        events = self.store.create_events(self.job["id"], [
-            {"timestamp": "2023-04-01T00:00:00Z", "details": "Event 1"},
-            {"timestamp": "2023-04-02T00:00:00Z", "details": "Event 2"},
-            {"timestamp": "2023-04-03T00:00:00Z", "details": "Event 3"},
+        timestamps = iter([
+            datetime(2023, 4, 1, tzinfo=timezone.utc),
+            datetime(2023, 4, 2, tzinfo=timezone.utc),
+            datetime(2023, 4, 3, tzinfo=timezone.utc),
         ])
-        with mock.patch.object(app_module, "require_review_permission"):
-            events_result = app_module.development_job_events(self.job["id"], limit=20, x_review_token="operator-token")
-        self.assertTrue(all(events_result["events"][i]["timestamp"] <= events_result["events"][i+1]["timestamp"] for i in range(len(events_result["events"]) - 1)))
+        with mock.patch.object(development_jobs_module, "_now", side_effect=lambda: next(timestamps)):
+            claimed = self.store.claim_ready("runner-visible-id")
+            self.store.heartbeat(self.job["id"], "runner-visible-id", claimed["lease_token"])
+            # The store creates three immutable events with deliberately distinct timestamps.
+            # The initial created event uses the fixture setup clock; replace the event clock
+            # sequence below with deterministic ascending timestamps for this assertion.
+        events = self.store.events(self.job["id"], limit=20)
+        self.assertGreaterEqual(len(events), 3)
+        event_timestamps = [event["created_at"] for event in events]
+        self.assertEqual(event_timestamps, sorted(event_timestamps))
+        self.assertEqual(len(set(event_timestamps)), len(event_timestamps))
 
 
 if __name__ == "__main__":
