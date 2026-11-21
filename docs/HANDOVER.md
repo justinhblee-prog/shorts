@@ -1258,3 +1258,8 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Backend suite: **466 tests, OK**.
 - The full `scripts/validate.sh` command completed successfully.
 - This validates candidate capture, deduplication and exact attribution logic; it does not validate live account publishing or audience outcomes.
+
+
+## BUILD-00362 — automatic abandoned media staging cleanup
+
+The single-leader scheduler now runs `MediaStager.prune_temporary_files()` once per configured interval while holding its scheduler lease. It deletes only old `.nexus-*.part` files, default age 24 hours; interval default one hour. Bounds are clamped to at least one hour retention and five minutes between sweeps. Completed MP4 assets are untouched, and confirmed-upload cleanup remains unchanged. Cleanup errors are logged independently and do not stop schedule dispatch.
