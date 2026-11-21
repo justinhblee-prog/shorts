@@ -33,6 +33,12 @@ GitHub Actions on the integrated Draft PR:
 
 The smoke uses generated fixture media. It does not establish production compatibility across arbitrary user media or prove a malware-signature update on the deployment host.
 
+## Scheduled artifact reconciliation
+
+The optional Compose render worker runs artifact reconciliation immediately after startup and then at the configured interval (`NEXUS_RENDER_RECONCILE_INTERVAL_SECONDS`, default 300 seconds, bounded to 60–86400). Each pass applies a two-hour grace period and records structured counts for stale staging files/directories, unindexed generated artifacts and removed bytes. A failed pass is logged and retried at the next interval without taking the render worker offline.
+
+This sweep is deliberately limited to crash-left staging outputs and generated artifact files that have no database index. It never deletes indexed review artifacts. Indexed-artifact retention, user deletion, quotas and backup-retention interaction remain an explicit operator policy decision and are not automated by this worker.
+
 ## Remaining production gates
 
 - Pin FFmpeg/ffprobe to reviewed versions and verify against an independently maintained checksum manifest; the image currently generates its manifest from the installed binaries.
