@@ -8,7 +8,8 @@ Scope: single-host Docker deployment and supervised operation.
 Copy `.env.example` to `.env`. Never commit the real file.
 
 Required for protected operations:
-- `NEXUS_REVIEW_TOKEN`: long, random operator token.
+- Preferred: `NEXUS_REVIEW_CREDENTIALS_JSON` with per-operator credentials and `NEXUS_REVIEW_ROLE_MAP_JSON` with least-privilege role assignments.
+- Legacy migration fallback only: `NEXUS_REVIEW_TOKEN`, a long random secret. Do not configure both modes; the JSON credentials take precedence.
 
 Required for end-to-end AI production:
 - `SCRIPT_PROVIDER_URL`, `SCRIPT_PROVIDER_TOKEN`
