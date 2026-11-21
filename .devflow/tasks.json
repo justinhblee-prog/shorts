@@ -216,7 +216,8 @@
         "Selecting a video/title segment selects the corresponding clip in the editor",
         "Preserve EDL v1 render submission, private artifact preview and human review actions",
         "Keep the editor responsive across desktop, tablet and narrow mobile widths",
-        "Do not auto-publish or expose public media URLs"
+        "Do not auto-publish or expose public media URLs",
+        "Provide timeline zoom controls with fit/reset and horizontal scrolling for longer projects."
       ],
       "external_gates": [
         "Browser codec support for customer video thumbnail extraction and representative media sizes",
@@ -229,12 +230,13 @@
         "Added a graphical timeline ruler with sequential video, timed title-overlay and optional audio-bed lanes",
         "Bound shelf cards and timeline segments to the existing local clip selection and preview state",
         "Extended browser and responsive smoke assertions for media shelf, visual timeline and inspector behavior",
-        "Integrated multi-track audio controls into the media-shelf branch so the visual timeline displays independent audio segments at their configured offsets."
+        "Integrated multi-track audio controls into the media-shelf branch so the visual timeline displays independent audio segments at their configured offsets.",
+        "Added 100–400% timeline zoom controls, fit reset and horizontal navigation buttons while preserving the scrollable visual timeline."
       ],
       "remaining": [
         "Run exact-head backend, Playwright and responsive CI; do not mark complete until all pass",
         "Validate thumbnail extraction with representative real customer codecs and large files",
-        "Add explicit project-duration controls and timeline zoom/scroll."
+        "Add explicit project-duration controls after the backend EDL v1 contract defines trailing-gap and duration semantics."
       ]
     }
   ]
