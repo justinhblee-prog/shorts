@@ -446,7 +446,8 @@
     try{await api("/api/queue/stats");$("settingsDialog").close();msg("tokenMessage","인증 성공");await refreshAll();}
     catch(e){token="";msg("tokenMessage",e.message,true);}
   });
-  try{apiOrigin=normalizeApiOrigin(localStorage.getItem("nexusApiOrigin")||"");}catch{localStorage.removeItem("nexusApiOrigin");apiOrigin="";}\n  $("apiOriginInput").value=apiOrigin;
+  try{apiOrigin=normalizeApiOrigin(localStorage.getItem("nexusApiOrigin")||"");}catch{localStorage.removeItem("nexusApiOrigin");apiOrigin="";}
+  $("apiOriginInput").value=apiOrigin;
   $("clearToken").addEventListener("click",()=>{token="";$("tokenInput").value="";setConnection(false,"인증 필요");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");});
   $("refreshAll").addEventListener("click",refreshAll);
   $("loadReviews").addEventListener("click",()=>loadReviews().catch(e=>toast(e.message)));
