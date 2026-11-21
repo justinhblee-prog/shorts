@@ -38,3 +38,9 @@ Existing offline suites already exercise fake transports and service factories i
 5. Actual HTTPS contract verification, real generated script/voice/video provenance, provider latency/cost/failure evidence and human review before any publishing action.
 
 No credentials, account connections, provider scopes, external uploads or public posts were created or changed. No live HTTP requests are part of this PR. BUILD-00353 remains `blocked_external` for its live acceptance criteria.
+
+## Exact-head validation
+
+- Draft PR #475 exact head `eca95fc3da429b7ffd117436af68bf413a7794f1` passed Backend [run 44888635179](https://github.com/justinhblee-prog/shorts/actions/runs/44888635179): 949 tests and Playwright browser smoke.
+- Compose [run 44888635188](https://github.com/justinhblee-prog/shorts/actions/runs/44888635188) passed service isolation, ClamAV readiness, real FFmpeg render/adoption/review, authenticated upload/review/private preview and encrypted backup/isolated restore.
+- These are offline contract and generated-fixture CI checks only; they do not verify live provider HTTPS endpoints or customer account credentials.
