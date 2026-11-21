@@ -46,17 +46,18 @@ Storage boundaries:
 | PR | Scope | Validation |
 |---|---|---|
 | [#461](https://github.com/justinhblee-prog/shorts/pull/461) | Hosted frontend API origin and exact-origin CORS configuration | CI run 44870547319 passed; 468 tests |
-| [#463](https://github.com/justinhblee-prog/shorts/pull/463) | Responsive PC/tablet/mobile preview with live API setup | CI run 44873045880 passed; 468 tests; Vercel preview READY |
+| [#463](https://github.com/justinhblee-prog/shorts/pull/463) | Responsive PC/tablet/mobile preview with live API setup | Latest CI run 44877213798 passed; backend validation and Playwright browser smoke passed; fresh Vercel preview READY |
 | [#460](https://github.com/justinhblee-prog/shorts/pull/460) | Earlier responsive preview shell | CI run 44870039465 passed |
 | [#457](https://github.com/justinhblee-prog/shorts/pull/457) | Preview feedback helper newline-only change | Workflow requires action; not a functional prerequisite for #463 |
 
 Current preview:
-- [Responsive preview](https://nexus-studio-pro-ui-preview-h2q1uljae-justinhblee-9540.vercel.app/preview.html)
-- [Application root](https://nexus-studio-pro-ui-preview-h2q1uljae-justinhblee-9540.vercel.app/)
-- Vercel deployment: `dpl_5qLXj5vzG3gbS3ULMwEDq9WmzGZz`, READY, commit `d6c5a9d`.
-- HTTP 200 verified for `/preview.html`, `/`, `/app.js` and `/styles.css`.
-- Preview controls alter the actual iframe viewport (PC/tablet/mobile/auto, portrait/landscape, fit/100%); they are not screenshot mockups.
-- Source/asset inspection and HTTP checks were performed. Full interactive browser/device visual QA has not yet been completed.
+- [Responsive preview](https://nexus-studio-pro-ui-preview-hah79qazj-justinhblee-9540.vercel.app/preview.html)
+- [Application root](https://nexus-studio-pro-ui-preview-hah79qazj-justinhblee-9540.vercel.app/)
+- Vercel deployment: `dpl_4P4eeKVaZqhHEEU9Q1DoGd148V9y`, READY, commit `daaae441139103b90280a2dbc1f2993733d7f13f`.
+- HTTP 200 verified for `/preview.html`, `/`, `/app.js`, `/styles.css` and `/cyber-magic.css`.
+- Preview controls alter the actual iframe viewport (PC/tablet/mobile/auto, portrait/landscape, fit/100%); Auto mode fills the stage and tracks window resizing.
+- Playwright browser smoke passed at PC 1440px, tablet 820px, mobile 390px, mobile landscape 844px, 1600px→1280px Auto resize, and 320px dashboard width with no horizontal overflow or uncaught page errors.
+- CI screenshots are retained for 7 days in [run 44877213798 artifacts](https://github.com/justinhblee-prog/shorts/actions/runs/44877213798/artifacts/14696256756). This is headless browser validation, not physical-device testing.
 
 Frontend API configuration:
 - HTTPS backend origin can be set in the connection dialog (localhost is allowed for local development).
@@ -75,7 +76,7 @@ Frontend API configuration:
 Latest relevant checks:
 - #456 latest head `3dfcad292214649954fd645cff2c62f1cc5c5946`: Backend run [44874981857](https://github.com/justinhblee-prog/shorts/actions/runs/44874981857) success; Compose run [44874981840](https://github.com/justinhblee-prog/shorts/actions/runs/44874981840) success.
 - #462 code head `6368c1d`: run [44874416537](https://github.com/justinhblee-prog/shorts/actions/runs/44874416537) success, 472 tests; subsequent docs-only head `c895df9` has run [44874507461](https://github.com/justinhblee-prog/shorts/actions/runs/44874507461) success.
-- #463 responsive preview: run [44873045880](https://github.com/justinhblee-prog/shorts/actions/runs/44873045880) success, 468 tests.
+- #463 responsive preview: latest run [44877213798](https://github.com/justinhblee-prog/shorts/actions/runs/44877213798) success; backend validation and responsive Playwright browser smoke both passed. Earlier baseline [44873045880](https://github.com/justinhblee-prog/shorts/actions/runs/44873045880) passed 468 tests.
 - Preview deployment runtime log query returned no warning/error/fatal entries in the inspected 50-minute window; this is not proof of all browser paths working.
 
 Automated CI and Compose smoke do not prove:
@@ -84,7 +85,7 @@ Automated CI and Compose smoke do not prove:
 - Live YouTube/TikTok OAuth, account permissions, private upload processing or analytics coverage.
 - Real financial reconciliation, monetization eligibility or positive net revenue.
 - Host-level disk quotas, production monitoring, alerting or a disaster-recovery drill.
-- Full browser interaction and visual QA across physical devices.
+- Full manual visual review across physical devices and API-connected acceptance with a deployed backend.
 
 ## 4. External deployment prerequisites
 
@@ -101,7 +102,7 @@ Automated CI and Compose smoke do not prove:
 
 1. Keep all Draft PRs open and unmerged; preserve dependency ordering (#452 before #456/#453).
 2. Continue storage lifecycle integration checks across upload, render, scratch cleanup, backup and restore.
-3. Complete interactive PC/tablet/mobile review of the current Vercel preview and record defects before modifying the UI.
+3. Review the fresh Vercel preview manually on physical PC/tablet/mobile devices; headless Playwright coverage is now in place.
 4. Deploy a non-production backend and verify exact-origin CORS plus authenticated frontend operations.
 5. Validate real provider and platform workflows only after credentials and test accounts are available.
 6. Refresh this handover whenever a major validation gate changes.
