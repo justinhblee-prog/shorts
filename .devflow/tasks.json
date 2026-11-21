@@ -142,6 +142,18 @@
       "external_gates": [
         "Operator-supplied credentials and approved spend ceiling",
         "Provider contract, licensing and data-processing review"
+      ],
+      "implemented_increment": [
+        "Audited existing YouTube and TikTok OAuth/publishing adapters and their injected offline transports/service factories; confirmed current OAuth token stores are global singleton connections",
+        "Both OAuth adapters reject non-object JSON token responses before provider field access; TikTok access/refresh expiry values require positive non-boolean JSON integers",
+        "Added deterministic no-network regression tests for malformed OAuth response objects and TikTok expiry type/range boundaries",
+        "Documented offline provider contract coverage and external acceptance gates in docs/BUILD_00353_PROVIDER_OFFLINE_CONTRACTS.md"
+      ],
+      "remaining": [
+        "Run exact-head Backend and Compose CI for offline contract changes",
+        "Verify configured providers against actual HTTPS contracts only after operator credentials, spend ceiling, licensing and data-processing approval are supplied",
+        "Complete workspace-owned provider connections before enabling independent B2B tenant credentials",
+        "Generate and inspect real script, voice track and MP4 with cost/latency/failure/provenance evidence after live gates are approved"
       ]
     },
     {
