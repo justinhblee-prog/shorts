@@ -12,6 +12,7 @@ on:
       - "scripts/git-cli-agent-config.ps1"
       - "scripts/start-devflow-autopilot.ps1"
       - "scripts/start-devflow-detached.ps1"
+      - "scripts/install-devflow-scheduled-task.ps1"
       - "scripts/devflow-agent-process.ps1"
       - "scripts/ollama-agent.py"
       - "scripts/test_ollama_tool_protocol.py"
@@ -52,6 +53,7 @@ jobs:
             "scripts/git-cli-agent-config.ps1",
             "scripts/start-devflow-autopilot.ps1",
             "scripts/start-devflow-detached.ps1",
+            "scripts/install-devflow-scheduled-task.ps1",
             "scripts/devflow-agent-process.ps1"
           )
           foreach ($file in $files) {
@@ -74,6 +76,11 @@ jobs:
           }
           Write-Host "Planner correctly excludes tasks represented by open PRs."
           Write-Host $plan
+      - name: Validate Windows scheduled supervisor task definition
+        shell: pwsh
+        run: |
+          & "$PWD/scripts/install-devflow-scheduled-task.ps1" -ValidateOnly -MaxTasks 3 -PollIntervalSeconds 60
+          if ($LASTEXITCODE -ne 0) { throw "Scheduled supervisor task definition validation failed." }
       - name: Validate Agent CLI configuration contract
         shell: pwsh
         run: |
