@@ -220,6 +220,31 @@ class YouTubeOAuthTests(unittest.TestCase):
             manager.exchange_code("code", state)
         self.assertIsNone(self.store.token_record())
 
+    def test_oauth_rejects_malformed_scope_and_token_type_metadata(self):
+        base = {
+            "access_token": "access-secret",
+            "refresh_token": "refresh-secret",
+            "scope": " ".join((*REQUIRED_SCOPES, ANALYTICS_READ_SCOPE)),
+            "token_type": "Bearer",
+        }
+        for field, value in (
+            ("scope", ["not", "a", "scope"]),
+            ("scope", ""),
+            ("token_type", ["Bearer"]),
+            ("token_type", "MAC"),
+        ):
+            with self.subTest(field=field, value=value):
+                transport = GoogleOAuthTransport([(200, {**base, field: value})])
+                manager = YouTubeOAuthManager(
+                    self.store, "google-client-id", "google-client-secret",
+                    "https://studio.example.test/api/youtube/oauth/callback",
+                    self.key, transport,
+                )
+                auth = manager.start_authorization()
+                with self.assertRaisesRegex(YouTubeOAuthError, "scope metadata|token type"):
+                    manager.exchange_code("authorization-code", auth["state"])
+                self.assertIsNone(self.store.token_record())
+
     def test_missing_refresh_token_does_not_claim_connection(self):
         transport = GoogleOAuthTransport([(
             200, {"access_token": "access", "scope": " ".join(REQUIRED_SCOPES)}
