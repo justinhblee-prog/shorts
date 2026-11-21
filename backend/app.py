@@ -1,6 +1,7 @@
 import os
 import logging
 import secrets
+import sqlite3
 from typing import Any, Literal
 from fastapi import FastAPI, HTTPException, Header, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
@@ -30,6 +31,7 @@ from recommendation_evaluation import RecommendationEvaluationStore
 from scheduler_store import ScheduleStore
 from media_staging import MediaStager, MediaStagingError
 from preflight import build_preflight
+from development_jobs import DevelopmentJobStore, DevelopmentJobNotFound
 
 queue=JobQueue(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"),int(os.getenv("NEXUS_LEASE_SECONDS","90")))
 class TikTokOAuthAccessLogRedaction(logging.Filter):
@@ -100,6 +102,15 @@ performance_analyzer=PerformanceAnalyzer(os.getenv("NEXUS_DB_PATH","data/nexus.s
 recommendation_evaluation_store=RecommendationEvaluationStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 schedule_store=ScheduleStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 media_stager=MediaStager()
+
+# The development monitor is opt-in and reads the runner's existing SQLite file.
+# It never creates a separate empty queue when the shared database is unavailable.
+_development_job_store_instance = None
+_development_job_store_path = None
+_DEVELOPMENT_JOB_STATUSES = {
+    "ready", "blocked", "leased", "running", "retry_wait", "quarantined",
+    "review_pending", "completed", "cancelled",
+}
 
 class Enqueue(BaseModel):
     job_type:str=Field(min_length=1,max_length=100)
@@ -367,6 +378,156 @@ def require_review_permission(token, permission):
     if not allowed:
         raise HTTPException(403,"Operator role does not grant this action")
     return operator_id
+
+
+def _get_development_job_store():
+    """Open only an existing, complete development DB; never invent an empty monitor."""
+    global _development_job_store_instance, _development_job_store_path
+    configured = os.getenv("NEXUS_DEVELOPMENT_DB", "").strip()
+    if not configured:
+        raise HTTPException(503, "Development job database is not configured")
+    path = Path(configured).expanduser()
+    if not path.is_absolute():
+        raise HTTPException(503, "NEXUS_DEVELOPMENT_DB must be an absolute shared path")
+    if not path.is_file():
+        raise HTTPException(503, "Development job database is not available on this API host")
+    resolved = path.resolve()
+    try:
+        # Inspect the schema through a read-only SQLite connection before constructing
+        # the store, whose initializer is allowed to create missing tables/migrations.
+        with sqlite3.connect(resolved.as_uri() + "?mode=ro", uri=True, timeout=5) as connection:
+            required = {
+                "development_jobs": {
+                    "id", "title", "description", "status", "priority", "scope_json",
+                    "acceptance_json", "max_attempts", "attempts", "worker_id",
+                    "lease_token", "lease_expires_at", "source_ref", "changed_files_json",
+                    "tests_passed", "validation_ref", "result_summary", "created_at",
+                    "updated_at", "started_at", "completed_at", "retry_after",
+                    "review_url", "review_head_sha", "review_published_at",
+                },
+                "development_job_dependencies": {"job_id", "depends_on_id", "created_at"},
+                "development_job_events": {
+                    "id", "job_id", "event_type", "from_status", "to_status",
+                    "actor", "details_json", "created_at",
+                },
+                "development_workers": {
+                    "worker_id", "hostname", "status", "current_job_id",
+                    "started_at", "last_seen_at", "stopped_at",
+                },
+            }
+            for table, expected_columns in required.items():
+                actual_columns = {
+                    row[1] for row in connection.execute(f"PRAGMA table_info({table})")
+                }
+                if not expected_columns.issubset(actual_columns):
+                    raise HTTPException(503, "Development job database schema is incomplete")
+    except HTTPException:
+        raise
+    except Exception as error:
+        raise HTTPException(503, "Development job database is unreadable") from error
+
+    resolved_path = str(resolved)
+    if _development_job_store_instance is None or _development_job_store_path != resolved_path:
+        try:
+            _development_job_store_instance = DevelopmentJobStore(resolved_path)
+            _development_job_store_path = resolved_path
+        except Exception as error:
+            _development_job_store_instance = None
+            _development_job_store_path = None
+            raise HTTPException(503, "Development job database could not be opened") from error
+    return _development_job_store_instance
+
+
+def _development_job_view(job):
+    fields = (
+        "id", "title", "description", "status", "priority", "scope", "acceptance",
+        "max_attempts", "attempts", "worker_id", "lease_expires_at", "source_ref",
+        "changed_files", "tests_passed", "validation_ref", "result_summary",
+        "created_at", "updated_at", "started_at", "completed_at", "retry_after",
+        "review_url", "review_head_sha", "review_published_at", "dependencies",
+    )
+    return {field: job.get(field) for field in fields}
+
+
+@app.get("/api/development/summary")
+def development_job_summary(x_review_token: str | None = Header(default=None)):
+    require_review_permission(x_review_token, "development.read")
+    return _get_development_job_store().summary()
+
+
+@app.get("/api/development/jobs")
+def development_jobs(
+    status: str | None = None,
+    limit: int = 100,
+    x_review_token: str | None = Header(default=None),
+):
+    require_review_permission(x_review_token, "development.read")
+    if isinstance(limit, bool) or not 1 <= limit <= 200:
+        raise HTTPException(422, "limit must be between 1 and 200")
+    if status is not None:
+        status = status.strip()
+        if status not in _DEVELOPMENT_JOB_STATUSES:
+            raise HTTPException(422, "unsupported development job status")
+    store = _get_development_job_store()
+    rows = store.list(statuses=[status] if status else None, limit=limit)
+    return {"items": [_development_job_view(store.get(row["id"])) for row in rows]}
+
+
+@app.get("/api/development/jobs/{job_id}")
+def development_job_detail(job_id: str, x_review_token: str | None = Header(default=None)):
+    require_review_permission(x_review_token, "development.read")
+    job = _get_development_job_store().get(job_id)
+    if job is None:
+        raise HTTPException(404, "Development job not found")
+    return {"job": _development_job_view(job)}
+
+
+@app.get("/api/development/jobs/{job_id}/events")
+def development_job_events(
+    job_id: str,
+    limit: int = 100,
+    x_review_token: str | None = Header(default=None),
+):
+    require_review_permission(x_review_token, "development.read")
+    if isinstance(limit, bool) or not 1 <= limit <= 200:
+        raise HTTPException(422, "limit must be between 1 and 200")
+    store = _get_development_job_store()
+    try:
+        events = store.events(job_id, limit=limit)
+    except DevelopmentJobNotFound:
+        raise HTTPException(404, "Development job not found")
+    return {
+        "events": [
+            {
+                "id": event["id"],
+                "event_type": event["event_type"],
+                "from_status": event["from_status"],
+                "to_status": event["to_status"],
+                "actor": event["actor"],
+                "created_at": event["created_at"],
+            }
+            for event in events
+        ]
+    }
+
+
+@app.get("/api/development/workers")
+def development_workers(x_review_token: str | None = Header(default=None)):
+    require_review_permission(x_review_token, "development.read")
+    workers = _get_development_job_store().list_workers()
+    return {
+        "workers": [
+            {
+                "worker_id": worker["worker_id"],
+                "status": worker["status"],
+                "current_job_id": worker["current_job_id"],
+                "last_seen_at": worker["last_seen_at"],
+                "stopped_at": worker["stopped_at"],
+                "is_online": worker["is_online"],
+            }
+            for worker in workers
+        ]
+    }
 
 
 @app.get("/api/review/pending")
