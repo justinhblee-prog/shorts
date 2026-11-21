@@ -97,7 +97,7 @@ class BackupRestoreTests(unittest.TestCase):
                     restore_backup(backup, self.db, self.media, self.backups, confirm_restore=True)
         self.assertEqual(self._db_value(), "current")
         self.assertEqual((self.media / "clip.mp4").read_bytes(), b"restore-media")
-        self.assertFalse(Path(self.backups).glob("nexus-backup-*.tar.gz"))
+        self.assertEqual(len(list(Path(self.backups).glob("nexus-backup-*.tar.gz"))), 1)
         self.assertFalse(list(self.root.glob("nexus-restore-*")))
 
     def test_restore_rejects_invalid_minimum_free_space_setting(self):
