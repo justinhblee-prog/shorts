@@ -1296,3 +1296,14 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Latest review document commit: `0aefe59f025ffca8459d75bdf352e9cccf4098dd`. This is a documentation-only follow-up after the exact-head CI run; do not describe this later doc commit as independently CI-tested.
 - PR #416 remains Open, Draft, Unmerged. Keep it that way. No workflow dispatch, schedule activation, runner/secret change, merge, or deployment.
 - Activation blockers remain: dedicated low-privilege Windows runner/VM, ACL and egress restrictions, secret inventory, real Windows/Ollama execution, cross-run LocalAppData persistence, and disposable Draft PR publication/recovery round-trip.
+
+
+## 2026-11-21 — DEV-ORCH-008 read-only development monitor
+
+- Follow-on branch: `feat/dev-orch-008-readonly-dashboard-2026-11-21`, based on PR #416 head `f9bdba674cdd9beab046f421748aa929e97201ea`.
+- Added authenticated GET-only development summary, job list/detail, event history and worker-presence endpoints, plus an operator-only `development.read` permission.
+- Added the dashboard's development monitor section with status filtering, queue/lease counts, worker presence, Draft PR links and event history.
+- Responses omit lease tokens, runner hostnames and event details. The monitor has no job mutation or workflow-dispatch controls.
+- The monitor fails closed when `NEXUS_DEVELOPMENT_DB` is unset, missing, non-absolute or schema-incomplete. It never creates a misleading empty queue.
+- **Operational dependency:** the API process must see the exact same SQLite file used by the persistent Windows runner. The runner's LocalAppData file is not automatically shared with a Docker container.
+- Hosted exact-head CI, real Windows file sharing, and actual browser validation are pending. No workflow dispatch, runner/secret change, merge, deployment or data deletion was performed.
