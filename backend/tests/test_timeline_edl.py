@@ -161,5 +161,44 @@ class TimelineEDLTests(unittest.TestCase):
         with self.assertRaises(EDLValidationError):
             validate_edl({**payload, "transitions": [{**transition, "extra": True}]})
 
+    def test_normalizes_explicit_internal_black_gaps_and_rejects_unsafe_pairs(self):
+        first = {
+            "id": "video-a", "type": "video", "start_ms": 0, "end_ms": 2000,
+            "asset_id": "asset_a", "source_in_ms": 0, "source_out_ms": 2000,
+        }
+        second = {
+            "id": "video-b", "type": "video", "start_ms": 2500, "end_ms": 4500,
+            "asset_id": "asset_b", "source_in_ms": 1000, "source_out_ms": 3000,
+        }
+        gap = {"after_clip_id": "video-a", "before_clip_id": "video-b", "duration_ms": 500}
+        payload = {
+            "schema": SCHEMA, "version": 1, "timebase": "milliseconds",
+            "clips": [first, second], "gaps": [gap], "project_duration_ms": 4500,
+        }
+        normalized = validate_edl(payload)
+        self.assertEqual(normalized["gaps"], [gap])
+
+        invalid_cases = (
+            [{**gap, "duration_ms": 99}],
+            [{**gap, "duration_ms": 10001}],
+            [{**gap, "duration_ms": 500.5}],
+            [{**gap, "before_clip_id": "video-a"}],
+            [gap, gap],
+            [{**gap, "extra": True}],
+        )
+        for invalid in invalid_cases:
+            with self.subTest(gaps=invalid), self.assertRaises(EDLValidationError):
+                validate_edl({**payload, "gaps": invalid})
+
+        conflicting = {
+            **payload,
+            "transitions": [{
+                "from_clip_id": "video-a", "to_clip_id": "video-b",
+                "type": "crossfade", "duration_ms": 500,
+            }],
+        }
+        with self.assertRaisesRegex(EDLValidationError, "both a crossfade and a black gap"):
+            validate_edl(conflicting)
+
 if __name__ == "__main__":
     unittest.main()
