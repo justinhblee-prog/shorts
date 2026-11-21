@@ -106,6 +106,9 @@ def validate_edl(payload: Any) -> dict:
         (item for item in normalized if item["type"] == "video"),
         key=lambda item: (item["start_ms"], item["id"]),
     )
+    if not video_clips:
+        raise EDLValidationError("EDL must contain at least one video clip")
+
     transition_pairs = set()
     transitions = []
     if "transitions" in payload:
