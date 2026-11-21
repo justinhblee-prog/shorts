@@ -207,6 +207,19 @@ class YouTubeOAuthTests(unittest.TestCase):
             manager.exchange_code("code", state)
         self.assertIsNone(self.store.token_record())
 
+    def test_non_object_token_response_fails_closed_without_storing_credentials(self):
+        transport = GoogleOAuthTransport([(200, ["unexpected", "array"])])
+        manager = YouTubeOAuthManager(
+            self.store, "id", "secret",
+            "https://studio.example.test/api/youtube/oauth/callback",
+            self.key, transport,
+        )
+        auth = manager.start_authorization()
+        state = parse_qs(urlparse(auth["authorization_url"]).query)["state"][0]
+        with self.assertRaisesRegex(YouTubeOAuthError, "invalid token response object"):
+            manager.exchange_code("code", state)
+        self.assertIsNone(self.store.token_record())
+
     def test_missing_refresh_token_does_not_claim_connection(self):
         transport = GoogleOAuthTransport([(
             200, {"access_token": "access", "scope": " ".join(REQUIRED_SCOPES)}

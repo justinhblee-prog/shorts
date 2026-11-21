@@ -551,6 +551,50 @@ class TikTokPublishingTests(unittest.TestCase):
             )
         self.assertEqual(self.transport.calls, [])
 
+    def test_creator_info_rejects_non_object_data_before_publish(self):
+        self.transport.responses[0] = (200, {
+            "data": ["unexpected"], "error": {"code": "ok"},
+        })
+        with self.assertRaisesRegex(TikTokPublishError, "creator response data"):
+            self.publisher.publish_private_approved(
+                "job-1", self.media, self.review, "AI generated short", "operator-1",
+                explicit_consent=True, privacy_level="SELF_ONLY",
+            )
+        self.assertEqual(len(self.transport.calls), 1)
+        self.assertEqual(self.store.get("job-1")["status"], "failed")
+
+    def test_init_rejects_non_object_data_and_keeps_remote_outcome_uncertain(self):
+        self.transport.responses[1] = (200, {
+            "data": ["unexpected"], "error": {"code": "ok"},
+        })
+        with self.assertRaisesRegex(TikTokPublishError, "outcome is uncertain"):
+            self.publisher.publish_private_approved(
+                "job-1", self.media, self.review, "AI generated short", "operator-1",
+                explicit_consent=True, privacy_level="SELF_ONLY",
+            )
+        record = self.store.get("job-1")
+        self.assertEqual(record["status"], "reconciliation_required")
+        self.assertIsNone(record["publish_id"])
+        self.assertEqual(len(self.transport.calls), 2)
+
+    def test_init_rejects_non_string_publish_id_and_keeps_remote_outcome_uncertain(self):
+        self.transport.responses[1] = (200, {
+            "data": {
+                "publish_id": ["unexpected"],
+                "upload_url": "https://upload.us.tiktokapis.com/video/?token=x",
+            },
+            "error": {"code": "ok"},
+        })
+        with self.assertRaisesRegex(TikTokPublishError, "outcome is uncertain"):
+            self.publisher.publish_private_approved(
+                "job-1", self.media, self.review, "AI generated short", "operator-1",
+                explicit_consent=True, privacy_level="SELF_ONLY",
+            )
+        record = self.store.get("job-1")
+        self.assertEqual(record["status"], "reconciliation_required")
+        self.assertIsNone(record["publish_id"])
+        self.assertEqual(len(self.transport.calls), 2)
+
     def test_video_exceeding_creator_duration_limit_is_blocked_before_init(self):
         self.transport.responses[0] = (200, {
             "data": {
@@ -598,7 +642,7 @@ class TikTokPublishingTests(unittest.TestCase):
             )
         self.assertEqual(len(self.transport.calls), 1)
 
-    def test_file_just_over_64_mib_uses_two_valid_sequential_chunks(self):
+    def test_file_just_over_64_mb_uses_two_valid_sequential_chunks(self):
         path = Path(self.tmp.name) / "large.mp4"
         size = CHUNK_SIZE + 17
         with path.open("wb") as media:
@@ -1092,6 +1136,75 @@ class TikTokPublishingTests(unittest.TestCase):
         )
         self.assertEqual(stale["status"], "send_to_inbox")
 
+    def test_api_call_rejects_non_object_error_envelope(self):
+        self.transport.responses[0] = (200, {"data": {}, "error": []})
+        with self.assertRaisesRegex(TikTokPublishError, "error field"):
+            self.publisher._call(
+                "https://open.tiktokapis.com/v2/post/publish/creator_info/query/",
+                payload={},
+            )
+
+    def test_api_call_rejects_error_object_without_string_code(self):
+        self.transport.responses[0] = (200, {
+            "data": {}, "error": {"code": 0},
+        })
+        with self.assertRaisesRegex(TikTokPublishError, "error object"):
+            self.publisher._call(
+                "https://open.tiktokapis.com/v2/post/publish/creator_info/query/",
+                payload={},
+            )
+
+    def test_status_fetch_rejects_falsey_non_list_video_ids_without_state_change(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        before = self.store.get("job-1")
+        self.transport.responses.append((200, {
+            "data": {"status": "PUBLISH_COMPLETE", "publicaly_available_post_id": ""},
+            "error": {"code": "ok"},
+        }))
+        with self.assertRaisesRegex(TikTokPublishError, "video IDs"):
+            self.publisher.refresh_status("job-1")
+        after = self.store.get("job-1")
+        self.assertEqual(after["status"], before["status"])
+        self.assertEqual(after["video_id"], before["video_id"])
+        self.assertEqual(len(after["events"]), len(before["events"]))
+
+    def test_status_fetch_rejects_non_string_video_ids_without_state_change(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        before = self.store.get("job-1")
+        self.transport.responses.append((200, {
+            "data": {"status": "PUBLISH_COMPLETE", "publicaly_available_post_id": [123]},
+            "error": {"code": "ok"},
+        }))
+        with self.assertRaisesRegex(TikTokPublishError, "video IDs"):
+            self.publisher.refresh_status("job-1")
+        after = self.store.get("job-1")
+        self.assertEqual(after["status"], before["status"])
+        self.assertEqual(after["video_id"], before["video_id"])
+        self.assertEqual(len(after["events"]), len(before["events"]))
+
+    def test_status_fetch_rejects_non_string_failure_reason(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        before = self.store.get("job-1")
+        self.transport.responses.append((200, {
+            "data": {"status": "FAILED", "publicaly_available_post_id": [], "fail_reason": {"message": "bad"}},
+            "error": {"code": "ok"},
+        }))
+        with self.assertRaisesRegex(TikTokPublishError, "failure reason"):
+            self.publisher.refresh_status("job-1")
+        after = self.store.get("job-1")
+        self.assertEqual(after["status"], before["status"])
+        self.assertEqual(after["video_id"], before["video_id"])
+        self.assertEqual(len(after["events"]), len(before["events"]))
+
     def test_status_fetch_rejects_malformed_nested_data(self):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
@@ -1224,6 +1337,36 @@ class TikTokPublishingTests(unittest.TestCase):
             indexes = {row["name"] for row in connection.execute("PRAGMA index_list(tiktok_publications)")}
         self.assertIn("idx_tiktok_publications_due_order", indexes)
 
+
+
+
+    def test_chunk_plan_respects_tiktok_documented_decimal_byte_limits(self):
+        cases = (
+            (1, (1, 1)),
+            (4_999_999, (4_999_999, 1)),
+            (5_000_000, (5_000_000, 1)),
+            (64_000_000, (64_000_000, 1)),
+            (64_000_001, (32_000_000, 2)),
+            (128_000_001, (64_000_000, 2)),
+            (4_000_000_000, (64_000_000, 62)),
+        )
+        for size, expected in cases:
+            with self.subTest(size=size):
+                self.assertEqual(TikTokPublisher._chunk_plan(size), expected)
+                chunk_size, chunk_count = expected
+                chunk_sizes = [chunk_size] * (chunk_count - 1)
+                chunk_sizes.append(size - chunk_size * (chunk_count - 1))
+                self.assertEqual(sum(chunk_sizes), size)
+                self.assertEqual(len(chunk_sizes), chunk_count)
+                for chunk_bytes in chunk_sizes[:-1]:
+                    self.assertGreaterEqual(chunk_bytes, 5_000_000)
+                    self.assertLessEqual(chunk_bytes, 64_000_000)
+                final_chunk = chunk_sizes[-1]
+                if size < 5_000_000:
+                    self.assertEqual(final_chunk, size)
+                else:
+                    self.assertGreaterEqual(final_chunk, 5_000_000)
+                    self.assertLessEqual(final_chunk, 128_000_000)
 
 
 if __name__ == "__main__":

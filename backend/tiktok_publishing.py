@@ -23,7 +23,7 @@ from media_inspection import MediaInspector, MediaInspectionError
 
 
 API_ROOT = "https://open.tiktokapis.com"
-CHUNK_SIZE = 64 * 1024 * 1024
+CHUNK_SIZE = 64_000_000  # TikTok documents decimal MB (64,000,000 bytes)
 MAX_VIDEO_BYTES = 4 * 1024 * 1024 * 1024
 
 
@@ -677,7 +677,9 @@ class TikTokPublisher:
         response = self._call(
             API_ROOT + "/v2/post/publish/creator_info/query/"
         )
-        data = response.get("data") or {}
+        data = response.get("data")
+        if not isinstance(data, dict):
+            raise TikTokPublishError("TikTok creator response data has an unexpected shape")
         options = data.get("privacy_level_options")
         if not isinstance(options, list) or not options:
             raise TikTokPublishError("TikTok creator privacy options are unavailable")
@@ -708,13 +710,18 @@ class TikTokPublisher:
             raise TikTokPublishError("TikTok returned an invalid response") from exc
         if not binary and not isinstance(data, dict):
             raise TikTokPublishError("TikTok returned an unexpected response shape")
-        error = data.get("error") if isinstance(data, dict) else None
-        if isinstance(error, dict):
+        error = data.get("error")
+        if error is None:
+            error_code = None
+        elif isinstance(error, dict):
             error_code = error.get("code")
+            if not isinstance(error_code, str) or not error_code.strip():
+                raise TikTokPublishError("TikTok response error object has an unexpected shape")
+            error_code = error_code.strip()
         elif isinstance(error, str):
             error_code = error.strip() or None
         else:
-            error_code = None
+            raise TikTokPublishError("TikTok response error field has an unexpected shape")
         if status < 200 or status >= 300:
             raise TikTokPublishError(
                 "TikTok HTTP " + str(status) + ": " +
@@ -781,10 +788,10 @@ class TikTokPublisher:
         if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
             raise TikTokPublishError("TikTok upload size must be a positive integer")
         chunk_size = min(CHUNK_SIZE, size)
-        # TikTok requires files larger than 64 MiB to use multiple chunks.
-        # Near the 64 MiB boundary, a 64 MiB chunk would floor-divide to one;
+        # TikTok requires files larger than 64 MB to use multiple chunks.
+        # Near the 64 MB boundary, a 64 MB chunk would floor-divide to one;
         # reduce the base chunk so the final chunk remains within TikTok's
-        # documented 128 MiB maximum (the final chunk may exceed chunk_size).
+        # documented 128 MB maximum (the final chunk may exceed chunk_size).
         if size > CHUNK_SIZE and size // chunk_size < 2:
             chunk_size = size // 2
         chunk_count = max(1, size // chunk_size)
@@ -1003,10 +1010,17 @@ class TikTokPublisher:
                     },
                 },
             )
-            data = initialized.get("data") or {}
+            data = initialized.get("data")
+            if not isinstance(data, dict):
+                raise TikTokPublishError(
+                    "TikTok initialization response data has an unexpected shape"
+                )
             publish_id = data.get("publish_id")
             upload_url = self._validate_upload_url(data.get("upload_url"))
-            if not publish_id or len(publish_id) > 64 or not upload_url:
+            if (
+                not isinstance(publish_id, str) or not publish_id.strip()
+                or len(publish_id) > 64 or not upload_url
+            ):
                 raise TikTokPublishError("TikTok initialization response is incomplete")
             self.store.set_initialized(job_id, attempt_id, publish_id, creator_data)
             self._upload_chunks(upload_url, resolved, mime, size)
@@ -1046,13 +1060,21 @@ class TikTokPublisher:
         status = data.get("status")
         if not isinstance(status, str) or not status:
             raise TikTokPublishError("TikTok status response did not include a valid status")
-        video_ids = data.get("publicaly_available_post_id") or []
-        if not isinstance(video_ids, list):
+        video_ids = data.get("publicaly_available_post_id")
+        if video_ids is None:
+            video_ids = []
+        if (
+            not isinstance(video_ids, list)
+            or any(not isinstance(video_id, str) or not video_id.strip() for video_id in video_ids)
+        ):
             raise TikTokPublishError("TikTok status response video IDs have an unexpected shape")
+        fail_reason = data.get("fail_reason")
+        if fail_reason is not None and not isinstance(fail_reason, str):
+            raise TikTokPublishError("TikTok status response failure reason has an unexpected shape")
         return self.store.mark_status(
             job_id, record["attempt_id"], status,
             video_ids,
-            data.get("fail_reason"),
+            fail_reason,
             expected_status=record["status"],
         )
 
