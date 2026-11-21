@@ -31,6 +31,7 @@ ENCRYPTED_NONCE_BYTES = 12
 ENCRYPTED_TAG_BYTES = 16
 ENCRYPTED_SUFFIX = ".tar.gz.enc"
 CHUNK_BYTES = 1024 * 1024
+DEFAULT_BACKUP_MIN_FREE_BYTES = 1024 * 1024 * 1024
 _USE_ENV_KEY = object()
 
 
@@ -255,6 +256,27 @@ def _prune_backups(output_dir, retain_days):
     return removed
 
 
+
+def _require_backup_staging_space(output_dir, required_bytes):
+    """Fail before staging when the target volume lacks a conservative free-space reserve."""
+    try:
+        minimum_free = int(os.getenv(
+            "NEXUS_BACKUP_MIN_FREE_BYTES", str(DEFAULT_BACKUP_MIN_FREE_BYTES)
+        ))
+    except (TypeError, ValueError) as exc:
+        raise BackupRestoreError("NEXUS_BACKUP_MIN_FREE_BYTES must be a non-negative integer") from exc
+    if minimum_free < 0:
+        raise BackupRestoreError("NEXUS_BACKUP_MIN_FREE_BYTES must be a non-negative integer")
+    try:
+        free_bytes = shutil.disk_usage(output_dir).free
+    except OSError as exc:
+        raise BackupRestoreError("Backup output volume free space could not be checked") from exc
+    if free_bytes < required_bytes + minimum_free:
+        raise BackupRestoreError(
+            "Insufficient free disk space for backup staging "
+            f"(need {required_bytes + minimum_free} bytes including reserve; have {free_bytes})"
+        )
+
 def create_backup(db_path, media_dir, output_dir, retain_days=14,
                   encryption_key=_USE_ENV_KEY):
     encryption_key = _effective_encryption_key(encryption_key)
@@ -276,6 +298,20 @@ def create_backup(db_path, media_dir, output_dir, retain_days=14,
         raise BackupRestoreError("Backup output directory must be a real directory")
     if not db_path.is_file():
         raise BackupRestoreError("SQLite database does not exist: " + str(db_path))
+
+    # Estimate the simultaneous source snapshot, tarball and optional encrypted
+    # copy before creating any staging files. Compression is not assumed to save
+    # space; the conservative multiplier also covers incompressible media.
+    source_inventory = _media_inventory(media_dir)
+    source_media_bytes = sum(item["size"] for item in source_inventory)
+    source_database_bytes = db_path.stat().st_size
+    if source_media_bytes > MAX_MEDIA_BYTES:
+        raise BackupRestoreError("Media backup exceeds the supported size")
+    if source_database_bytes > MAX_DATABASE_BYTES:
+        raise BackupRestoreError("SQLite backup exceeds the supported size")
+    source_bytes = source_media_bytes + source_database_bytes
+    required_staging_bytes = (3 * source_bytes) + MAX_MANIFEST_BYTES + (16 * 1024 * 1024)
+    _require_backup_staging_space(output_dir, required_staging_bytes)
 
     stamp = _stamp()
     encrypted = encryption_key is not None
