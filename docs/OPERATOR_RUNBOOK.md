@@ -490,3 +490,8 @@ GitHub Actions run [43796187131](https://github.com/justinhblee-prog/shorts/acti
 ### BUILD-00138 validation checkpoint
 
 GitHub Actions run [43797131269](https://github.com/justinhblee-prog/shorts/actions/runs/43797131269) passed **462 backend tests** and the complete validation script. After deployment, restart the collector service and verify token-column migrations before enabling multiple collector instances.
+
+
+### Abandoned media staging parts
+
+The scheduler lease holder automatically prunes `.nexus-*.part` files older than `NEXUS_MEDIA_TEMP_RETENTION_SECONDS` (default 86400 seconds) every `NEXUS_MEDIA_TEMP_PRUNE_INTERVAL_SECONDS` (default 3600 seconds). The minimum accepted values are 3600 and 300 seconds. Ensure the scheduler service is running and holds its lease. This sweep never removes completed MP4 files; remove those only through the confirmed-upload cleanup workflow. Review `abandoned_media_parts_pruned` and `abandoned_media_parts_prune_failed` scheduler log events.

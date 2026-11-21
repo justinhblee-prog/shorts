@@ -74,6 +74,25 @@ class MediaStagerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.stager.prune_temporary_files(older_than_seconds=60)
 
+    def test_prune_preserves_recent_parts_and_unrelated_symlink_targets(self):
+        recent_part = os.path.join(self.tmp.name, ".nexus-recent.part")
+        target = os.path.join(self.tmp.name, "keep-target.mp4")
+        linked_part = os.path.join(self.tmp.name, ".nexus-linked.part")
+        for path in (recent_part, target):
+            with open(path, "wb") as stream:
+                stream.write(b"keep")
+        os.utime(recent_part, (9000, 9000))
+        os.utime(target, (1, 1))
+        try:
+            os.symlink(target, linked_part)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks are unavailable")
+        result = self.stager.prune_temporary_files(older_than_seconds=3600, now=10000)
+        self.assertEqual(result["count"], 1)
+        self.assertTrue(os.path.exists(recent_part))
+        self.assertTrue(os.path.exists(target))
+        self.assertFalse(os.path.lexists(linked_part))
+
     def test_rejects_http_and_embedded_credentials(self):
         for url in ("http://cdn.example.test/a.mp4","https://user:pass@cdn.example.test/a.mp4"):
             with self.assertRaises(MediaStagingError):

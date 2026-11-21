@@ -7,10 +7,14 @@ import uuid
 
 from queue_store import JobQueue
 from scheduler_store import ScheduleStore
+from media_staging import MediaStager
 
 DB = os.getenv("NEXUS_DB_PATH", "data/nexus.sqlite3")
 INTERVAL = max(5, int(os.getenv("NEXUS_SCHEDULER_POLL_SECONDS", "30")))
 LEASE_SECONDS = max(15, int(os.getenv("NEXUS_SCHEDULER_LEASE_SECONDS", "90")))
+MEDIA_TEMP_RETENTION_SECONDS = max(3600, int(os.getenv("NEXUS_MEDIA_TEMP_RETENTION_SECONDS", "86400")))
+MEDIA_TEMP_PRUNE_INTERVAL_SECONDS = max(300, int(os.getenv("NEXUS_MEDIA_TEMP_PRUNE_INTERVAL_SECONDS", "3600")))
+_last_media_temp_prune = 0.0
 OWNER_ID = f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4()}"
 queue = JobQueue(DB)
 schedules = ScheduleStore(DB)
@@ -26,6 +30,7 @@ def main():
     logger.info("scheduler_started interval_seconds=%s lease_seconds=%s owner=%s",
                 INTERVAL, LEASE_SECONDS, OWNER_ID)
     token = None
+    global _last_media_temp_prune
     try:
         while True:
             try:
@@ -35,6 +40,20 @@ def main():
                 if token is None:
                     logger.info("scheduler_standby another_instance_holds_lease")
                 else:
+                    now = time.monotonic()
+                    if now - _last_media_temp_prune >= MEDIA_TEMP_PRUNE_INTERVAL_SECONDS:
+                        try:
+                            prune_result = MediaStager().prune_temporary_files(
+                                older_than_seconds=MEDIA_TEMP_RETENTION_SECONDS
+                            )
+                            _last_media_temp_prune = now
+                            if prune_result["count"]:
+                                logger.info("abandoned_media_parts_pruned count=%s retention_seconds=%s",
+                                            prune_result["count"], MEDIA_TEMP_RETENTION_SECONDS)
+                        except Exception:
+                            logger.exception("abandoned_media_parts_prune_failed")
+                            # Avoid retrying on every poll during persistent filesystem errors.
+                            _last_media_temp_prune = now
                     result = schedules.dispatch_due(
                         queue, lease_owner=OWNER_ID, lease_token=token,
                         lease_seconds=LEASE_SECONDS,
