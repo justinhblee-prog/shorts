@@ -16,9 +16,10 @@ if($Uninstall -and ($StartNow -or $Replace -or $ValidateOnly)){throw "Uninstall 
 $task=Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 if($Uninstall){
  if(-not $task){Write-Host "Scheduled task '$TaskName' is not installed.";exit 0}
- if($PSCmdlet.ShouldProcess($TaskName,"Unregister scheduled DevFlow supervisor")){
+ if($PSCmdlet.ShouldProcess($TaskName,"Stop and unregister scheduled DevFlow supervisor")){
+  if($task.State -eq "Running"){Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue}
   Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
-  Write-Host "Uninstalled scheduled task '$TaskName'."
+  Write-Host "Stopped and uninstalled scheduled task '$TaskName'."
  }else{Write-Host "No task changes made."}
  exit 0
 }
@@ -50,6 +51,7 @@ if($ValidateOnly){
 }
 if($task -and -not $Replace){throw "Scheduled task '$TaskName' already exists. Use -Replace to update it or -Uninstall to remove it."}
 if($PSCmdlet.ShouldProcess($TaskName,"Register scheduled DevFlow supervisor at user logon")){
+ if($task -and $Replace -and $task.State -eq "Running"){Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue}
  Register-ScheduledTask -TaskName $TaskName -InputObject $definition -Force | Out-Null
  if($StartNow){Start-ScheduledTask -TaskName $TaskName}
  Write-Host "Scheduled task '$TaskName' registered for user logon."
