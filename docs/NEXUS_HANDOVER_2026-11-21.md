@@ -47,7 +47,7 @@ Storage boundaries:
 |---|---|---|
 | [#461](https://github.com/justinhblee-prog/shorts/pull/461) | Hosted frontend API origin and exact-origin CORS configuration | CI run 44870547319 passed; 468 tests |
 | [#463](https://github.com/justinhblee-prog/shorts/pull/463) | Responsive PC/tablet/mobile preview with live API setup | Latest CI run 44877213798 passed; backend validation and Playwright browser smoke passed; fresh Vercel preview READY |
-| [#466](https://github.com/justinhblee-prog/shorts/pull/466) | Loopback-only API port default and HTTPS/CORS deployment guard | Latest CI run 44877803397 passed; backend validation and resolved Compose port assertion passed |
+| [#466](https://github.com/justinhblee-prog/shorts/pull/466) | Loopback-only API port default and strict HTTPS CORS origin validation | Latest CI run 44878220058 passed; 470 backend tests and resolved Compose port assertion passed |
 | [#460](https://github.com/justinhblee-prog/shorts/pull/460) | Earlier responsive preview shell | CI run 44870039465 passed |
 | [#457](https://github.com/justinhblee-prog/shorts/pull/457) | Preview feedback helper newline-only change | Workflow requires action; not a functional prerequisite for #463 |
 
@@ -91,7 +91,7 @@ Automated CI and Compose smoke do not prove:
 ## 4. External deployment prerequisites
 
 1. Deploy the backend API to a supported HTTPS host; Compose now binds the published API port to loopback by default, so route remote browser traffic through a TLS reverse proxy.
-2. Configure `NEXUS_CORS_ORIGINS` with the exact Vercel frontend origin; preserve the loopback default unless a private ingress/firewall explicitly requires another bind interface.
+2. Configure `NEXUS_CORS_ORIGINS` with the exact Vercel frontend HTTPS origin; the API now rejects wildcard/null/path/credential origins and non-HTTPS remote origins at startup. Preserve the loopback default unless a private ingress/firewall explicitly requires another bind interface.
 3. Configure review/operator authentication and rotate all secrets outside source control.
 4. Configure real script, voice and render provider endpoints and allowlisted renderer artifact hosts.
 5. Configure YouTube/TikTok developer credentials and perform explicit account consent/verification.
