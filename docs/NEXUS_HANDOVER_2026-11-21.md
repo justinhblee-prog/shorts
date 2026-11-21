@@ -1,0 +1,115 @@
+# NEXUS STUDIO PRO — Engineering Handover
+
+**Snapshot date:** 2026-11-21  
+**Product baseline:** v0.1 (do not infer a production release from this engineering snapshot)  
+**Repository:** https://github.com/justinhblee-prog/shorts  
+**Default branch:** `main`  
+**Status:** Active development; all listed work remains Draft/open and unmerged.
+
+## 1. Product objective
+
+Operate a global short-form content business through one evidence-based workflow:
+
+1. Discover topics and market signals.
+2. Compare competitors and evaluate monetization scenarios.
+3. Create scripts, voice and video through configured providers.
+4. Review generated artifacts with a human approval gate.
+5. Publish only through explicitly approved, private platform workflows.
+6. Track measured platform performance and source-backed revenue/cost records.
+7. Improve operations only when sufficient evidence exists.
+
+Forecasts are estimates, not earnings. Missing source metrics must remain missing. AI generation, rendering, upload and monetization are distinct milestones.
+
+## 2. Current development streams
+
+### Storage, media and worker lifecycle
+
+| PR | Scope | Latest known validation | Notes |
+|---|---|---|---|
+| [#452](https://github.com/justinhblee-prog/shorts/pull/452) | Incremental workspace upload quota reservation | Backend 919 tests; Compose integration passed | Atomic reservations during streamed uploads |
+| [#453](https://github.com/justinhblee-prog/shorts/pull/453) | Pin reviewed FFmpeg/ffprobe binary digests | Backend 919 tests; Compose passed | Source-controlled manifest digests; not externally signed |
+| [#454](https://github.com/justinhblee-prog/shorts/pull/454) | Fail closed on stale ClamAV signatures | 472 tests | Real signature refresh and malware scan still require deployment validation |
+| [#456](https://github.com/justinhblee-prog/shorts/pull/456) | Installation-wide media cap and free-space preflight | Latest head `3dfcad2`: Backend 922 tests and Compose integration passed | Default global logical cap 20 GiB; default media free-space reserve 1 GiB |
+| [#458](https://github.com/justinhblee-prog/shorts/pull/458) | Backup staging free-space guard | 469 tests | Conservative free-space preflight; no physical reservation |
+| [#459](https://github.com/justinhblee-prog/shorts/pull/459) | Scheduled cleanup of abandoned media staging parts | 467 tests | Scheduler lease holder; only old `.nexus-*.part` files |
+| [#462](https://github.com/justinhblee-prog/shorts/pull/462) | Per-job worker scratch lifecycle | Latest code validation 472 tests; docs-only head follows | Private scratch, lease fencing, same-filesystem atomic media adoption, pre-claim free-space check |
+
+Storage boundaries:
+- Private media, worker scratch and backups are separate logical paths; Compose mounts media and worker scratch under `nexus_data`, while backups use `nexus_backups`.
+- Worker scratch is isolated by job and lease identity. A stale worker must not remove a newer worker's files.
+- Media upload checks, backup checks and worker scratch checks are best-effort free-space preflights. They are not hard volume quotas or kernel-level block reservations.
+- Concurrent writers can consume free space after a check. Host/container quotas, capacity monitoring and alerting remain deployment responsibilities.
+- The disposable Compose FFmpeg smoke disables only the media reserve inside that isolated test process; the normal 1 GiB default remains unchanged.
+
+### Frontend and live API configuration
+
+| PR | Scope | Validation |
+|---|---|---|
+| [#461](https://github.com/justinhblee-prog/shorts/pull/461) | Hosted frontend API origin and exact-origin CORS configuration | CI run 44870547319 passed; 468 tests |
+| [#463](https://github.com/justinhblee-prog/shorts/pull/463) | Responsive PC/tablet/mobile preview with live API setup | CI run 44873045880 passed; 468 tests; Vercel preview READY |
+| [#460](https://github.com/justinhblee-prog/shorts/pull/460) | Earlier responsive preview shell | CI run 44870039465 passed |
+| [#457](https://github.com/justinhblee-prog/shorts/pull/457) | Preview feedback helper newline-only change | Workflow requires action; not a functional prerequisite for #463 |
+
+Current preview:
+- [Responsive preview](https://nexus-studio-pro-ui-preview-h2q1uljae-justinhblee-9540.vercel.app/preview.html)
+- [Application root](https://nexus-studio-pro-ui-preview-h2q1uljae-justinhblee-9540.vercel.app/)
+- Vercel deployment: `dpl_5qLXj5vzG3gbS3ULMwEDq9WmzGZz`, READY, commit `d6c5a9d`.
+- HTTP 200 verified for `/preview.html`, `/`, `/app.js` and `/styles.css`.
+- Preview controls alter the actual iframe viewport (PC/tablet/mobile/auto, portrait/landscape, fit/100%); they are not screenshot mockups.
+- Source/asset inspection and HTTP checks were performed. Full interactive browser/device visual QA has not yet been completed.
+
+Frontend API configuration:
+- HTTPS backend origin can be set in the connection dialog (localhost is allowed for local development).
+- Only the API origin is stored in localStorage. The review token remains in memory and is cleared on refresh.
+- Backend CORS uses explicit `NEXUS_CORS_ORIGINS` origins, no wildcard and no credentialed CORS.
+- A separately deployed backend and matching CORS configuration are still required for real live-data interaction.
+
+### Multi-flow automation
+
+- [#440 Windows multi-flow supervisor](https://github.com/justinhblee-prog/shorts/pull/440): detached Windows supervisor, three-worker concurrency and lifecycle tests.
+- Git CLI automation CI passed; the actual Windows Claude CLI/provider session remains unverified because it requires the user's Windows environment and provider authentication.
+- Do not claim unattended local Windows execution based only on hosted CI.
+
+## 3. Validation evidence and limits
+
+Latest relevant checks:
+- #456 latest head `3dfcad292214649954fd645cff2c62f1cc5c5946`: Backend run [44874981857](https://github.com/justinhblee-prog/shorts/actions/runs/44874981857) success; Compose run [44874981840](https://github.com/justinhblee-prog/shorts/actions/runs/44874981840) success.
+- #462 code head `6368c1d`: run [44874416537](https://github.com/justinhblee-prog/shorts/actions/runs/44874416537) success, 472 tests; subsequent docs-only head `c895df9` has run [44874507461](https://github.com/justinhblee-prog/shorts/actions/runs/44874507461) success.
+- #463 responsive preview: run [44873045880](https://github.com/justinhblee-prog/shorts/actions/runs/44873045880) success, 468 tests.
+- Preview deployment runtime log query returned no warning/error/fatal entries in the inspected 50-minute window; this is not proof of all browser paths working.
+
+Automated CI and Compose smoke do not prove:
+- Live AI script, TTS or render provider compatibility or output quality.
+- Actual Windows Claude CLI operation under the user's credentials.
+- Live YouTube/TikTok OAuth, account permissions, private upload processing or analytics coverage.
+- Real financial reconciliation, monetization eligibility or positive net revenue.
+- Host-level disk quotas, production monitoring, alerting or a disaster-recovery drill.
+- Full browser interaction and visual QA across physical devices.
+
+## 4. External deployment prerequisites
+
+1. Deploy the backend API to a supported HTTPS host.
+2. Configure `NEXUS_CORS_ORIGINS` with the exact Vercel frontend origin.
+3. Configure review/operator authentication and rotate all secrets outside source control.
+4. Configure real script, voice and render provider endpoints and allowlisted renderer artifact hosts.
+5. Configure YouTube/TikTok developer credentials and perform explicit account consent/verification.
+6. Validate one controlled private upload and media playback before any larger batch.
+7. Confirm backup encryption key custody, off-host backup replication, restore procedure and monitoring.
+8. Run the full visual browser QA and API-connected acceptance flow with real test credentials.
+
+## 5. Immediate next actions
+
+1. Keep all Draft PRs open and unmerged; preserve dependency ordering (#452 before #456/#453).
+2. Continue storage lifecycle integration checks across upload, render, scratch cleanup, backup and restore.
+3. Complete interactive PC/tablet/mobile review of the current Vercel preview and record defects before modifying the UI.
+4. Deploy a non-production backend and verify exact-origin CORS plus authenticated frontend operations.
+5. Validate real provider and platform workflows only after credentials and test accounts are available.
+6. Refresh this handover whenever a major validation gate changes.
+
+## 6. Safety and release rules
+
+- No PR merge, production deployment or public publishing without explicit authorization.
+- Public publishing remains gated by human approval; the implemented YouTube upload path is private-only.
+- Never represent mocked provider tests as live AI generation.
+- Never represent CI success as live platform connectivity or revenue success.
+- Preserve existing UI and established workflows; keep independent modules separated and testable.
