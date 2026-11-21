@@ -46,7 +46,7 @@
       if(!asset.asset_id)throw new Error(file.name+" · 업로드 응답에 asset ID가 없습니다.");
       onUploaded(asset);
     }
-    if(asset.scan_status!=="clean"){
+    if(asset.scan_status==="pending"){
       const rescan=await api().request(pathFor(workspaceId,"/assets/"+encodeURIComponent(asset.asset_id)+"/scan"),{method:"POST"});
       asset={...asset,...rescan};
     }
