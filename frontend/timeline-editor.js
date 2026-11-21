@@ -33,16 +33,27 @@
     durationMs:Math.max(100,Math.min(5000,Math.round(Number($("timelineTransitionDuration")?.value)||500)))
   });
   let mediaShelfObserver=null;
+  const mediaShelfVideos=new Set();
+  const releaseMediaThumbnail = video => {
+    if(!video)return;
+    video.pause();
+    video.removeAttribute("src");
+    delete video.dataset.thumbnailSrc;
+    video.load();
+    mediaShelfVideos.delete(video);
+  };
   const loadMediaThumbnail = video => {
     const source=video?.dataset.thumbnailSrc;
     if(!source)return;
     delete video.dataset.thumbnailSrc;
+    mediaShelfVideos.add(video);
     video.src=source;
     video.load();
   };
   function renderMediaShelf(){
     const shelf=$("timelineMediaShelf");if(!shelf)return;
     mediaShelfObserver?.disconnect();mediaShelfObserver=null;
+    mediaShelfVideos.forEach(releaseMediaThumbnail);
     const clips=local()?.state.clips||[];
     const query=($("timelineMediaFilter")?.value||"").trim().toLocaleLowerCase();
     const visible=clips.filter(clip=>(clip.name+" "+clip.kind).toLocaleLowerCase().includes(query));
