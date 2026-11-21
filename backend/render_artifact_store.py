@@ -124,12 +124,13 @@ class RenderArtifactStore:
             raise ArtifactAdoptionError("staged output must be inside the private staging root") from exc
         if not source.is_file():
             raise ArtifactAdoptionError("staged output must be a regular file")
-        try:
-            free_bytes = shutil.disk_usage(self.artifact_root).free
-        except OSError as exc:
-            raise ArtifactAdoptionError("artifact storage free space cannot be inspected") from exc
-        if free_bytes < self.min_free_bytes:
-            raise ArtifactAdoptionError("artifact storage free space is below the configured reserve")
+        if self.min_free_bytes:
+            try:
+                free_bytes = shutil.disk_usage(self.artifact_root).free
+            except OSError as exc:
+                raise ArtifactAdoptionError("artifact storage free space cannot be inspected") from exc
+            if free_bytes < self.min_free_bytes:
+                raise ArtifactAdoptionError("artifact storage free space is below the configured reserve")
         suffix = source.suffix.lower()
         if suffix not in _ALLOWED_SUFFIXES:
             raise ArtifactAdoptionError("render output extension is not allowed")
