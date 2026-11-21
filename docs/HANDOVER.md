@@ -1558,3 +1558,12 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - EDL v1 client subset: sequential video clips, timed title overlays and one optional audio bed with gain/fades. No transitions, gaps, overlaps, arbitrary paths/URLs or public publishing.
 - .devflow/tasks.json now tracks BUILD-00361 as in progress. The UI API-contract browser smoke has been added but exact-head CI is pending; no success claim until it passes.
 - External validation remains: point the Vercel preview at a reachable API built from BUILD-00352, use an operator token with workspace.read and media.manage, and validate target-host ClamAV signatures, ffprobe, worker and persistent storage with representative media.
+
+
+## BUILD-00361 — Timeline editor integration update (2026-11-21)
+
+- Exact PR head `c0e4168544a56faafc5c999fa577af5e498651e3` passed backend/browser run `44901102049` and Compose integration run `44901102137`.
+- Browser CI covers authenticated workspace upload → EDL v1 validation → idempotent render submission/status → authenticated private artifact blob preview → artifact-bound human decision, plus responsive workbench layout. This path uses browser API interception; it is a contract/UI test, not a live hosted API test.
+- Compose CI independently verifies real generated-media FFmpeg/ffprobe rendering, private artifact adoption/review and authenticated API-to-worker flow on isolated test storage.
+- BUILD-00361 remains in progress: validate against a reachable live API, target-host ClamAV/ffprobe/worker/persistent storage and representative customer media. Multiple audio tracks and explicit project-duration controls remain future editor work.
+- PR #480 remains Draft/open/unmerged. Vercel deployment is being created for this exact head; no production deploy or public publishing.
