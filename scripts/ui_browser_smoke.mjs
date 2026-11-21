@@ -367,6 +367,7 @@ async function waitForServer() {
     assert.equal(capturedTimelineEdl.clips.find(clip=>clip.type==="video").asset_id,"asset-smoke");
     assert.equal(capturedTimelineEdl.clips.find(clip=>clip.type==="title").text,"Render smoke");
     assert.equal(await page.locator("#timelineServerPreview").isVisible(),true,"rendered review artifact preview missing");
+    assert.match(await page.locator("#timelineServerPreview").getAttribute("src"),/^blob:/,"private artifact should be fetched as an authenticated browser blob");
     await page.locator("#timelineApproveRender").click();
     await page.waitForFunction(()=>document.querySelector("#timelineRenderReview").hidden===true);
     assert.equal(capturedTimelineDecision.decision,"approved");
