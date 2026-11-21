@@ -1,9 +1,10 @@
 # NEXUS Development Worker — Security Review
 
-Date: 2026-11-20  
+Date: 2026-11-21  
 Promotion PR: #416  
 Branch: `promotion/nexus-worker-mainline-2026-11-20`  
-Reviewed code head: `fc012073d4dc447b4d2e871840bb2b1f56fc836b`  
+Reviewed workflow/permission contract: `71adeb3ed0c85b0f54ee86714217d4bfd170fdd1`  
+Latest PR head at documentation update: `d84273bcc005ec11817aa6894b56c2ecfaec52f7` (documentation-only follow-up after the latest full test run)  
 Status: Static review and repository CI complete; operational activation blocked.
 
 ## Review scope
@@ -68,21 +69,9 @@ This CI run validates the repository test environment, not the Windows self-host
 **Do not merge or activate the scheduled/manual worker yet.** Keep PR #416 Draft until the activation blockers above are verified. No workflow dispatch, schedule activation, runner configuration change, secret change, deployment, or merge was performed as part of this review.
 
 
-## Follow-up static review — 2026-11-20
+## Superseded review note — 2026-11-20
 
-A second review of the current PR head identified one additional least-privilege gap that must be closed before activation:
-
-### Recovery mode inherits write-capable job permissions
-
-The workflow currently implements development and recovery as conditional steps inside the same `development-cycle` job. That job grants `contents: write`, `pull-requests: write`, and `actions: write` for the entire job, including when `mode=recover`. Recovery code itself only performs GitHub GET requests and writes local SQLite evidence, but its job token still has write-capable permissions. The separate `NEXUS_GITHUB_READ_TOKEN` does not reduce the permissions of the job-scoped `GITHUB_TOKEN`.
-
-Required remediation before activation:
-- Split recovery into a distinct job with only `contents: read` and `pull-requests: read` (and no Actions write permission).
-- Keep write permissions only on the development job that publishes the stable Draft PR and dispatches bounded continuation.
-- Keep the recovery job's token unavailable to the Aider execution path; recovery must remain read-only.
-- Add workflow-contract tests that assert the recovery job has no write permissions and the development job has only the exact writes it needs.
-
-This is a source-level permission-boundary issue, not evidence of an observed unauthorized write. No workflow was dispatched and no repository permissions or secrets were changed. The current CI result does not validate GitHub token effective permissions at runtime.
+An earlier review note incorrectly claimed that recovery ran inside the write-capable development job. That finding was based on a mistaken reading and is withdrawn. The workflow already had a separate read-only `recover-reviews` job; the correction is documented below. Do not treat the withdrawn finding as an outstanding vulnerability. The remaining operational activation blockers are unchanged.
 
 ## Follow-up remediation — 2026-11-20 (source changes; exact-head CI passed)
 
@@ -128,3 +117,15 @@ The follow-up note above incorrectly described the recovery permission split as 
 Additional hardening in commit `71adeb3ed0c85b0f54ee86714217d4bfd170fdd1` adds a YAML-parsed exact-map assertion for all three permission scopes. This prevents unreviewed extra write permissions from being silently introduced while retaining the existing structural tests. CI for this exact new test commit is pending at the time of this note.
 
 The operational activation blockers remain unchanged: OS-level sandboxing, dedicated low-privilege runner/VM and ACL audit, outbound egress restrictions, secret inventory, real Windows runner/Ollama execution, cross-run LocalAppData persistence, and a disposable Draft PR recovery round-trip. No worker dispatch or activation was performed.
+
+
+## Latest permission-contract CI verification — 2026-11-21
+
+- Workflow source at the current branch has three explicit permission scopes: global `{"contents":"read"}`; `recover-reviews` has exactly `{"contents":"read","pull-requests":"read"}`; `development-cycle` has exactly `{"contents":"write","pull-requests":"write","actions":"write"}`.
+- Added YAML-parser-based exact-map assertions in test commit `71adeb3ed0c85b0f54ee86714217d4bfd170fdd1`.
+- Push run [44842242282](https://github.com/justinhblee-prog/shorts/actions/runs/44842242282) and PR run [44842249505](https://github.com/justinhblee-prog/shorts/actions/runs/44842249505) both passed on test commit `71adeb3ed0c85b0f54ee86714217d4bfd170fdd1`.
+- Documentation follow-up run [44842253418](https://github.com/justinhblee-prog/shorts/actions/runs/44842253418) passed on documentation commit `78ec6bd4b95254f9a64b89c24d4d6d37f1877521`. Its logs confirm **621 backend tests passed**, `scripts/validate.sh` succeeded, and the worker workflow YAML parse succeeded.
+- The latest PR head `d84273bcc005ec11817aa6894b56c2ecfaec52f7` is a later documentation-only commit; no CI run is shown for that exact SHA. Do not describe it as exact-head tested. The source/test commit `71adeb3...` and the subsequent documentation commit `78ec6bd...` have successful CI evidence as listed above.
+- PR #416 was rechecked as Open, Draft, Unmerged, and mergeable. No workflow dispatch, schedule activation, runner/secret change, merge, or deployment was performed.
+
+**Activation remains blocked** on dedicated low-privilege Windows runner/VM isolation, ACL and outbound-egress audit, secret inventory, real Windows self-hosted execution, actual Ollama generation, cross-run LocalAppData persistence, and a disposable Draft PR publication/recovery round-trip.
