@@ -1258,3 +1258,8 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Backend suite: **466 tests, OK**.
 - The full `scripts/validate.sh` command completed successfully.
 - This validates candidate capture, deduplication and exact attribution logic; it does not validate live account publishing or audience outcomes.
+
+
+## BUILD-00359 — ClamAV signature freshness gate
+
+`backend/media_scanner.py` now checks for both `main` and `daily` ClamAV database families (`.cvd` or `.cld`) before each scan. Each family must be no older than `NEXUS_CLAMAV_MAX_SIGNATURE_AGE_SECONDS` (default 604800 seconds / seven days). Files dated more than five minutes in the future are rejected. The same checks are exposed through API preflight. Missing, stale, future-dated or invalidly configured databases fail closed. Unit tests cover these branches; real updater freshness on the target host remains unverified.
