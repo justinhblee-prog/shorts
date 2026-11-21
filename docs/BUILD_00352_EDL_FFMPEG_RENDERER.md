@@ -53,7 +53,7 @@ Video clips may opt in to embedded source audio with `include_source_audio: true
 
 For each declared video crossfade, the source clip's audio is faded out over the transition duration and the destination clip's audio is faded in over the same duration. Both fades begin at the video crossfade's timeline start, so source audio and picture transition together. Source audio is mixed with any explicit audio-bed tracks using the existing bounded shell-free audio mixer. The combined source-audio plus audio-bed count is limited to eight. Legacy EDL v1 jobs remain unchanged when the optional field is omitted.
 
-This remains a separate Draft follow-up to #470. Exact-head Backend and real-media Compose validation are pending; do not infer source-audio crossfade support from the previously validated video-only crossfade.
+This is tracked in Draft PR #471, stacked on #470. Exact latest code head `4f216cb6942a2ed258842ea6039061aa1923530d` passed Backend [run 44885345510](https://github.com/justinhblee-prog/shorts/actions/runs/44885345510) (**928 tests plus Playwright browser smoke**) and Compose [run 44885345520](https://github.com/justinhblee-prog/shorts/actions/runs/44885345520) (real FFmpeg video+source-audio crossfade, worker isolation, authenticated API E2E, review/private preview and encrypted backup/isolated restore). This proves the generated-media integration path, not arbitrary customer media or target-host behavior.
 
 ## Render artifact storage guard
 
