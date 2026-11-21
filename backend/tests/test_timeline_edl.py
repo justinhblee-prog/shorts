@@ -118,10 +118,18 @@ class TimelineEDLTests(unittest.TestCase):
         ]
         payload = {**self.valid, "clips": clips, "transitions": transitions}
         self.assertEqual(len(validate_edl(payload)["transitions"]), 2)
-        too_long = {**payload, "transitions": [
-            {**transitions[0], "duration_ms": 3000},
-            {**transitions[1], "duration_ms": 3000},
-        ]}
+        too_long = {
+            **payload,
+            "clips": [
+                clips[0],
+                {**clips[1], "start_ms": 2000, "end_ms": 7000},
+                {**clips[2], "start_ms": 4000, "end_ms": 9000},
+            ],
+            "transitions": [
+                {**transitions[0], "duration_ms": 3000},
+                {**transitions[1], "duration_ms": 3000},
+            ],
+        }
         with self.assertRaisesRegex(EDLValidationError, "available timeline duration"):
             validate_edl(too_long)
 
