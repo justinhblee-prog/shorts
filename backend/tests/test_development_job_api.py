@@ -136,6 +136,37 @@ class DevelopmentJobApiTests(unittest.TestCase):
         self.assertEqual(caught.exception.status_code, 503)
         self.assertFalse(missing.exists())
 
+    def test_status_filtering(self):
+        claimed = self.store.claim_ready("runner-visible-id")
+        self.store.touch_worker(
+            "runner-visible-id", hostname="private-runner-host",
+            current_job_id=self.job["id"],
+        )
+        with mock.patch.object(app_module, "require_review_permission"):
+            jobs = app_module.development_jobs(status="leased", limit=20, x_review_token="operator-token")
+        self.assertEqual(len(jobs["items"]), 1)
+        self.assertEqual(jobs["items"][0]["status"], "leased")
+
+    def test_bounded_pagination(self):
+        claimed = self.store.claim_ready("runner-visible-id")
+        self.store.touch_worker(
+            "runner-visible-id", hostname="private-runner-host",
+            current_job_id=self.job["id"],
+        )
+        with mock.patch.object(app_module, "require_review_permission"):
+            jobs = app_module.development_jobs(status="leased", limit=1, x_review_token="operator-token")
+        self.assertEqual(len(jobs["items"]), 1)
+
+    def test_deterministic_event_history_ordering(self):
+        claimed = self.store.claim_ready("runner-visible-id")
+        self.store.touch_worker(
+            "runner-visible-id", hostname="private-runner-host",
+            current_job_id=self.job["id"],
+        )
+        with mock.patch.object(app_module, "require_review_permission"):
+            events = app_module.development_job_events(self.job["id"], limit=20, x_review_token="operator-token")
+        self.assertTrue(all(events["events"][i]["timestamp"] <= events["events"][i+1]["timestamp"] for i in range(len(events["events"]) - 1)))
+
 
 if __name__ == "__main__":
     unittest.main()
