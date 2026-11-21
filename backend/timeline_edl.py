@@ -215,7 +215,7 @@ def validate_edl(payload: Any) -> dict:
         effective_project_duration = max(
             (item["end_ms"] for item in video_clips), default=0
         )
-    if any(
+    if effective_project_duration > 0 and any(
         item["type"] == "title" and item["end_ms"] > effective_project_duration
         for item in normalized
     ):
