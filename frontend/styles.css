@@ -130,3 +130,22 @@
 .review-search input{width:100%;min-height:44px;padding:10px 13px;border:1px solid var(--line);border-radius:10px;background:var(--panel-soft);color:var(--text);font:inherit;font-weight:500}
 .review-search-status{min-height:18px;margin:4px 0 12px;color:var(--muted);font-size:12px}
 .review-card[hidden]{display:none}
+
+
+/* BUILD-00360: accessible, touch-sized controls for the isolated visual preview. */
+.nexus-visual-preview .nexus-preview-banner{flex-wrap:nowrap;overflow:hidden}
+.nexus-visual-preview .nexus-feedback-toggle,.nexus-visual-preview .nexus-feedback-copy{min-width:44px;min-height:44px}
+.nexus-visual-preview .nexus-feedback-body textarea{font-size:16px;line-height:1.5}
+.nexus-visual-preview .nexus-feedback-body :where(button,textarea){max-width:100%}
+.nexus-visual-preview .nexus-feedback-status{min-height:1.5em}
+@media(max-width:390px){
+  .nexus-visual-preview .nexus-preview-banner{min-height:42px;gap:5px;padding-inline:8px}
+  .nexus-visual-preview .nexus-feedback{right:10px;bottom:10px;max-width:calc(100vw - 20px)}
+}
+@media(max-width:340px){
+  .nexus-visual-preview .nexus-feedback{right:8px;bottom:8px;width:calc(100vw - 16px)}
+  .nexus-visual-preview .nexus-feedback-body{padding:11px}
+}
+@media(prefers-reduced-motion:reduce){
+  .nexus-visual-preview,.nexus-visual-preview *{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
