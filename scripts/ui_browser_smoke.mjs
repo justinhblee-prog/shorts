@@ -399,7 +399,7 @@ async function waitForServer() {
     assert.equal(capturedTimelineEdl.audio_tracks[1].start_ms+capturedTimelineEdl.audio_tracks[1].source_out_ms-capturedTimelineEdl.audio_tracks[1].source_in_ms,6500,"audio may extend into the declared trailing duration");
     assert.equal(await page.locator("#timelineMediaShelf .timeline-media-card").count(),3,"local media shelf should show both video clips and the title overlay");
     assert.equal(await page.locator("#timelineVisualTrack .timeline-visual-lane").count(),3,"visual timeline should render video, title and audio lanes");
-    assert.equal(await page.locator("#timelineVisualTrack .timeline-segment.is-video").count(),1);
+    assert.equal(await page.locator("#timelineVisualTrack .timeline-segment.is-video").count(),2);
     assert.equal(await page.locator("#timelineVisualTrack .timeline-segment.is-title").count(),1);
     assert.equal(await page.locator("#timelineVisualDuration").textContent(),"7.0s");
     const initialTimelineWidth=await page.locator("#timelineVisualTrack").evaluate(el=>el.getBoundingClientRect().width);
