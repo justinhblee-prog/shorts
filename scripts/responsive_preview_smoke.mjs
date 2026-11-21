@@ -49,6 +49,11 @@ async function waitForServer() {
     assert.equal(await app.locator(".hero-visual").evaluate(el => getComputedStyle(el).display), "grid");
     assert.equal(await app.locator(".command-center").count(), 1);
     assert.equal(await app.locator(".command-grid").count(), 1);
+    assert.equal(await app.locator(".global-command").count(), 1);
+    assert.equal(await app.locator("#globalSearch").getAttribute("type"), "search");
+    assert.equal(await app.locator(".studio-floor").count(), 1);
+    assert.equal(await app.locator(".stage-node").count(), 4);
+    assert.equal(await app.locator("#studioMediaSpotlight").count(), 1);
     assert.equal(await app.locator(".gate-list li").count(), 4);
     assert.equal(await app.locator("#overviewTrends").count(), 1);
     assert.match(await app.locator("body").textContent(), /운영 커맨드 센터/);
