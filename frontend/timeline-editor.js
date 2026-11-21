@@ -28,6 +28,10 @@
     if(bytes<1024*1024*1024)return (bytes/1024/1024).toFixed(1)+" MB";
     return (bytes/1024/1024/1024).toFixed(2)+" GB";
   };
+  const transitionSettings = () => ({
+    type:$("timelineTransitionType")?.value||"none",
+    durationMs:Math.max(100,Math.min(5000,Math.round(Number($("timelineTransitionDuration")?.value)||500)))
+  });
   function renderMediaShelf(){
     const shelf=$("timelineMediaShelf");if(!shelf)return;
     const clips=local()?.state.clips||[];
@@ -115,7 +119,12 @@
     const clips=local()?.state.clips||[];
     const videos=clips.filter(clip=>clip.kind==="video");
     const titles=clips.filter(clip=>clip.kind==="title");
-    const duration=videos.reduce((sum,clip)=>sum+Math.max(0,clip.outPoint-clip.inPoint),0);
+    const transition=transitionSettings();
+    const rawVideoDuration=videos.reduce((sum,clip)=>sum+Math.max(0,clip.outPoint-clip.inPoint),0);
+    const joins=Math.max(0,videos.length-1);
+    const videoDuration=Math.max(0,rawVideoDuration+(transition.type==="black-gap"?joins*transition.durationMs/1000:0)-(transition.type==="crossfade"?joins*transition.durationMs/1000:0));
+    const requestedDuration=Number($("timelineProjectDuration")?.value||0);
+    const duration=Math.max(videoDuration,Number.isFinite(requestedDuration)&&requestedDuration>0?requestedDuration:0);
     $("timelineVisualDuration").textContent=formatTime(duration);
     root.replaceChildren();
     if(!videos.length||duration<=0){
@@ -132,16 +141,27 @@
       const row=document.createElement("div");row.className="timeline-visual-lane "+className;
       const title=document.createElement("b");title.className="timeline-lane-label";title.textContent=label;
       const track=document.createElement("div");track.className="timeline-lane-track";
-      if(items.length)items.forEach(item=>track.append(makeSegment(item)));
+      if(items.length)items.forEach(item=>track.append(makeSegment(item,track)));
       else{const empty=document.createElement("span");empty.className="timeline-lane-empty";empty.textContent=label==="AUDIO"?"오디오 트랙 없음":"클립 없음";track.append(empty);}
       row.append(title,track);root.append(row);
     };
-    let cursor=0;
-    addLane("VIDEO","is-video",videos,clip=>{
-      const length=Math.max(0,clip.outPoint-clip.inPoint),segment=document.createElement("button");
+    let cursor=0,previousVideo=null;
+    addLane("VIDEO","is-video",videos,(clip,track)=>{
+      const length=Math.max(0,clip.outPoint-clip.inPoint);
+      const overlap=previousVideo&&transition.type==="crossfade"?transition.durationMs/1000:0;
+      const blackGap=previousVideo&&transition.type==="black-gap"?transition.durationMs/1000:0;
+      const start=Math.max(0,cursor-overlap+blackGap);
+      if(overlap>0||blackGap>0){
+        const marker=document.createElement("span");marker.className="timeline-transition-marker"+(blackGap>0?" is-black-gap":"");
+        marker.style.left=((blackGap>0?cursor:start)/duration*100)+"%";marker.style.width=((overlap||blackGap)/duration*100)+"%";
+        marker.textContent=blackGap>0?"BLACK":"DISSOLVE";
+        marker.title=(blackGap>0?"검은 화면":"크로스페이드")+" · "+formatTime(overlap||blackGap);
+        marker.setAttribute("aria-label",marker.title);track.append(marker);
+      }
+      const segment=document.createElement("button");
       segment.type="button";segment.className="timeline-segment is-video"+(local()?.state.selected===clip.id?" is-selected":"");
-      segment.style.left=(cursor/duration*100)+"%";segment.style.width=(length/duration*100)+"%";segment.textContent=clip.name;segment.title=clip.name+" · "+formatTime(length);
-      segment.addEventListener("click",()=>local()?.selectClip?.(clip.id));cursor+=length;return segment;
+      segment.style.left=(start/duration*100)+"%";segment.style.width=(length/duration*100)+"%";segment.textContent=clip.name;segment.title=clip.name+" · "+formatTime(length);
+      segment.addEventListener("click",()=>local()?.selectClip?.(clip.id));cursor=start+length;previousVideo=clip;return segment;
     });
     addLane("TITLE","is-title",titles,clip=>{
       const start=Math.min(clip.inPoint,duration),end=Math.min(clip.outPoint,duration),segment=document.createElement("button");
@@ -243,34 +263,53 @@
     if(!localState||localState.clips.length>20)throw new Error("EDL v1은 영상과 타이틀을 합쳐 최대 20개 클립을 지원합니다.");
     const clips=await ensureVideoAssets(workspaceId);
     const audioTracksInput=await ensureAudioAssets(workspaceId);
-    let cursor=0;
+    const transition=transitionSettings(),transitions=[],gaps=[];
+    let cursor=0,previousClip=null,previousDuration=0;
     const edlClips=[];
     for(const clip of clips){
       const sourceIn=secondsToMs(clip.inPoint);
       const sourceOut=Math.min(secondsToMs(clip.outPoint),clip.serverDurationMs||secondsToMs(clip.duration));
       if(sourceOut<=sourceIn)throw new Error(clip.name+" · 유효하지 않은 소스 구간입니다.");
       const duration=sourceOut-sourceIn;
-      edlClips.push({id:clip.id,type:"video",start_ms:cursor,end_ms:cursor+duration,asset_id:clip.assetId,source_in_ms:sourceIn,source_out_ms:sourceOut});
-      cursor+=duration;
+      const overlap=previousClip&&transition.type==="crossfade"?transition.durationMs:0;
+      const gap=previousClip&&transition.type==="black-gap"?transition.durationMs:0;
+      if(overlap>0&&(overlap>=duration||overlap>=previousDuration))throw new Error("크로스페이드 길이는 연결된 두 영상 클립 각각의 길이보다 짧아야 합니다.");
+      const start=Math.max(0,cursor-overlap+gap);
+      edlClips.push({id:clip.id,type:"video",start_ms:start,end_ms:start+duration,asset_id:clip.assetId,source_in_ms:sourceIn,source_out_ms:sourceOut});
+      if(overlap>0)transitions.push({from_clip_id:previousClip.id,to_clip_id:clip.id,type:"crossfade",duration_ms:overlap});
+      if(gap>0)gaps.push({after_clip_id:previousClip.id,before_clip_id:clip.id,duration_ms:gap});
+      cursor=start+duration;previousClip=clip;previousDuration=duration;
     }
     if(cursor<=0)throw new Error("렌더링할 영상 구간이 없습니다.");
+    const projectDurationRaw=$("timelineProjectDuration").value.trim();
+    let projectDurationMs=cursor;
+    if(projectDurationRaw){
+      const requestedSeconds=Number(projectDurationRaw);
+      if(!Number.isFinite(requestedSeconds)||requestedSeconds<=0||requestedSeconds>3600)throw new Error("프로젝트 길이는 0초 초과, 3600초 이하로 입력하세요.");
+      projectDurationMs=secondsToMs(requestedSeconds);
+      if(projectDurationMs<cursor)throw new Error("프로젝트 길이는 전체 영상 클립 길이보다 짧을 수 없습니다.");
+    }
     for(const [index,clip] of titleClips().entries()){
-      const start=Math.min(secondsToMs(clip.inPoint),Math.max(0,cursor-100));
-      const end=Math.min(secondsToMs(clip.outPoint),cursor);
+      const start=Math.min(secondsToMs(clip.inPoint),Math.max(0,projectDurationMs-100));
+      const end=Math.min(secondsToMs(clip.outPoint),projectDurationMs);
       if(end<=start)throw new Error("타이틀 클립의 시작·종료 시간을 확인하세요.");
       edlClips.push({id:clip.id,type:"title",start_ms:start,end_ms:end,text:clip.text});
     }
     const audioTracks=audioTracksInput.map((track,index)=>{
       const startMs=Math.max(0,Math.round(Number(track.startMs)||0));
-      if(startMs>=cursor)throw new Error(track.name+" · 시작 위치가 프로젝트 길이보다 늦습니다.");
+      if(startMs>=projectDurationMs)throw new Error(track.name+" · 시작 위치가 프로젝트 길이보다 늦습니다.");
       const sourceIn=Math.max(0,Math.round(Number(track.sourceInMs)||0)),requestedSourceOut=Number(track.sourceOutMs);
-      const sourceOut=Math.min(track.serverDurationMs,Number.isFinite(requestedSourceOut)?Math.round(requestedSourceOut):track.serverDurationMs,sourceIn+Math.max(0,cursor-startMs));
+      const sourceOut=Math.min(track.serverDurationMs,Number.isFinite(requestedSourceOut)?Math.round(requestedSourceOut):track.serverDurationMs,sourceIn+Math.max(0,projectDurationMs-startMs));
       if(sourceOut<=sourceIn)throw new Error(track.name+" · 타임라인에 배치할 오디오 구간이 없습니다.");
       const available=sourceOut-sourceIn,fadeIn=Math.min(Math.max(0,Math.round(Number(track.fadeInMs)||0)),available);
       const fadeOut=Math.min(Math.max(0,Math.round(Number(track.fadeOutMs)||0)),Math.max(0,available-fadeIn));
       return {id:"audio_track_"+(index+1),asset_id:track.assetId,start_ms:startMs,source_in_ms:sourceIn,source_out_ms:sourceOut,gain:Math.max(0,Math.min(4,Number(track.gain??1))),fade_in_ms:fadeIn,fade_out_ms:fadeOut};
     });
-    return {schema:"nexus-edit-decision-list",version:1,timebase:"milliseconds",clips:edlClips,audio_tracks:audioTracks};
+    const edl={schema:"nexus-edit-decision-list",version:1,timebase:"milliseconds",clips:edlClips,audio_tracks:audioTracks};
+    if(transitions.length)edl.transitions=transitions;
+    if(gaps.length)edl.gaps=gaps;
+    if(projectDurationRaw)edl.project_duration_ms=projectDurationMs;
+    return edl;
   }
   async function fetchArtifact(workspaceId,snapshotId){
     const listing=await api().request(pathFor(workspaceId,"/render-artifacts?limit=100"));
@@ -404,6 +443,9 @@
     $("timelineZoomIn").addEventListener("click",()=>applyTimelineZoom(state.zoom+.25));
     $("timelineZoomOut").addEventListener("click",()=>applyTimelineZoom(state.zoom-.25));
     $("timelineZoomFit").addEventListener("click",()=>applyTimelineZoom(1));
+    $("timelineProjectDuration").addEventListener("input",renderTimelineViews);
+    $("timelineTransitionType").addEventListener("change",renderTimelineViews);
+    $("timelineTransitionDuration").addEventListener("change",renderTimelineViews);
     $("timelineScrollLeft").addEventListener("click",()=>scrollTimeline(-1));
     $("timelineScrollRight").addEventListener("click",()=>scrollTimeline(1));
     applyTimelineZoom(state.zoom);

@@ -1593,3 +1593,34 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Added 100–400% visual timeline zoom, fit reset, and left/right horizontal navigation controls.
 - The visual timeline canvas scales independently inside its existing horizontally scrollable panel; backend EDL duration semantics are unchanged.
 - Browser smoke covers zoom growth, slider state, fit reset, and navigation control visibility.
+
+
+## BUILD-00352 / BUILD-00361 / BUILD-00362 — Explicit project duration UI and render contract (2026-11-21)
+
+- The timeline editor now exposes an optional project duration in seconds. Blank preserves automatic duration; an explicit value must be greater than zero, at most 3600 seconds, and no shorter than the sequential video timeline.
+- The UI sends `project_duration_ms` only when explicitly entered. The ruler and visual lanes expand to that duration; timed title overlays and audio tracks may extend into the trailing section.
+- Backend EDL v1 normalizes and bounds the optional field. FFmpeg pads the end of the video with black frames, applies title overlays after the pad, and mixes audio through the declared duration.
+- Browser smoke covers a 7-second project containing 5 seconds of video and an audio track ending at 6.5 seconds. Backend regression tests cover normalization, invalid durations, audio bounds and renderer filter/mux duration.
+- Exact-head CI passed on commit `8be9f95c5a775c45fe7b7f888d0a78ec13b1d801`: [Backend tests + Playwright desktop/mobile smoke, 916 tests](https://github.com/justinhblee-prog/shorts/actions/runs/44904717491); [Compose real-media FFmpeg/ffprobe trailing-gap render, authenticated API-to-worker render/review/private preview, ClamAV, encrypted backup and isolated restore](https://github.com/justinhblee-prog/shorts/actions/runs/44904717493). Target-host and representative customer-media validation remain external.
+
+- The Compose real-media smoke now exercises a 2-second source video extended to a 3-second project, with a title overlay and a source audio clip offset by one second so its final second continues into the black tail; artifact duration is asserted around 3 seconds. This verifies the actual FFmpeg/ffprobe path, not only mocked unit arguments.
+
+
+## BUILD-00352 / BUILD-00361 / BUILD-00362 — Crossfade transitions and overlapping clips (2026-11-21)
+
+- EDL v1 accepts an optional `transitions` array. The supported effect is `crossfade` with a whole-millisecond duration from 100 to 5000 ms, references to adjacent video clips in timeline order, and a duration shorter than both source segments. Unknown transition fields/effects and unsafe references are rejected.
+- The renderer verifies that every overlap is exactly covered by a matching transition and rejects unmarked overlaps or internal gaps. FFmpeg uses bounded `xfade=transition=fade` filters for overlaps and retains concat for hard cuts. Legacy EDL snapshots that omit transitions preserve their original digest shape.
+- Timeline UI adds global transition effect/duration controls (none or crossfade; 0.25/0.5/1/1.5/2 seconds), shifts clip starts by overlap duration, reduces total sequence duration accordingly and draws a visible DISSOLVE marker on the VIDEO lane.
+- Playwright smoke verifies two video clips, a 500 ms overlap, the visual marker, EDL transition references and the second clip's 2000 ms timeline start.
+- Real-media Compose smoke renders two trims from a generated source MP4 with a 500 ms crossfade, an additional trailing black section, timed title and offset audio. The actual FFmpeg/ffprobe worker output was adopted and verified at 3000 ms.
+- Exact-head CI passed on `4604bad948abdd0a5b54cc0a2ef00d81a35fb8bb`: [Backend tests, authenticated Playwright and responsive smoke](https://github.com/justinhblee-prog/shorts/actions/runs/44905695597); [Compose real-media crossfade render, authenticated API-to-worker review/private preview, ClamAV and backup/restore](https://github.com/justinhblee-prog/shorts/actions/runs/44905695562).
+- Internal black gaps between video clips remain unsupported. Target-host and representative customer-media validation remain external gates.
+
+
+## BUILD-00361 / BUILD-00362 — Internal black-gap intervals (2026-11-21)
+
+- EDL v1 adds optional `gaps` records with `after_clip_id`, `before_clip_id`, and whole-millisecond `duration_ms` (100–10,000 ms). Each record must reference adjacent video clips in timeline order; duplicate/unknown references, unsupported fields, out-of-range durations, and a gap plus crossfade on the same join are rejected. Existing EDLs without gaps retain their normalized shape.
+- The FFmpeg renderer verifies that each clip's timeline start matches the declared crossfade or black-gap interval. A gap is generated as a bounded in-graph black color segment and concatenated between the two video clips. Titles remain composited after the video sequence; audio mixing and explicit trailing black duration remain intact.
+- Timeline UI exposes hard cut / crossfade / black-screen connection modes and a shared duration control. Black intervals appear as distinct BLACK markers, and downstream clip positions and total duration include each interval.
+- Tests cover EDL schema validation and unsafe gaps, renderer graph construction and rejection of undeclared gaps, browser UI/API-contract EDL generation, and a real FFmpeg/ffprobe worker render with internal and trailing black sections plus title/audio and private review handoff.
+- Internal black-gap support is implemented. Customer-specific media/target-host validation remains external.

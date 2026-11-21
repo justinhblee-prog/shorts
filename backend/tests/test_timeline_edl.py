@@ -105,5 +105,100 @@ class TimelineEDLTests(unittest.TestCase):
             validate_edl({**self.valid, "audio_tracks": [{**track, "filter": "amovie"}]})
 
 
+    def test_normalizes_explicit_project_duration_and_bounds_audio(self):
+        track = {
+            "id": "music0", "asset_id": "asset_audio",
+            "start_ms": 0, "source_in_ms": 0, "source_out_ms": 6000,
+        }
+        payload = {
+            **self.valid,
+            "project_duration_ms": 8000,
+            "audio_tracks": [track],
+        }
+        result = validate_edl(payload)
+        self.assertEqual(result["project_duration_ms"], 8000)
+        self.assertEqual(result["audio_tracks"][0]["source_out_ms"], 6000)
+
+        for duration, audio_end in ((4999, 0), (8000, 9000), (3_600_001, 0), (8000.5, 0)):
+            invalid = {**payload, "project_duration_ms": duration}
+            if audio_end:
+                invalid["audio_tracks"] = [{**track, "source_out_ms": audio_end}]
+            with self.subTest(duration=duration, audio_end=audio_end), self.assertRaises(EDLValidationError):
+                validate_edl(invalid)
+
+    def test_normalizes_adjacent_crossfade_and_rejects_unsafe_transitions(self):
+        first = {
+            "id": "video-a", "type": "video", "start_ms": 0, "end_ms": 5000,
+            "asset_id": "asset_a", "source_in_ms": 0, "source_out_ms": 5000,
+        }
+        second = {
+            "id": "video-b", "type": "video", "start_ms": 4500, "end_ms": 8500,
+            "asset_id": "asset_b", "source_in_ms": 1000, "source_out_ms": 5000,
+        }
+        transition = {
+            "from_clip_id": "video-a", "to_clip_id": "video-b",
+            "type": "crossfade", "duration_ms": 500,
+        }
+        payload = {
+            "schema": SCHEMA, "version": 1, "timebase": "milliseconds",
+            "clips": [first, second], "transitions": [transition],
+        }
+        normalized = validate_edl(payload)
+        self.assertEqual(normalized["transitions"], [transition])
+
+        invalid_cases = (
+            [{**transition, "duration_ms": 5001}],
+            [{**transition, "duration_ms": 5000}],
+            [{**transition, "type": "wipe"}],
+            [{**transition, "to_clip_id": "video-a"}],
+            [transition, transition],
+            [{**transition, "duration_ms": 500.5}],
+        )
+        for invalid in invalid_cases:
+            with self.subTest(transitions=invalid), self.assertRaises(EDLValidationError):
+                validate_edl({**payload, "transitions": invalid})
+
+        with self.assertRaises(EDLValidationError):
+            validate_edl({**payload, "transitions": [{**transition, "extra": True}]})
+
+    def test_normalizes_explicit_internal_black_gaps_and_rejects_unsafe_pairs(self):
+        first = {
+            "id": "video-a", "type": "video", "start_ms": 0, "end_ms": 2000,
+            "asset_id": "asset_a", "source_in_ms": 0, "source_out_ms": 2000,
+        }
+        second = {
+            "id": "video-b", "type": "video", "start_ms": 2500, "end_ms": 4500,
+            "asset_id": "asset_b", "source_in_ms": 1000, "source_out_ms": 3000,
+        }
+        gap = {"after_clip_id": "video-a", "before_clip_id": "video-b", "duration_ms": 500}
+        payload = {
+            "schema": SCHEMA, "version": 1, "timebase": "milliseconds",
+            "clips": [first, second], "gaps": [gap], "project_duration_ms": 4500,
+        }
+        normalized = validate_edl(payload)
+        self.assertEqual(normalized["gaps"], [gap])
+
+        invalid_cases = (
+            [{**gap, "duration_ms": 99}],
+            [{**gap, "duration_ms": 10001}],
+            [{**gap, "duration_ms": 500.5}],
+            [{**gap, "before_clip_id": "video-a"}],
+            [gap, gap],
+            [{**gap, "extra": True}],
+        )
+        for invalid in invalid_cases:
+            with self.subTest(gaps=invalid), self.assertRaises(EDLValidationError):
+                validate_edl({**payload, "gaps": invalid})
+
+        conflicting = {
+            **payload,
+            "transitions": [{
+                "from_clip_id": "video-a", "to_clip_id": "video-b",
+                "type": "crossfade", "duration_ms": 500,
+            }],
+        }
+        with self.assertRaisesRegex(EDLValidationError, "both a crossfade and a black gap"):
+            validate_edl(conflicting)
+
 if __name__ == "__main__":
     unittest.main()

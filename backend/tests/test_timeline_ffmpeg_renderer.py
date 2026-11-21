@@ -178,6 +178,120 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
         with self.assertRaisesRegex(TimelineRenderError, "extends beyond"):
             self.renderer(past_end, stop_event=threading.Event(), workspace_id="ws_demo", principal_id="alice")
 
+    def test_renders_adjacent_video_crossfade_with_bounded_overlap(self):
+        crossfade = json.loads(json.dumps(self.payload))
+        crossfade["edl"]["clips"] = [
+            {
+                "id": "clip1", "type": "video", "start_ms": 0,
+                "end_ms": 5000, "asset_id": "asset_video",
+                "source_in_ms": 0, "source_out_ms": 5000,
+            },
+            {
+                "id": "clip2", "type": "video", "start_ms": 4500,
+                "end_ms": 9500, "asset_id": "asset_video",
+                "source_in_ms": 1000, "source_out_ms": 6000,
+            },
+        ]
+        crossfade["edl"]["transitions"] = [{
+            "from_clip_id": "clip1", "to_clip_id": "clip2",
+            "type": "crossfade", "duration_ms": 500,
+        }]
+        crossfade["edl"]["audio_tracks"] = []
+        self._rehash(crossfade)
+        probe = {
+            "duration_ms": 9500, "byte_size": 23,
+            "video_streams": [{"width": 720, "height": 1280, "codec": "h264"}],
+            "audio_streams": 0, "audio_codecs": [],
+        }
+        with patch("timeline_ffmpeg_renderer.probe_media", return_value=probe):
+            result = self.renderer(
+                crossfade, stop_event=threading.Event(),
+                workspace_id="ws_demo", principal_id="alice",
+            )
+        self.assertEqual(result["duration_ms"], 9500)
+        self.assertEqual(len(self.commands), 1)
+        graph = self.commands[0][self.commands[0].index("-filter_complex") + 1]
+        self.assertIn("xfade=transition=fade:duration=0.500:offset=4.500", graph)
+        self.assertNotIn("concat=n=2", graph)
+
+        unsafe = json.loads(json.dumps(crossfade))
+        unsafe["edl"].pop("transitions")
+        self._rehash(unsafe)
+        with self.assertRaisesRegex(TimelineRenderError, "gaps or overlaps"):
+            self.renderer(
+                unsafe, stop_event=threading.Event(),
+                workspace_id="ws_demo", principal_id="alice",
+            )
+
+    def test_renders_internal_black_gap_between_adjacent_video_clips(self):
+        with_gap = json.loads(json.dumps(self.payload))
+        with_gap["edl"]["clips"] = [
+            {
+                "id": "clip1", "type": "video", "start_ms": 0,
+                "end_ms": 5000, "asset_id": "asset_video",
+                "source_in_ms": 1000, "source_out_ms": 6000,
+            },
+            {
+                "id": "clip2", "type": "video", "start_ms": 5500,
+                "end_ms": 9500, "asset_id": "asset_video",
+                "source_in_ms": 6000, "source_out_ms": 10000,
+            },
+        ]
+        with_gap["edl"]["gaps"] = [{
+            "after_clip_id": "clip1", "before_clip_id": "clip2",
+            "duration_ms": 500,
+        }]
+        with_gap["edl"]["audio_tracks"] = []
+        self._rehash(with_gap)
+        probe = {
+            "duration_ms": 9500, "byte_size": 23,
+            "video_streams": [{"width": 720, "height": 1280, "codec": "h264"}],
+            "audio_streams": 0, "audio_codecs": [],
+        }
+        with patch("timeline_ffmpeg_renderer.probe_media", return_value=probe):
+            result = self.renderer(
+                with_gap, stop_event=threading.Event(),
+                workspace_id="ws_demo", principal_id="alice",
+            )
+        self.assertEqual(result["duration_ms"], 9500)
+        graph = self.commands[0][self.commands[0].index("-filter_complex") + 1]
+        self.assertIn("color=c=black:s=720x1280:r=30:d=0.500", graph)
+        self.assertIn("concat=n=2:v=1:a=0[vblackjoin1]", graph)
+        self.assertNotIn("xfade=", graph)
+
+        unsafe = json.loads(json.dumps(with_gap))
+        unsafe["edl"].pop("gaps")
+        self._rehash(unsafe)
+        with self.assertRaisesRegex(TimelineRenderError, "undeclared gaps or overlaps"):
+            self.renderer(
+                unsafe, stop_event=threading.Event(),
+                workspace_id="ws_demo", principal_id="alice",
+            )
+
+    def test_renders_explicit_trailing_black_gap_and_audio_to_project_end(self):
+        extended = json.loads(json.dumps(self.payload))
+        extended["edl"]["project_duration_ms"] = 8000
+        self._rehash(extended)
+        probe = {
+            "duration_ms": 8000, "byte_size": 23,
+            "video_streams": [{"width": 720, "height": 1280, "codec": "h264"}],
+            "audio_streams": 1, "audio_codecs": ["aac"],
+        }
+        with patch("timeline_ffmpeg_renderer.probe_media", return_value=probe):
+            result = self.renderer(
+                extended, stop_event=threading.Event(),
+                workspace_id="ws_demo", principal_id="alice",
+            )
+        self.assertEqual(result["duration_ms"], 8000)
+        video_graph = self.commands[0][self.commands[0].index("-filter_complex") + 1]
+        self.assertIn("tpad=stop_mode=add:stop_duration=3.000:color=black", video_graph)
+        self.assertIn("-t", self.commands[0])
+        self.assertEqual(self.commands[0][self.commands[0].index("-t") + 1], "8.000")
+        audio_graph = self.commands[1][self.commands[1].index("-filter_complex") + 1]
+        self.assertIn("amix=inputs=1", audio_graph)
+        self.assertEqual(self.commands[1][self.commands[1].index("-t") + 1], "8.000")
+        self.assertEqual(self.commands[2][self.commands[2].index("-t") + 1], "8.000")
+
     def test_renders_title_overlay_from_bounded_utf8_text_file(self):
         titled = json.loads(json.dumps(self.payload))
         titled["edl"]["clips"].append({

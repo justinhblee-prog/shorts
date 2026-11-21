@@ -50,7 +50,7 @@ def validate_edl(payload: Any) -> dict:
         raise EDLValidationError("unsupported EDL schema or version")
     if payload.get("timebase") != "milliseconds":
         raise EDLValidationError("timebase must be milliseconds")
-    allowed_root = {"schema", "version", "timebase", "clips", "audio_tracks"}
+    allowed_root = {"schema", "version", "timebase", "clips", "audio_tracks", "project_duration_ms", "transitions", "gaps"}
     if set(payload) - allowed_root:
         raise EDLValidationError("EDL contains unsupported root fields")
     clips = payload.get("clips")
@@ -101,6 +101,94 @@ def validate_edl(payload: Any) -> dict:
     if max(item["end_ms"] for item in normalized) > MAX_DURATION_MS:
         raise EDLValidationError("timeline exceeds maximum duration")
 
+    video_clips = [item for item in normalized if item["type"] == "video"]
+    transition_pairs = set()
+    transitions = []
+    if "transitions" in payload:
+        raw_transitions = payload["transitions"]
+        if not isinstance(raw_transitions, list) or len(raw_transitions) > max(0, len(video_clips) - 1):
+            raise EDLValidationError("transitions must describe at most one transition per adjacent video pair")
+        for index, raw in enumerate(raw_transitions):
+            prefix = f"transitions[{index}]"
+            expected_fields = {"from_clip_id", "to_clip_id", "type", "duration_ms"}
+            if not isinstance(raw, dict) or set(raw) != expected_fields:
+                raise EDLValidationError(f"{prefix} has unsupported or missing fields")
+            from_id, to_id = raw["from_clip_id"], raw["to_clip_id"]
+            if not isinstance(from_id, str) or not isinstance(to_id, str):
+                raise EDLValidationError(f"{prefix} clip references must be strings")
+            pair = (from_id, to_id)
+            if pair in transition_pairs:
+                raise EDLValidationError(f"{prefix} duplicates an adjacent clip transition")
+            transition_pairs.add(pair)
+            adjacent = any(
+                video_clips[position]["id"] == from_id
+                and video_clips[position + 1]["id"] == to_id
+                for position in range(len(video_clips) - 1)
+            )
+            if not adjacent:
+                raise EDLValidationError(f"{prefix} must reference adjacent video clips in timeline order")
+            if raw["type"] != "crossfade":
+                raise EDLValidationError(f"{prefix}.type must be crossfade")
+            transition_duration = _number(raw["duration_ms"], f"{prefix}.duration_ms")
+            from_clip = next(item for item in video_clips if item["id"] == from_id)
+            to_clip = next(item for item in video_clips if item["id"] == to_id)
+            from_length = from_clip["source_out_ms"] - from_clip["source_in_ms"]
+            to_length = to_clip["source_out_ms"] - to_clip["source_in_ms"]
+            if (not transition_duration.is_integer() or transition_duration < 100
+                    or transition_duration > 5000
+                    or transition_duration >= min(from_length, to_length)):
+                raise EDLValidationError(f"{prefix}.duration_ms is outside safe clip overlap bounds")
+            transitions.append({
+                "from_clip_id": from_id, "to_clip_id": to_id,
+                "type": "crossfade", "duration_ms": int(transition_duration),
+            })
+
+    gaps = []
+    if "gaps" in payload:
+        raw_gaps = payload["gaps"]
+        if not isinstance(raw_gaps, list) or len(raw_gaps) > max(0, len(video_clips) - 1):
+            raise EDLValidationError("gaps must describe at most one black gap per adjacent video pair")
+        gap_pairs = set()
+        for index, raw in enumerate(raw_gaps):
+            prefix = f"gaps[{index}]"
+            expected_fields = {"after_clip_id", "before_clip_id", "duration_ms"}
+            if not isinstance(raw, dict) or set(raw) != expected_fields:
+                raise EDLValidationError(f"{prefix} has unsupported or missing fields")
+            after_id, before_id = raw["after_clip_id"], raw["before_clip_id"]
+            if not isinstance(after_id, str) or not isinstance(before_id, str):
+                raise EDLValidationError(f"{prefix} clip references must be strings")
+            pair = (after_id, before_id)
+            if pair in gap_pairs:
+                raise EDLValidationError(f"{prefix} duplicates an adjacent black gap")
+            gap_pairs.add(pair)
+            adjacent = any(
+                video_clips[position]["id"] == after_id
+                and video_clips[position + 1]["id"] == before_id
+                for position in range(len(video_clips) - 1)
+            )
+            if not adjacent:
+                raise EDLValidationError(f"{prefix} must reference adjacent video clips in timeline order")
+            gap_duration = _number(raw["duration_ms"], f"{prefix}.duration_ms")
+            if not gap_duration.is_integer() or gap_duration < 100 or gap_duration > 10000:
+                raise EDLValidationError(f"{prefix}.duration_ms must be a whole duration from 100 to 10000 ms")
+            gaps.append({
+                "after_clip_id": after_id, "before_clip_id": before_id,
+                "duration_ms": int(gap_duration),
+            })
+        if gap_pairs.intersection(transition_pairs):
+            raise EDLValidationError("an adjacent video pair cannot have both a crossfade and a black gap")
+
+    project_duration = None
+    if "project_duration_ms" in payload:
+        project_duration = _number(payload["project_duration_ms"], "project_duration_ms")
+        video_end = max(
+            (item["end_ms"] for item in normalized if item["type"] == "video"),
+            default=0,
+        )
+        if (not float(project_duration).is_integer() or project_duration < video_end
+                or project_duration < 1 or project_duration > MAX_DURATION_MS):
+            raise EDLValidationError("project_duration_ms must be a whole-millisecond duration covering the video timeline")
+
     raw_audio = payload.get("audio_tracks", [])
     if not isinstance(raw_audio, list) or len(raw_audio) > 8:
         raise EDLValidationError("audio_tracks must contain 0 to 8 entries")
@@ -133,12 +221,21 @@ def validate_edl(payload: Any) -> dict:
                 or not 0 <= gain <= 4 or not 0 <= fade_in <= 60000
                 or not 0 <= fade_out <= 60000 or fade_in + fade_out > duration):
             raise EDLValidationError(f"{prefix} has invalid trim, gain or fade bounds")
+        if project_duration is not None and start + duration > project_duration:
+            raise EDLValidationError(f"{prefix} extends beyond project_duration_ms")
         audio_tracks.append({
             "id": track_id, "asset_id": asset_id, "start_ms": start,
             "source_in_ms": source_in, "source_out_ms": source_out,
             "gain": gain, "fade_in_ms": fade_in, "fade_out_ms": fade_out,
         })
-    return {
+    result = {
         "schema": SCHEMA, "version": VERSION, "timebase": "milliseconds",
         "clips": normalized, "audio_tracks": audio_tracks,
     }
+    if project_duration is not None:
+        result["project_duration_ms"] = int(project_duration)
+    if "transitions" in payload:
+        result["transitions"] = transitions
+    if "gaps" in payload:
+        result["gaps"] = gaps
+    return result

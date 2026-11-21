@@ -209,9 +209,12 @@ class TimelineFFmpegRenderer:
         # Preserve the original EDL v1 digest for queued jobs created before
         # optional audio_tracks became part of the normalized snapshot payload.
         digest_payload = edl
-        if "audio_tracks" not in payload["edl"]:
+        if "audio_tracks" not in payload["edl"] or "transitions" not in payload["edl"]:
             digest_payload = dict(edl)
-            digest_payload.pop("audio_tracks", None)
+            if "audio_tracks" not in payload["edl"]:
+                digest_payload.pop("audio_tracks", None)
+            if "transitions" not in payload["edl"]:
+                digest_payload.pop("transitions", None)
         canonical = json.dumps(
             digest_payload, ensure_ascii=False, sort_keys=True,
             separators=(",", ":"), allow_nan=False,
@@ -225,16 +228,42 @@ class TimelineFFmpegRenderer:
             raise TimelineRenderError("timeline must contain at least one video clip")
         if title_clips and self.font_path is None:
             raise TimelineRenderError("a configured font file is required for title overlays")
+        transitions = edl.get("transitions", [])
+        gaps = edl.get("gaps", [])
+        transition_by_pair = {
+            (item["from_clip_id"], item["to_clip_id"]): item
+            for item in transitions
+        }
+        gap_by_pair = {
+            (item["after_clip_id"], item["before_clip_id"]): item
+            for item in gaps
+        }
         cursor = 0.0
-        for clip in video_clips:
-            if abs(float(clip["start_ms"]) - cursor) > 1.0:
-                raise TimelineRenderError("video clips must be sequential without gaps or overlaps")
+        for index, clip in enumerate(video_clips):
+            pair = (video_clips[index - 1]["id"], clip["id"]) if index else None
+            transition = transition_by_pair.get(pair) if pair else None
+            gap = gap_by_pair.get(pair) if pair else None
+            overlap_ms = float(transition["duration_ms"]) if transition else 0.0
+            gap_ms = float(gap["duration_ms"]) if gap else 0.0
+            expected_start = cursor - overlap_ms + gap_ms
+            if abs(float(clip["start_ms"]) - expected_start) > 1.0:
+                raise TimelineRenderError(
+                    "video clips must be sequential; undeclared gaps or overlaps require an explicit crossfade or black-gap interval"
+                )
+            if transition and overlap_ms >= min(
+                float(video_clips[index - 1]["end_ms"] - video_clips[index - 1]["start_ms"]),
+                float(clip["end_ms"] - clip["start_ms"]),
+            ):
+                raise TimelineRenderError("crossfade duration must be shorter than both adjacent clips")
             cursor = float(clip["end_ms"])
-        duration_ms = int(round(cursor))
+        video_duration_ms = int(round(cursor))
+        duration_ms = int(edl.get("project_duration_ms", video_duration_ms))
+        if duration_ms < video_duration_ms:
+            raise TimelineRenderError("project duration cannot be shorter than the video timeline")
         if duration_ms < 1 or duration_ms > 3_600_000:
             raise TimelineRenderError("timeline duration is outside configured limits")
         if any(float(clip["end_ms"]) > duration_ms for clip in title_clips):
-            raise TimelineRenderError("title overlay extends beyond the video timeline")
+            raise TimelineRenderError("title overlay extends beyond the project duration")
 
         job_dir = Path(tempfile.mkdtemp(prefix=".render-", dir=str(self.staging_root)))
         final_path = self.staging_root / ("render_" + uuid.uuid4().hex + ".mp4")
@@ -286,10 +315,56 @@ class TimelineFFmpegRenderer:
                     f"setsar=1,fps={self.fps},format=yuv420p[{label}]"
                 )
                 labels.append(f"[{label}]")
-            filters.append(
-                "".join(labels) + f"concat=n={len(labels)}:v=1:a=0[vout]"
-            )
-            output_label = "vout"
+            if transitions or gaps:
+                output_label = labels[0][1:-1]
+                accumulated_ms = float(video_clips[0]["end_ms"] - video_clips[0]["start_ms"])
+                for index in range(1, len(video_clips)):
+                    pair = (video_clips[index - 1]["id"], video_clips[index]["id"])
+                    transition = transition_by_pair.get(pair)
+                    gap = gap_by_pair.get(pair)
+                    next_label = f"vtransition{index}"
+                    if transition:
+                        overlap_ms = float(transition["duration_ms"])
+                        offset_ms = accumulated_ms - overlap_ms
+                        filters.append(
+                            f"[{output_label}][{labels[index][1:-1]}]"
+                            f"xfade=transition=fade:duration={self._seconds(overlap_ms)}:"
+                            f"offset={self._seconds(offset_ms)}[{next_label}]"
+                        )
+                        accumulated_ms += float(video_clips[index]["end_ms"] - video_clips[index]["start_ms"]) - overlap_ms
+                    elif gap:
+                        gap_ms = float(gap["duration_ms"])
+                        gap_label = f"vblack{index}"
+                        joined_label = f"vblackjoin{index}"
+                        filters.append(
+                            f"color=c=black:s={self.width}x{self.height}:r={self.fps}:"
+                            f"d={self._seconds(gap_ms)},format=yuv420p[{gap_label}]"
+                        )
+                        filters.append(
+                            f"[{output_label}][{gap_label}]concat=n=2:v=1:a=0[{joined_label}]"
+                        )
+                        filters.append(
+                            f"[{joined_label}][{labels[index][1:-1]}]concat=n=2:v=1:a=0[{next_label}]"
+                        )
+                        accumulated_ms += gap_ms + float(video_clips[index]["end_ms"] - video_clips[index]["start_ms"])
+                    else:
+                        filters.append(
+                            f"[{output_label}][{labels[index][1:-1]}]concat=n=2:v=1:a=0[{next_label}]"
+                        )
+                        accumulated_ms += float(video_clips[index]["end_ms"] - video_clips[index]["start_ms"])
+                    output_label = next_label
+            else:
+                filters.append(
+                    "".join(labels) + f"concat=n={len(labels)}:v=1:a=0[vout]"
+                )
+                output_label = "vout"
+            trailing_gap_ms = duration_ms - video_duration_ms
+            if trailing_gap_ms > 0:
+                padded_label = "vpad"
+                filters.append(
+                    f"[{output_label}]tpad=stop_mode=add:stop_duration={self._seconds(trailing_gap_ms)}:color=black[{padded_label}]"
+                )
+                output_label = padded_label
             if title_clips:
                 font_file = _filter_path(self.font_path)
                 for index, clip in enumerate(title_clips):
