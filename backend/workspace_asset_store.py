@@ -170,11 +170,54 @@ class WorkspaceAssetStore:
                         break
                     if not isinstance(chunk, (bytes, bytearray)):
                         raise TypeError("asset stream must return bytes")
-                    size += len(chunk)
-                    if size > self.max_asset_bytes:
+                    next_size = size + len(chunk)
+                    if next_size > self.max_asset_bytes:
                         raise AssetError("asset exceeds configured byte limit")
-                    digest.update(chunk)
-                    output.write(chunk)
+                    if chunk:
+                        # Reserve each chunk before it reaches disk. Staging the
+                        # complete upload before reserving quota lets concurrent
+                        # requests exhaust the host filesystem despite the logical
+                        # workspace limit. BEGIN IMMEDIATE serializes each delta.
+                        now_iso = _utcnow().isoformat()
+                        expires_at = (_utcnow() + timedelta(minutes=10)).isoformat()
+                        with self.db() as db:
+                            db.execute("BEGIN IMMEDIATE")
+                            db.execute(
+                                "DELETE FROM workspace_asset_upload_reservations WHERE expires_at<=?",
+                                (now_iso,),
+                            )
+                            active = db.execute("""
+                                SELECT COALESCE(SUM(byte_size),0) AS total
+                                FROM workspace_media_assets
+                                WHERE workspace_id=? AND status='active'
+                            """, (workspace_id,)).fetchone()["total"]
+                            pending = db.execute("""
+                                SELECT COALESCE(SUM(byte_size),0) AS total
+                                FROM workspace_asset_upload_reservations
+                                WHERE workspace_id=?
+                            """, (workspace_id,)).fetchone()["total"]
+                            if active + pending + len(chunk) > self.max_workspace_bytes:
+                                db.rollback()
+                                raise AssetError("workspace storage quota exceeded")
+                            if reserved:
+                                updated = db.execute("""
+                                    UPDATE workspace_asset_upload_reservations
+                                    SET byte_size=byte_size+?,expires_at=?
+                                    WHERE id=? AND workspace_id=?
+                                """, (len(chunk), expires_at, reservation_id, workspace_id))
+                                if updated.rowcount != 1:
+                                    db.rollback()
+                                    raise AssetError("workspace upload reservation expired during upload")
+                            else:
+                                db.execute("""
+                                    INSERT INTO workspace_asset_upload_reservations
+                                    (id,workspace_id,byte_size,expires_at) VALUES(?,?,?,?)
+                                """, (reservation_id, workspace_id, len(chunk), expires_at))
+                            db.commit()
+                            reserved = True
+                        size = next_size
+                        digest.update(chunk)
+                        output.write(chunk)
                 output.flush()
                 os.fsync(output.fileno())
             if size == 0:
@@ -182,35 +225,6 @@ class WorkspaceAssetStore:
 
             now = _utcnow()
             now_iso = now.isoformat()
-            expires_at = (now + timedelta(minutes=10)).isoformat()
-            # SQLite's write lock serializes reservations. The active asset bytes
-            # and all unexpired reservations are counted in the same transaction,
-            # so simultaneous uploads cannot overcommit the workspace quota.
-            with self.db() as db:
-                db.execute("BEGIN IMMEDIATE")
-                db.execute(
-                    "DELETE FROM workspace_asset_upload_reservations WHERE expires_at<=?",
-                    (now_iso,),
-                )
-                active = db.execute("""
-                    SELECT COALESCE(SUM(byte_size),0) AS total
-                    FROM workspace_media_assets
-                    WHERE workspace_id=? AND status='active'
-                """, (workspace_id,)).fetchone()["total"]
-                pending = db.execute("""
-                    SELECT COALESCE(SUM(byte_size),0) AS total
-                    FROM workspace_asset_upload_reservations
-                    WHERE workspace_id=?
-                """, (workspace_id,)).fetchone()["total"]
-                if active + pending + size > self.max_workspace_bytes:
-                    db.rollback()
-                    raise AssetError("workspace storage quota exceeded")
-                db.execute("""
-                    INSERT INTO workspace_asset_upload_reservations
-                    (id,workspace_id,byte_size,expires_at) VALUES(?,?,?,?)
-                """, (reservation_id, workspace_id, size, expires_at))
-                db.commit()
-                reserved = True
 
             try:
                 os.link(temp_path, final_path)
