@@ -75,7 +75,9 @@ def search_text(root: Path,pattern: str,path: str=".") -> str:
  return "\n".join(hits) or "(no matches)"
 
 def run_check(root: Path,check: str) -> str:
- if check=="devflow_validate": cmd=[sys.executable,"scripts/devflow.py","validate"]
+ if check=="devflow_validate":
+  validator=os.environ.get("DEVFLOW_VALIDATOR_PATH") or str(root/"scripts"/"devflow.py")
+  cmd=[sys.executable,validator,"validate"]
  elif check=="git_diff_check": cmd=["git","diff","--check"]
  elif check=="python_compile": cmd=[sys.executable,"-m","compileall","-q","scripts"]
  else: raise ValueError("Unsupported check.")
@@ -267,6 +269,9 @@ def main() -> int:
     result="TOOL_ERROR: You already listed this directory. Do not list it again; use the existing listing to inspect a specific scoped file or make the required edit."
    elif name=="read_file" and repeated_calls[signature] > 2:
     result="TOOL_ERROR: You already read this file twice. Do not read it again; use the available content and proceed with the implementation."
+   elif repeated_calls[signature] > 2 and write_count==0:
+    print(f"[ollama-agent] repeated read-only tool call detected ({name}); switching to scoped patch mode.",file=sys.stderr)
+    return scoped_json_patch(root,prompt,args.model)
    elif repeated_calls[signature] > 4:
     print(f"Agent repeated the same tool call too many times: {name}; stopping to prevent a no-progress loop.",file=sys.stderr); return 5
    else:
