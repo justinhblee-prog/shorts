@@ -3,6 +3,7 @@
   let token = "";
   let reviewer = "operator";
   let brands = [];
+  let selectedDevelopmentJob = "";
   let toastTimer;
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   function safeExternalMediaUrl(value){
@@ -392,10 +393,81 @@
       (w.workers||[]).map(x=>'<div class="data-item"><b>'+esc(x.worker_id)+' · '+esc(x.status)+'</b><small>'+esc(x.hostname||"")+' · '+esc(x.last_seen_at||"")+'</small></div>').join("")+
       '<h4>운영 중지·재개 감사 기록</h4>'+(events||'<div class="empty-state">아직 제어 이력이 없습니다.</div>');
   }
+  const developmentStatusLabels={
+    ready:"실행 가능",blocked:"선행 조건 대기",leased:"Lease 할당",running:"실행 중",
+    retry_wait:"재시도 대기",quarantined:"격리",review_pending:"검토 대기",
+    completed:"완료",cancelled:"취소"
+  };
+  function setDevelopmentUnavailable(message){
+    selectedDevelopmentJob="";
+    ["developmentMetricTotal","developmentMetricReady","developmentMetricBlocked",
+     "developmentMetricLeases","developmentMetricWorkers"].forEach(id=>$(id).textContent="—");
+    $("developmentWorkers").innerHTML='<div class="empty-state">개발 Worker 상태를 확인할 수 없습니다.</div>';
+    $("developmentJobs").innerHTML='<div class="empty-state">개발 작업 큐를 확인할 수 없습니다.</div>';
+    $("developmentEvents").innerHTML='<div class="empty-state">이벤트 이력을 확인할 수 없습니다.</div>';
+    $("developmentSelectedJob").textContent="작업 미선택";
+    $("developmentConnectionNote").textContent=message;
+  }
+  async function loadDevelopmentEvents(jobId){
+    const data=await api("/api/development/jobs/"+encodeURIComponent(jobId)+"/events?limit=50");
+    const events=data.events||[];
+    $("developmentSelectedJob").textContent=jobId;
+    $("developmentEvents").innerHTML=events.length?events.map(event=>
+      '<div class="data-item"><b>'+esc(event.event_type)+' · '+esc(event.from_status||"—")+' → '+esc(event.to_status||"—")+'</b><small>'+esc(event.actor)+' · '+esc(event.created_at)+'</small></div>'
+    ).join(""):'<div class="empty-state">기록된 이벤트가 없습니다.</div>';
+  }
+  async function loadDevelopmentMonitor(){
+    if(!token){
+      setDevelopmentUnavailable("운영 인증 후 개발 작업 DB를 확인합니다. 이 관제는 읽기 전용입니다.");
+      return;
+    }
+    try{
+      const status=$("developmentStatusFilter").value;
+      const query=(status?"?status="+encodeURIComponent(status)+"&limit=100":"?limit=100");
+      const [summary,workers,jobs]=await Promise.all([
+        api("/api/development/summary"),
+        api("/api/development/workers"),
+        api("/api/development/jobs"+query)
+      ]);
+      $("developmentMetricTotal").textContent=Number(summary.total||0).toLocaleString();
+      $("developmentMetricReady").textContent=Number(summary.ready||0).toLocaleString();
+      $("developmentMetricBlocked").textContent=Number(summary.blocked||0).toLocaleString();
+      $("developmentMetricLeases").textContent=Number(summary.active_leases||0)+" / "+Number(summary.expired_leases||0);
+      $("developmentMetricWorkers").textContent=Number(summary.online_workers||0)+" / "+Number(summary.known_workers||0);
+      const workerItems=workers.workers||[];
+      $("developmentWorkers").innerHTML=workerItems.length?workerItems.map(worker=>
+        '<div class="data-item"><b>'+esc(worker.worker_id)+' · '+(worker.is_online?'<span class="ready-text">온라인</span>':'<span class="missing-text">오프라인</span>')+'</b><small>상태 '+esc(worker.status)+' · 현재 작업 '+esc(worker.current_job_id||"없음")+' · 최근 확인 '+esc(worker.last_seen_at||"—")+'</small></div>'
+      ).join(""):'<div class="empty-state">등록된 개발 Worker가 없습니다.</div>';
+      const items=jobs.items||[];
+      $("developmentJobs").innerHTML=items.length?items.map(job=>{
+        const scope=(job.scope||[]).slice(0,4).map(esc).join(" · ")||"파일 범위 없음";
+        const dependencies=(job.dependencies||[]).map(esc).join(", ")||"없음";
+        const statusLabel=developmentStatusLabels[job.status]||job.status;
+        const reviewUrl=typeof job.review_url==="string"&&/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*$/.test(job.review_url)?job.review_url:"";
+        return '<article class="development-job-card"><div class="development-job-heading"><b>'+esc(job.title||job.id)+'</b><span class="tag">'+esc(statusLabel)+'</span></div>'
+          +'<p>'+esc(job.id)+' · 우선순위 '+esc(job.priority)+' · 시도 '+esc(job.attempts)+'/'+esc(job.max_attempts)+'</p>'
+          +'<small>범위: '+scope+'</small><small>선행 작업: '+dependencies+'</small>'
+          +(job.result_summary?'<small>'+esc(job.result_summary)+'</small>':'')
+          +(reviewUrl?'<small><a href="'+esc(reviewUrl)+'" target="_blank" rel="noopener noreferrer">Draft PR 열기 ↗</a></small>':'')
+          +'<div class="development-job-actions"><button type="button" class="button button-quiet button-small" data-development-job="'+esc(job.id)+'">이벤트 이력</button></div></article>';
+      }).join(""):'<div class="empty-state">선택한 조건에 해당하는 개발 작업이 없습니다.</div>';
+      if(selectedDevelopmentJob&&items.some(item=>item.id===selectedDevelopmentJob)){
+        await loadDevelopmentEvents(selectedDevelopmentJob);
+      }else if(!items.length||selectedDevelopmentJob){
+        selectedDevelopmentJob="";
+        $("developmentSelectedJob").textContent="작업 미선택";
+        $("developmentEvents").innerHTML='<div class="empty-state">작업을 선택하면 상태 변경 이력이 표시됩니다.</div>';
+      }
+      $("developmentConnectionNote").textContent="개발 작업 DB 연결됨 · 읽기 전용 · 갱신 "+new Date().toLocaleString();
+    }catch(error){
+      selectedDevelopmentJob="";
+      setDevelopmentUnavailable("개발 작업 DB 연결 안 됨 · "+error.message+" · API 서버에 Worker와 동일한 NEXUS_DEVELOPMENT_DB 파일을 연결해야 합니다.");
+    }
+  }
   async function refreshAll(){
     if(!token){setConnection(false,"인증 필요");return;}
     try{
-      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadYouTubeConnection(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadRecommendationEvaluation(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadPreflight()]);
+      await Promise.all([loadMetrics(),loadFinance(),loadReviews(),loadApproved(),loadYouTubeConnection(),loadTikTokConnection(),loadTikTokMetrics(),loadTrends(),loadTrendRecommendations(),loadRecommendationEvaluation(),loadSchedules(),loadInsights(),loadOpportunities(),loadQueue(),loadPreflight(),loadDevelopmentMonitor()]);
       toast("운영 데이터 갱신 완료");
     }catch(e){setConnection(false,"인증·API 확인 필요");toast(e.message);}
   }
@@ -430,8 +502,17 @@
     try{await api("/api/queue/stats");$("settingsDialog").close();msg("tokenMessage","인증 성공");await refreshAll();}
     catch(e){token="";msg("tokenMessage",e.message,true);}
   });
-  $("clearToken").addEventListener("click",()=>{token="";$("tokenInput").value="";setConnection(false,"인증 필요");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");});
+  $("clearToken").addEventListener("click",()=>{token="";$("tokenInput").value="";setConnection(false,"인증 필요");setDevelopmentUnavailable("인증이 초기화되어 개발 작업 정보를 숨겼습니다.");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");});
   $("refreshAll").addEventListener("click",refreshAll);
+  $("refreshDevelopment").addEventListener("click",()=>loadDevelopmentMonitor().catch(e=>toast(e.message)));
+  $("developmentStatusFilter").addEventListener("change",()=>loadDevelopmentMonitor().catch(e=>toast(e.message)));
+  $("developmentJobs").addEventListener("click",async event=>{
+    const button=event.target.closest("[data-development-job]");
+    if(!button)return;
+    selectedDevelopmentJob=button.dataset.developmentJob;
+    try{await loadDevelopmentEvents(selectedDevelopmentJob);}
+    catch(error){toast(error.message);}
+  });
   $("loadReviews").addEventListener("click",()=>loadReviews().catch(e=>toast(e.message)));
   $("youtubeConnect").addEventListener("click",async()=>{
     if(!requireToken())return;

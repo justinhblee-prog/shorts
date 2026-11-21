@@ -11,7 +11,7 @@
   <header class="topbar">
     <a class="brandmark" href="#home"><span class="brand-symbol">N</span><span>NEXUS <b>STUDIO PRO</b><small>SHORTS OPERATIONS</small></span></a>
     <nav class="main-nav">
-      <a href="#studio">스튜디오</a><a href="#discovery">인텔리전스</a><a href="#review">검수 센터</a><a href="#operations">운영·수익</a>
+      <a href="#studio">스튜디오</a><a href="#discovery">인텔리전스</a><a href="#review">검수 센터</a><a href="#operations">운영·수익</a><a href="#development">개발 관제</a>
     </nav>
     <div class="top-actions"><span id="connection" class="status-pill"><i></i> 연결 확인 중</span><button class="button button-quiet" id="refreshAll">새로고침 ↻</button></div>
   </header>
@@ -120,6 +120,53 @@
           </div>
           <div id="queueDetails" class="data-list"><div class="empty-state">인증 후 작업 현황을 불러옵니다.</div></div></article>
       </div>
+    </section>
+
+    <section class="section" id="development">
+      <div class="section-heading">
+        <div>
+          <div class="eyebrow">05 / ENGINEERING CONTROL PLANE</div>
+          <h2>개발 오케스트레이션 관제</h2>
+          <p>의존성, Worker Lease, 검증 결과와 Draft PR 상태를 읽기 전용으로 확인합니다.</p>
+        </div>
+        <button class="button button-outline" id="refreshDevelopment" type="button">개발 현황 갱신 ↻</button>
+      </div>
+      <div class="development-summary-grid">
+        <article class="metric-card"><span class="metric-label">전체 개발 잡</span><strong id="developmentMetricTotal">—</strong><small>공유 DB 기준</small></article>
+        <article class="metric-card"><span class="metric-label">실행 가능</span><strong id="developmentMetricReady">—</strong><small>선행 조건 충족</small></article>
+        <article class="metric-card"><span class="metric-label">선행 조건 대기</span><strong id="developmentMetricBlocked">—</strong><small>의존성 미완료</small></article>
+        <article class="metric-card"><span class="metric-label">활성 / 만료 Lease</span><strong id="developmentMetricLeases">—</strong><small>활성 / 만료</small></article>
+        <article class="metric-card"><span class="metric-label">온라인 Worker</span><strong id="developmentMetricWorkers">—</strong><small>온라인 / 등록</small></article>
+      </div>
+      <div class="development-grid">
+        <article class="panel">
+          <div class="panel-title"><div><span class="panel-kicker">RUNNER PRESENCE</span><h3>개발 Worker</h3></div></div>
+          <div id="developmentWorkers" class="data-list"><div class="empty-state">운영 인증 후 개발 DB 연결 상태를 확인합니다.</div></div>
+        </article>
+        <article class="panel">
+          <div class="panel-title">
+            <div><span class="panel-kicker">DEPENDENCY-AWARE BACKLOG</span><h3>개발 작업 큐</h3></div>
+            <select id="developmentStatusFilter" aria-label="개발 작업 상태 필터">
+              <option value="">전체 상태</option>
+              <option value="ready">실행 가능</option>
+              <option value="blocked">선행 조건 대기</option>
+              <option value="leased">Lease 할당</option>
+              <option value="running">실행 중</option>
+              <option value="retry_wait">재시도 대기</option>
+              <option value="quarantined">격리</option>
+              <option value="review_pending">검토 대기</option>
+              <option value="completed">완료</option>
+              <option value="cancelled">취소</option>
+            </select>
+          </div>
+          <div id="developmentJobs" class="development-job-list"><div class="empty-state">개발 작업 DB를 확인합니다.</div></div>
+        </article>
+      </div>
+      <article class="panel development-events-panel">
+        <div class="panel-title"><div><span class="panel-kicker">IMMUTABLE JOB HISTORY</span><h3>선택 작업 이벤트</h3></div><span id="developmentSelectedJob" class="tag">작업 미선택</span></div>
+        <div id="developmentEvents" class="data-list"><div class="empty-state">작업을 선택하면 상태 변경 이력이 표시됩니다.</div></div>
+      </article>
+      <p id="developmentConnectionNote" class="form-note" role="status">이 관제는 읽기 전용입니다. API 서버가 Worker와 동일한 SQLite 파일을 공유해야 실제 상태가 표시됩니다.</p>
     </section>
   </main>
 

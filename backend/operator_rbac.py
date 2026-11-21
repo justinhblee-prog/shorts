@@ -20,6 +20,7 @@ ROLE_PERMISSIONS = {
         "production.execute", "trends.collect", "schedules.manage", "brand.manage",
         "media.manage", "recommendations.manage", "queue.read", "publishing.read",
         "trends.read", "intelligence.read", "recommendations.read", "production.read",
+        "development.read",
     },
     "finance": {"finance.read", "finance.write"},
     "worker": {"worker.execute"},

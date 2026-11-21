@@ -80,3 +80,14 @@ This is hosted repository validation only. It is not evidence of Windows self-ho
 **Do not activate the worker yet.** Keep PR #416 Draft and unmerged until all OS isolation, account/ACL/egress/secret audits, Windows/Ollama runtime checks, persistence checks, and disposable PR recovery checks are complete.
 
 No workflow dispatch, schedule activation, runner configuration change, secret change, merge, or deployment was performed as part of this review.
+
+
+## Development monitor security boundary — DEV-ORCH-008
+
+- The monitor adds only authenticated GET routes guarded by `development.read`.
+- The operator role receives this read permission; reviewer and worker roles do not. Admin retains its existing wildcard grant.
+- Responses exclude worker lease tokens and hostnames. Job event details are intentionally omitted from the browser API.
+- The configured SQLite path must already exist and pass a read-only schema inspection before the store is opened. Missing configuration/file/schema fails closed with HTTP 503 rather than creating an empty queue.
+- The API exposes no development-job mutation, retry, recovery, runner dispatch, PR mutation, merge, or deployment action.
+- The host-sharing requirement remains an operational gate: the API process must read the exact same persistent SQLite file used by the Windows worker. This code does not mount or copy LocalAppData data into a container.
+- Hosted tests can validate route/RBAC contracts and read-only response behavior. They cannot establish actual Windows ACLs, shared-file visibility, or browser connectivity.

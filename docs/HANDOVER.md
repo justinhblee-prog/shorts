@@ -1303,4 +1303,15 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Security-review documentation commit `0aefe59f025ffca8459d75bdf352e9cccf4098dd` was included in PR validation run [44845419802](https://github.com/justinhblee-prog/shorts/actions/runs/44845419802). The run completed successfully: dependency installation, `sh scripts/validate.sh`, and explicit worker workflow YAML parsing all passed.
 - This was PR validation for a merge ref containing the security-review commit; it does **not** establish exact-SHA validation for the later documentation-only branch head `f9bdba674cdd9beab046f421748aa929e97201ea`.
 - The consolidated security review is current in `docs/DEVELOPMENT_WORKER_SECURITY_REVIEW.md`. Hosted validation does not remove any operational activation blocker.
-- PR #416 remains Draft/Open/Unmerged. No dispatch, schedule activation, runner or secret change, merge, or deployment was performed.
+- PR #416 remains Draft/Open/Unmerged. No dispatch, schedule activation, runner or secret change, merge, or deployment
+
+
+## 2026-11-21 — DEV-ORCH-008 read-only development monitor
+
+- Follow-on branch: `feat/dev-orch-008-readonly-dashboard-2026-11-21`, based on PR #416 head `f9bdba674cdd9beab046f421748aa929e97201ea`.
+- Added authenticated GET-only development summary, job list/detail, event history and worker-presence endpoints, plus an operator-only `development.read` permission.
+- Added the dashboard's development monitor section with status filtering, queue/lease counts, worker presence, Draft PR links and event history.
+- Responses omit lease tokens, runner hostnames and event details. The monitor has no job mutation or workflow-dispatch controls.
+- The monitor fails closed when `NEXUS_DEVELOPMENT_DB` is unset, missing, non-absolute or schema-incomplete. It never creates a misleading empty queue.
+- **Operational dependency:** the API process must see the exact same SQLite file used by the persistent Windows runner. The runner's LocalAppData file is not automatically shared with a Docker container.
+- Exact-head hosted CI passed push run [44846662264](https://github.com/justinhblee-prog/shorts/actions/runs/44846662264) at `214ce90286502d973c23821ba8806abb99931a58`. Draft PR #445 is open against PR #416's branch; its PR-triggered check is pending. Real Windows file sharing and actual browser validation remain unverified. No workflow dispatch, runner/secret change, merge, deployment or data deletion was performed.
