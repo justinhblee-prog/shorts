@@ -23,7 +23,7 @@ jobs:
       - run: pip install -r backend/requirements.txt
       - run: sh scripts/validate.sh
   responsive-preview-browser:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
