@@ -9,16 +9,12 @@ Entry point: `evaluate_retention_candidate(candidate, policy, now=...)`
 
 The caller must provide an explicitly approved, versioned policy object:
 
-```python
-policy = {
-    "policy_version": "organization-approved-v1",
-    "retention_days": {
-        "workspace_asset": 180,   # example only; not a product default
-        "render_artifact": 365,  # example only; not a product default
-    },
-    "grace_days": 30,            # example only; not a product default
-}
-```
+Required fields (values must come from an approved organization policy; none are supplied by this module):
+
+- `policy_version`: approved policy identifier.
+- `retention_days.workspace_asset`: approved whole-day value.
+- `retention_days.render_artifact`: approved whole-day value.
+- `grace_days`: approved whole-day value.
 
 - Retention periods must be whole integers from 1 to 3650 days.
 - Grace period must be a whole integer from 0 to 3650 days.
