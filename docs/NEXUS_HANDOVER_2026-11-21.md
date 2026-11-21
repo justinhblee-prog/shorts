@@ -146,11 +146,26 @@ Automated CI and Compose smoke do not prove:
 - Latest crossfade code/test/real-media-smoke head: `f336a1c2019c8732d5f0e196d970174f0fa24039`. Backend [run `44884777926`](https://github.com/justinhblee-prog/shorts/actions/runs/44884777926) passed **925 tests**, Korean font fallback and Playwright browser smoke. Compose [run `44884777927`](https://github.com/justinhblee-prog/shorts/actions/runs/44884777927) passed service readiness, ClamAV, worker isolation, actual FFmpeg crossfade render, authenticated API E2E, review/private preview and encrypted backup/isolated restore. Both exact-head checks passed; the increment is CI-validated, not target-host/customer-media validated.
 - Legacy EDL v1 payloads without the optional `transitions` field preserve their previous canonical snapshot digest. All work remains Draft/open/unmerged.
 
+
+## 5.4. Embedded source-audio crossfade follow-up
+
+- Draft PR [#471](https://github.com/justinhblee-prog/shorts/pull/471) is stacked on #470 via branch `feat/build-00352-source-audio-crossfade-2026-11-21`.
+- Video clips can opt in to `include_source_audio`; the renderer reuses the same hash-verified staged asset, trims source audio to the clip source range and fails closed before encoding if the source has no audio stream.
+- Video transition duration drives matching source-audio fade-out/fade-in intervals on the same absolute timeline. Source audio is mixed with explicit audio-bed tracks; combined track count is limited to eight.
+- Exact latest code head `4f216cb6942a2ed258842ea6039061aa1923530d`: Backend [run `44885345510`](https://github.com/justinhblee-prog/shorts/actions/runs/44885345510) passed **928 tests** and Playwright browser smoke; Compose [run `44885345520`](https://github.com/justinhblee-prog/shorts/actions/runs/44885345520) passed real FFmpeg source-audio/video crossfade, worker isolation, authenticated API E2E, review/private preview and encrypted backup/isolated restore.
+- Latest docs/task-ledger-only commits are being revalidated at the current branch head. This is generated-media CI evidence, not arbitrary customer-media or target-host validation. Embedded audio codec diversity and long-form media remain external test gates.
+
+## 5.5. Artifact retention policy design
+
+- Draft PR [#472](https://github.com/justinhblee-prog/shorts/pull/472) adds a non-destructive policy design stacked on #471.
+- Current uploaded media `retention_until` defaults to 30 days but is metadata only; no asset expiry/purge worker exists. Backup archives default to 14-day pruning, independently of live media retention. Indexed render artifacts, EDL snapshots and review decisions are immutable and have no retention purge.
+- The design specifies separate retention classes, unresolved owner/legal policy inputs, read-only eligibility evaluation, append-only tombstones/grace periods, lease-fenced binary purge and backup/replica coordination. No data deletion or retention period selection is included.
+
 ## 6. Immediate next actions
 
 1. Keep all Draft PRs open and unmerged; preserve dependency ordering (#452 before #456/#453).
 2. Reconcile #444 with the current #436 baseline, then revalidate the complete #444→#448→#449→#450→#452→#453/#456 stack at exact heads.
-3. Continue storage lifecycle integration checks across upload, render, scratch cleanup, backup and restore; investigate a separate embedded source-audio crossfade path without changing the now-validated video transition contract.
+3. Revalidate the latest docs/task-ledger head for PR #471, then review PR #472's non-destructive retention design. Implement a read-only retention eligibility evaluator only; no purge or deletion until policy inputs are approved.
 4. Review the fresh Vercel preview manually on physical PC/tablet/mobile devices; headless Playwright coverage is now in place.
 5. Deploy a non-production backend and verify exact-origin CORS plus authenticated frontend operations.
 6. Validate real provider and platform workflows only after credentials and test accounts are available.
