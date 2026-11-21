@@ -105,5 +105,26 @@ class TimelineEDLTests(unittest.TestCase):
             validate_edl({**self.valid, "audio_tracks": [{**track, "filter": "amovie"}]})
 
 
+    def test_normalizes_explicit_project_duration_and_bounds_audio(self):
+        track = {
+            "id": "music0", "asset_id": "asset_audio",
+            "start_ms": 0, "source_in_ms": 0, "source_out_ms": 6000,
+        }
+        payload = {
+            **self.valid,
+            "project_duration_ms": 8000,
+            "audio_tracks": [track],
+        }
+        result = validate_edl(payload)
+        self.assertEqual(result["project_duration_ms"], 8000)
+        self.assertEqual(result["audio_tracks"][0]["source_out_ms"], 6000)
+
+        for duration, audio_end in ((4999, 0), (8000, 9000), (3_600_001, 0), (8000.5, 0)):
+            invalid = {**payload, "project_duration_ms": duration}
+            if audio_end:
+                invalid["audio_tracks"] = [{**track, "source_out_ms": audio_end}]
+            with self.subTest(duration=duration, audio_end=audio_end), self.assertRaises(EDLValidationError):
+                validate_edl(invalid)
+
 if __name__ == "__main__":
     unittest.main()
