@@ -26,7 +26,8 @@ try{
    @{id="BUILD-99001";title="parallel fixture A";status="ready";priority=1;depends_on=@();scope=@("write an isolated marker");acceptance=@("marker exists")},
    @{id="BUILD-99002";title="parallel fixture B";status="ready";priority=2;depends_on=@();scope=@("write an isolated marker");acceptance=@("marker exists")},
    @{id="BUILD-99003";title="parallel fixture C";status="ready";priority=3;depends_on=@();scope=@("write an isolated marker");acceptance=@("marker exists")},
-   @{id="BUILD-99004";title="dependent fixture D";status="ready";priority=4;depends_on=@("BUILD-99001");scope=@("must remain gated");acceptance=@("must not run before dependency completion")}
+   @{id="BUILD-99004";title="dependent fixture D";status="ready";priority=4;depends_on=@("BUILD-99001");scope=@("must remain gated");acceptance=@("must not run before dependency completion")},
+   @{id="BUILD-99005";title="open PR duplicate fixture E";status="ready";priority=5;depends_on=@();scope=@("must be skipped by open PR metadata");acceptance=@("must not be dispatched when an open PR body references this task ID")}
   )
  }
  $manifest|ConvertTo-Json -Depth 20|Set-Content (Join-Path $seed ".devflow/tasks.json") -Encoding utf8
@@ -41,7 +42,7 @@ try{
  & git -C $checkout config user.email "multiflow-test@example.invalid"
  $fakeGh=@(
   "@echo off",
-  'if "%1 %2"=="pr list" (echo [] & exit /b 0)',
+  'if "%1 %2"=="pr list" (echo [{"title":"Timeline integration","body":"Implements BUILD-99005","headRefName":"feat/timeline-integration","baseRefName":"main"}] & exit /b 0)',
   'if "%1 %2"=="pr create" (echo https://example.invalid/draft & exit /b 0)',
   'if "%1 %2"=="auth status" exit /b 0',
   "exit /b 0"
@@ -67,7 +68,7 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  Push-Location $checkout
  try{
   $timer=[Diagnostics.Stopwatch]::StartNew()
-  & pwsh -NoProfile -File (Join-Path $checkout "scripts/git-cli-multiflow-parallel.ps1") -StateRoot $state -MaxParallel 3 -MaxTasks 3 -TaskTimeoutSeconds 60
+  & pwsh -NoProfile -File (Join-Path $checkout "scripts/git-cli-multiflow-parallel.ps1") -StateRoot $state -MaxParallel 3 -MaxTasks 4 -TaskTimeoutSeconds 60
   if($LASTEXITCODE -ne 0){throw "Parallel engine exited with $LASTEXITCODE."}
   $timer.Stop()
  }finally{Pop-Location}
@@ -92,6 +93,7 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  $branchesAfterRerun=@(& git --git-dir=$origin branch --list "autopilot/*")
  if($branchesAfterRerun.Count -ne 3){throw "Completed Draft PR tasks were dispatched again on rerun."}
  if($stateData.tasks."BUILD-99004"){throw "Dependency-gated task unexpectedly entered worker state."}
+ if($stateData.tasks."BUILD-99005"){throw "Task with an open PR body reference was unexpectedly dispatched."}
  Write-Host "PASS: three fake agents overlapped (start spread $($delta)ms), produced Draft PR states, and pushed isolated branches."
 }finally{
  $env:PATH=$originalPath
