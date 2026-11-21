@@ -81,13 +81,14 @@
         "Real-media Compose smoke generates a fixture video and verifies title overlay, audio mix, ffprobe output, lease-fenced artifact adoption, pending review and immutable artifact-hash approval",
         "CI fault-injection coverage verifies process-generation lease loss cancels rendering, discards staged output, allows queue recovery/reclaim, and removes only expired generated staging files",
         "Timeline render worker is opt-in behind the Compose render profile; Compose CI asserts it is absent from the default profile and enabled explicitly for integration smoke",
-        "Exact-head integration validation passed: Backend run 44882235365 (914 tests plus Playwright browser smoke) and Compose run 44882235333 (ClamAV database readiness/EICAR detection, worker isolation, real FFmpeg render/adoption/review, authenticated API upload-to-worker render/approval/private preview, encrypted backup and isolated restore). CI uses generated media and isolated Docker volumes; target-host/provider validation remains."
+        "Exact-head integration validation passed: Backend run 44882235365 (914 tests plus Playwright browser smoke) and Compose run 44882235333 (ClamAV database readiness/EICAR detection, worker isolation, real FFmpeg render/adoption/review, authenticated API upload-to-worker render/approval/private preview, encrypted backup and isolated restore). CI uses generated media and isolated Docker volumes; target-host/provider validation remains.",
+        "Render worker performs orphaned staging and unindexed artifact reconciliation every 300 seconds with a 7200-second grace period. PR #468 adds structured removal-count and failure-type log events; target persistent filesystem/alert validation and indexed artifact retention remain open."
       ],
       "remaining": [
         "Validate representative customer media on the target runtime, including uncommon codecs, variable frame rates and long-duration inputs",
         "Run crash/restart and lease-loss fault injection against the target persistent filesystem; CI regression tests now cover process-generation loss, staging cleanup and lease reclaim in isolated test storage",
         "Validate ClamAV signature freshness and fail-closed scanning on the target runtime before enabling production uploads; CI verifies a current signature database and EICAR rejection.",
-        "Schedule and monitor artifact orphan reconciliation and retention cleanup in the production worker service",
+        "Validate five-minute orphan reconciliation and its logs on the target persistent filesystem; add durable metrics/alerts. Indexed artifact retention/deletion remains a separate policy gate.",
         "Run end-to-end authenticated API upload → current ClamAV signature scan → render queue → worker adoption → review preview using production-like persistent storage; CI now exercises real ClamAV scanning and EICAR rejection with generated media on isolated Docker volumes, but target storage remains unvalidated.",
         "Measure production workload resource usage and enforce disk quota/network egress policy on the target host",
         "Implement EDL overlap transitions and explicit project-duration/trailing-gap semantics",
