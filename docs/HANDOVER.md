@@ -1569,3 +1569,13 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - PR #480 remains Draft/open/unmerged. Vercel deployment is being created for this exact head; no production deploy or public publishing.
 
 - The static Vercel preview is deployed from b91db13d3c71c5f0ae28583da471b9ffbe5874b8 at https://nexus-studio-pro-ui-preview-j7gg655lv-justinhblee-9540.vercel.app/preview.html. It exposes an API-origin field in Settings; the API host must allow this preview origin via CORS. The operator token stays in page memory, not localStorage.
+
+
+## BUILD-00362 — media shelf and visual timeline — 2026-11-21
+
+- Dependent UI increment on BUILD-00361 / Draft PR #480, developed on feat/nexus-media-shelf-timeline-2026-11-21.
+- Added a searchable visual media shelf for local video and title clips, thumbnail/placeholder previews, duration, size and server-scan status.
+- Selecting a media card or visual timeline segment selects the clip, updates the source preview and opens the selected-clip detail inspector.
+- Added a graphical time ruler with separate sequential VIDEO, timed TITLE overlay and optional AUDIO bed lanes. The existing precise trim/reorder controls and authenticated EDL render/review actions remain intact.
+- Browser and responsive assertions now cover the shelf, visual lanes, filter, selected inspector and server scan status. Exact-head CI is pending for this increment.
+- Future scope: timeline zoom/scroll controls, multiple independent audio tracks and explicit project duration; no gaps, overlaps or transitions are added to this UI increment.
