@@ -6,7 +6,6 @@ param(
  [ValidateRange(1,20)][int]$MaxTasks=20
 )
 $ErrorActionPreference="Stop"
-$env:DEVFLOW_VALIDATOR_PATH=Join-Path $PSScriptRoot "devflow.py"
 if($PSVersionTable.PSVersion.Major -lt 7){throw "PowerShell 7 or newer is required."}
 . (Join-Path $PSScriptRoot "devflow-agent-process.ps1")
 function Read-State([string]$Path){
@@ -67,6 +66,14 @@ if($Worker){
    $value.Replace("{task_id}",$id).Replace("{worktree}",$taskData.worktree)
   }
   $psi=New-DevflowAgentProcessStartInfo -Command $command -Arguments @($expanded) -WorkingDirectory $taskData.worktree
+  # The local model may execute repository tools, but it must never inherit the
+  # GitHub token or provider/cloud credentials used by the supervisor process.
+  foreach($name in @($psi.Environment.Keys)){
+   if($name -match '(?i)(TOKEN|API_KEY|SECRET|PASSWORD|CREDENTIAL|PRIVATE_KEY|ACCESS_KEY|AUTHORIZATION)' -or
+      $name -match '(?i)^(GH_|GITHUB_|AWS_|AZURE_|OPENAI_|ANTHROPIC_)'){
+    [void]$psi.Environment.Remove($name)
+   }
+  }
   $agent=[Diagnostics.Process]::new();$agent.StartInfo=$psi
   if(-not $agent.Start()){throw "Agent did not start."}
   $stdout=$agent.StandardOutput.ReadToEndAsync();$stderr=$agent.StandardError.ReadToEndAsync()
@@ -78,7 +85,10 @@ if($Worker){
   Remove-Item -LiteralPath $taskData.prompt -Force -ErrorAction SilentlyContinue
   if(& git -C $taskData.worktree status --porcelain -- .devflow/tasks.json){throw "Protected task manifest was modified."}
   if(-not(& git -C $taskData.worktree status --porcelain)){throw "Agent produced no changes."}
-  $validator=$env:DEVFLOW_VALIDATOR_PATH;if(-not $validator -or -not(Test-Path -LiteralPath $validator)){$validator=Join-Path $taskData.worktree "scripts/devflow.py"};if(-not(Test-Path -LiteralPath $validator)){throw "DevFlow validator is unavailable in runner checkout and task worktree."};& python $validator validate;if($LASTEXITCODE -ne 0){throw "Validation failed."}
+  $validator=Join-Path $taskData.worktree "scripts/devflow.py"
+  if(-not(Test-Path -LiteralPath $validator)){throw "Task-worktree DevFlow validator is missing: $validator"}
+  & python $validator validate
+  if($LASTEXITCODE -ne 0){throw "Task-worktree validation failed."}
   foreach($n in @(".env",".env.local","credentials.json","secrets.json")){
    $secret=Get-ChildItem $taskData.worktree -Force -Recurse -File -Filter $n -ErrorAction SilentlyContinue|Where-Object{$_.FullName -notmatch '[\\/](\.git|node_modules|\.venv)[\\/]'}
    if($secret){throw "Potential secret file: $n"}
