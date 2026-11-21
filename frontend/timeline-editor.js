@@ -77,6 +77,8 @@
     return state.audio;
   }
   async function buildEdl(workspaceId){
+    const localState=local()?.state;
+    if(!localState||localState.clips.length>20)throw new Error("EDL v1은 영상과 타이틀을 합쳐 최대 20개 클립을 지원합니다.");
     const clips=await ensureVideoAssets(workspaceId);
     const audio=await ensureAudioAsset(workspaceId);
     let cursor=0;
@@ -212,6 +214,7 @@
   }
   if($("timelineEditor")){
     bind();
+    window.addEventListener("beforeunload",()=>{if(state.audio?.url)URL.revokeObjectURL(state.audio.url);if(state.outputUrl)URL.revokeObjectURL(state.outputUrl);});
     if(!api()?.hasToken())say("편집 미리보기는 로컬에서 가능하며, 서버 렌더링에는 API 주소·토큰·활성 워크스페이스가 필요합니다.");
   }
 })();
