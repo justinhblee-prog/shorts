@@ -201,5 +201,84 @@ class WorkspaceRenderApiTests(unittest.TestCase):
             self.assertEqual(response.media_type, "video/mp4")
 
 
+
+    def test_authenticated_upload_quarantine_then_real_store_render_enqueue(self):
+        """Exercise API-to-SQLite wiring; scanner is intentionally not represented as real ClamAV."""
+        import io
+        from queue_store import JobQueue
+        from workspace_store import WorkspaceStore
+        from workspace_asset_store import WorkspaceAssetStore
+        from timeline_render_store import TimelineRenderStore
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            db_path = str(root / "nexus.sqlite3")
+            queue = JobQueue(db_path, lease_seconds=30)
+            workspaces = WorkspaceStore(db_path)
+            workspaces.create("Studio", "alice", "ws_studio")
+            assets = WorkspaceAssetStore(
+                db_path, str(root / "private-media"), workspaces,
+                max_asset_bytes=1024,
+            )
+            renders = TimelineRenderStore(db_path, assets, workspaces, queue)
+
+            with (
+                patch.object(app_module, "require_review_permission", return_value="alice"),
+                patch.object(app_module, "resolve_operator_workspace_scope", return_value="ws_studio"),
+                patch.object(app_module, "workspace_asset_store", assets),
+                patch.object(app_module, "timeline_render_store", renders),
+                patch.object(app_module, "queue", queue),
+                patch.object(app_module, "_scan_workspace_asset", return_value={
+                    "scan_status": "pending", "scanner_status": "disabled",
+                    "media_metadata": None,
+                }),
+            ):
+                uploaded = asyncio.run(app_module.upload_operator_workspace_asset(
+                    "ws_studio", self.request(b"generated-media-fixture"),
+                    "source.mp4", "operator-token",
+                ))
+                self.assertEqual(uploaded["scan_status"], "pending")
+                self.assertFalse(uploaded["renderable"])
+
+                edl = {
+                    "schema": "nexus-edit-decision-list", "version": 1,
+                    "timebase": "milliseconds",
+                    "clips": [{
+                        "id": "source", "type": "video", "start_ms": 0,
+                        "end_ms": 1000, "asset_id": uploaded["asset_id"],
+                        "source_in_ms": 0, "source_out_ms": 1000,
+                    }],
+                }
+                body = app_module.TimelineRenderSubmitInput(
+                    edl=edl, idempotency_key="api-flow-0001"
+                )
+                with self.assertRaises(HTTPException) as quarantined:
+                    app_module.submit_workspace_render(
+                        "ws_studio", body, "operator-token"
+                    )
+                self.assertEqual(quarantined.exception.status_code, 409)
+
+                # Trusted scanner attestation is a test fixture only. It proves
+                # the API/store gate wiring, not ClamAV execution or signature freshness.
+                assets.mark_scan_result(
+                    "ws_studio", "alice", uploaded["asset_id"], True,
+                    media_metadata={
+                        "duration_ms": 1000, "byte_size": len(b"generated-media-fixture"),
+                        "has_video": True, "has_audio": False,
+                        "video_streams": [{"codec": "h264", "width": 320, "height": 568}],
+                        "audio_streams": [],
+                    },
+                    scanner_verified=True,
+                )
+                submitted = app_module.submit_workspace_render(
+                    "ws_studio", body, "operator-token"
+                )
+                self.assertEqual(submitted["status"], "queued")
+                self.assertEqual(submitted["workspace_id"], "ws_studio")
+                job = queue.get(submitted["render_job_id"], workspace_id="ws_studio")
+                self.assertEqual(job["status"], "queued")
+                self.assertEqual(job["payload"]["edl"]["clips"][0]["asset_id"],
+                                 uploaded["asset_id"])
+
 if __name__ == "__main__":
     unittest.main()
