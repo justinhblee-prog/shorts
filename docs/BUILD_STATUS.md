@@ -2730,3 +2730,11 @@ See [docs/RELEASE_READINESS.md](RELEASE_READINESS.md) for the evidence-based rem
 ### Next engineering priority
 
 Implement the secure FFmpeg/MP4 render worker rather than revisiting the already-connected workspace toolbar. Preserve the current timeline/EDL behavior while adding: owned source-asset registration and hash-verified staging; durable render-job state and lease/recovery semantics; an allowlisted FFmpeg invocation without shell interpolation or arbitrary paths/URLs; bounded CPU, memory, input size and runtime; audio mixing; ffprobe-based output validation; checksum-backed atomic artifact adoption; and a human-review gate before any publishable output. Add regression coverage for traversal/symlink inputs, malformed EDL, oversized media, timeout/cancellation and interrupted renders. Live provider and production publishing actions remain out of scope without explicit authorization.
+
+
+## BUILD-00360 — installation-wide private media capacity
+
+- Added `NEXUS_MAX_TOTAL_MEDIA_BYTES` (default 20 GiB) as a shared logical ceiling across all workspaces.
+- Each streamed chunk now reserves against both the workspace quota and installation-wide active-plus-pending bytes in the same serialized SQLite transaction before writing to disk.
+- Cross-workspace regression coverage confirms one workspace cannot consume capacity already used by another; invalid cap configurations are rejected.
+- This does not replace host filesystem quotas or include renderer scratch/output, backups or unrelated files. Host-level volume limits and free-space monitoring remain deployment controls.
