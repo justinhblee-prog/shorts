@@ -2,9 +2,10 @@
 
 ## Supported EDL v1 render subset
 
-The worker accepts sequential video clips, bounded text overlays and up to eight optional audio tracks.
+The worker accepts ordered non-overlapping video clips, black timeline gaps, bounded text overlays, optional explicit project duration and up to eight optional audio tracks.
 
-- Video clips must begin at timeline zero and be contiguous, without gaps or overlaps.
+- Video clips are ordered by timeline start; gaps (including an initial gap) render as black. Overlapping clips remain rejected until an explicit transition model is implemented.
+- `project_duration_ms` is optional, whole milliseconds, and must cover every clip and audio track. When supplied it controls the final output length, including a trailing black segment; when omitted the last video clip end determines the duration.
 - Video source trims are applied with FFmpeg `trim`, then normalized to the configured output canvas, frame rate and pixel format before concat.
 - Title clips are rendered as timed `drawtext` overlays. Title content is written to per-job UTF-8 text files and passed with `textfile` plus `expansion=none`; it is never interpolated into an FFmpeg command string. The font must be an absolute, regular, non-symlink file supplied by trusted worker configuration.
 - Audio tracks carry an opaque workspace asset ID, timeline start, source in/out, linear gain and optional fade-in/fade-out durations. Audio is trimmed, timestamp-reset, gained, delayed, faded, mixed with `amix` and protected by `alimiter`.
@@ -12,7 +13,7 @@ The worker accepts sequential video clips, bounded text overlays and up to eight
 - Before FFmpeg runs, the renderer copies each clean asset into a private per-job work directory, verifies its SHA-256, runs a bounded source-media ffprobe check, and enforces source-trim bounds.
 - The renderer recomputes the canonical normalized EDL SHA-256 and rejects queue payloads that do not match the immutable snapshot digest.
 
-Transitions, subtitles, arbitrary filters, URL inputs, arbitrary file paths, timeline gaps and overlaps remain unsupported. Video clips must be contiguous; gaps and overlaps are rejected rather than silently rendered.
+Transitions, subtitles, arbitrary filters, URL inputs and arbitrary file paths remain unsupported. Overlaps are rejected rather than silently composited. Gaps are explicit black video segments, and an explicit project duration can preserve trailing black time.
 
 ## Worker and API integration
 
