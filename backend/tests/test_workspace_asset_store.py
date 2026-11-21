@@ -128,7 +128,9 @@ class WorkspaceAssetStoreTests(unittest.TestCase):
             self.assertEqual(reservation["byte_size"], 12)
             staged = list((self.root / "private-media" / "ws_studio").glob(".upload-*"))
             self.assertEqual(len(staged), 1)
-            self.assertEqual(staged[0].stat().st_size, 12)
+            # Python may still hold a small write in its file buffer; disk bytes
+            # must never exceed the quota already reserved in SQLite.
+            self.assertLessEqual(staged[0].stat().st_size, reservation["byte_size"])
 
             with self.assertRaisesRegex(AssetError, "workspace storage quota"):
                 self.store.register_stream(
