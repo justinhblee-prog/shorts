@@ -22,6 +22,7 @@ Transitions, subtitles, arbitrary filters, URL inputs, arbitrary file paths, tim
 - The authenticated operator API supports bounded private uploads, quarantine/rescan, render submission/status, pending artifact listing, download and review decisions.
 - ClamAV and ffprobe failures leave media quarantined. `NEXUS_MEDIA_SCAN_ENABLED` must be enabled and trusted ClamAV signatures available before uploads can become renderable; the default is fail-closed/pending.
 - The Compose render worker is isolated with no network, read-only root filesystem, dropped Linux capabilities, no-new-privileges, bounded tmpfs, CPU/memory/PID limits and graceful shutdown.
+- Worker construction verifies the exact configured FFmpeg and ffprobe paths against the image-baked SHA-256 manifest before opening the render queue or registering a worker generation; a missing, unsafe or mismatched manifest fails startup closed.
 
 ## Validation evidence
 
