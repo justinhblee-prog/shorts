@@ -25,21 +25,20 @@ async function waitForServer() {
     await waitForServer();
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
-    await context.addInitScript(() => {
-      window.__NEXUS_PREVIEW_TEST__ = true;
+    const page = await context.newPage();
+    await page.addInitScript(() => {
       Object.defineProperty(navigator, "clipboard", {
         configurable: true,
         value: { writeText: () => Promise.reject(new Error("clipboard permission denied")) },
       });
     });
-    const page = await context.newPage();
     page.setDefaultTimeout(10000);
     const apiRequests = [];
     await page.route("**/api/**", async route => {
       apiRequests.push({ method: route.request().method(), url: route.request().url() });
       await route.abort();
     });
-    await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+    await page.goto(baseUrl + "/?nexus-preview-test=1", { waitUntil: "domcontentloaded" });
 
     const banner = page.locator(".nexus-preview-banner");
     assert.equal(await banner.getAttribute("role"), "status");
