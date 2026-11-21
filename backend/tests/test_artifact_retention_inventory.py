@@ -5,15 +5,18 @@ import unittest
 from contextlib import contextmanager
 from pathlib import Path
 
-from artifact_retention_inventory import RetentionInventory
+from artifact_retention_inventory import RetentionInventory, RetentionInventoryError
 
 
 class _SQLiteStore:
     def __init__(self, path):
         self.path = str(path)
+        self.db_path = self.path
+        self.open_count = 0
 
     @contextmanager
     def db(self):
+        self.open_count += 1
         connection = sqlite3.connect(self.path)
         connection.row_factory = sqlite3.Row
         try:
@@ -129,8 +132,8 @@ class RetentionInventoryTests(unittest.TestCase):
         self.assertEqual(result["eligible_for_review_count"], 0)
         self.assertEqual(result["blocked_count"], 3)
         self.assertTrue(result["read_only"])
-        self.assertFalse(result["reference_check_complete"])
-        self.assertEqual(result["reference_snapshot_consistency"], "non_atomic")
+        self.assertTrue(result["reference_check_complete"])
+        self.assertEqual(result["reference_snapshot_consistency"], "atomic_read_transaction")
         self.assertFalse(result["destructive_action_performed"])
         self.assertEqual(
             {item["candidate"]["id"] for item in result["candidates"]},
@@ -139,8 +142,8 @@ class RetentionInventoryTests(unittest.TestCase):
         asset = next(x for x in result["candidates"] if x["candidate"]["id"] == "asset-a")
         self.assertEqual(asset["candidate"]["active_reference_count"], 1)
         self.assertEqual(asset["candidate"]["snapshot_reference_count"], 1)
-        self.assertFalse(asset["candidate"]["reference_check_complete"])
-        self.assertIn("reference_check_incomplete", asset["evaluation"]["reason_codes"])
+        self.assertTrue(asset["candidate"]["reference_check_complete"])
+        self.assertNotIn("reference_check_incomplete", asset["evaluation"]["reason_codes"])
         self.assertIn("legal_hold_state_unknown", asset["evaluation"]["reason_codes"])
         self.assertIn("backup_implications_unknown", asset["evaluation"]["reason_codes"])
         artifact = next(x for x in result["candidates"] if x["candidate"]["id"] == "rart-a")
@@ -152,6 +155,9 @@ class RetentionInventoryTests(unittest.TestCase):
                 for table in before
             }
         self.assertEqual(before, after)
+        self.assertEqual(self.snapshots.open_count, 1)
+        self.assertEqual(self.assets.open_count, 0)
+        self.assertEqual(self.artifacts.queue.open_count, 0)
 
     def test_workspace_membership_is_required_before_inventory(self):
         with self.assertRaises(PermissionError):
@@ -172,10 +178,19 @@ class RetentionInventoryTests(unittest.TestCase):
             now="2026-11-21T12:00:00+00:00", limit=10,
         )
         self.assertFalse(result["snapshot_reference_inventory_complete"])
+        self.assertFalse(result["reference_check_complete"])
         asset = next(x for x in result["candidates"] if x["candidate"]["id"] == "asset-a")
         self.assertFalse(asset["candidate"]["reference_check_complete"])
         self.assertIsNone(asset["candidate"]["active_reference_count"])
         self.assertIn("reference_check_incomplete", asset["evaluation"]["reason_codes"])
+
+    def test_mismatched_store_databases_fail_closed(self):
+        self.snapshots.db_path = str(Path(self.temp.name) / "other.sqlite3")
+        with self.assertRaises(RetentionInventoryError):
+            self.inventory.list_workspace(
+                "ws-a", "owner-a", self.policy,
+                now="2026-11-21T12:00:00+00:00",
+            )
 
     def test_limit_is_bounded_and_reports_truncation(self):
         result = self.inventory.list_workspace(
