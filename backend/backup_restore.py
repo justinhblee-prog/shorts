@@ -280,22 +280,25 @@ def _require_backup_staging_space(output_dir, required_bytes):
 
 def _archive_uncompressed_size(archive_path):
     """Read tar metadata without extracting payloads and return bounded file bytes."""
+    total_size = 0
     try:
-        archive = tarfile.open(archive_path, "r:gz")
-    except (tarfile.TarError, OSError) as exc:
-        raise BackupRestoreError("Backup archive cannot be opened") from exc
-    with archive:
-        members = archive.getmembers()
-        if len(members) > MAX_ARCHIVE_MEMBERS:
-            raise BackupRestoreError("Backup archive contains too many entries")
-        total_size = 0
-        for member in members:
-            if member.isfile():
-                if member.size < 0:
-                    raise BackupRestoreError("Backup archive contains an invalid file size")
-                total_size += member.size
-                if total_size > MAX_ARCHIVE_BYTES:
-                    raise BackupRestoreError("Backup archive exceeds the supported uncompressed size")
+        with tarfile.open(archive_path, "r:gz") as archive:
+            members = archive.getmembers()
+            if len(members) > MAX_ARCHIVE_MEMBERS:
+                raise BackupRestoreError("Backup archive contains too many entries")
+            for member in members:
+                if member.isfile():
+                    if member.size < 0:
+                        raise BackupRestoreError("Backup archive contains an invalid file size")
+                    total_size += member.size
+                    if total_size > MAX_ARCHIVE_BYTES:
+                        raise BackupRestoreError(
+                            "Backup archive exceeds the supported uncompressed size"
+                        )
+    except BackupRestoreError:
+        raise
+    except (tarfile.TarError, OSError, EOFError) as exc:
+        raise BackupRestoreError("Backup archive cannot be read during space preflight") from exc
     return total_size
 
 
