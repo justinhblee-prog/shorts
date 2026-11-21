@@ -9,6 +9,28 @@ const server = spawn(process.env.PYTHON || "python", [
   "scripts/ui_api_smoke_server.py", "--port", String(port),
 ], { stdio: "ignore" });
 
+function makeWavFixture(durationMs = 1200, sampleRate = 8000) {
+  const channels = 1;
+  const bitsPerSample = 16;
+  const sampleCount = Math.round(sampleRate * durationMs / 1000);
+  const dataBytes = sampleCount * channels * bitsPerSample / 8;
+  const wav = Buffer.alloc(44 + dataBytes);
+  wav.write("RIFF", 0);
+  wav.writeUInt32LE(36 + dataBytes, 4);
+  wav.write("WAVE", 8);
+  wav.write("fmt ", 12);
+  wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20);
+  wav.writeUInt16LE(channels, 22);
+  wav.writeUInt32LE(sampleRate, 24);
+  wav.writeUInt32LE(sampleRate * channels * bitsPerSample / 8, 28);
+  wav.writeUInt16LE(channels * bitsPerSample / 8, 32);
+  wav.writeUInt16LE(bitsPerSample, 34);
+  wav.write("data", 36);
+  wav.writeUInt32LE(dataBytes, 40);
+  return wav;
+}
+
 function waitForSignal(promise, label, timeoutMs = 15000) {
   return Promise.race([
     promise,
@@ -360,8 +382,8 @@ async function waitForServer() {
       window.NexusLocalTimeline.render();
     });
     await page.locator("#timelineAudioInput").setInputFiles([
-      {name:"music-bed.wav",mimeType:"audio/wav",buffer:Buffer.from("audio-one")},
-      {name:"voice-over.wav",mimeType:"audio/wav",buffer:Buffer.from("audio-two")},
+      {name:"music-bed.wav",mimeType:"audio/wav",buffer:makeWavFixture(5000)},
+      {name:"voice-over.wav",mimeType:"audio/wav",buffer:makeWavFixture(5000)},
     ]);
     await page.waitForFunction(() => document.querySelectorAll("#timelineAudioTracks .timeline-audio-track").length === 2);
     const audioRows=page.locator("#timelineAudioTracks .timeline-audio-track");
