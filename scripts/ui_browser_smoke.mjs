@@ -401,6 +401,20 @@ async function waitForServer() {
     assert.equal(capturedTimelineEdl.clips.find(clip=>clip.id==="clip-smoke-2").start_ms,3000,"the second video must start after the 500ms black interval");
     assert.equal(capturedTimelineEdl.audio_tracks[1].start_ms+capturedTimelineEdl.audio_tracks[1].source_out_ms-capturedTimelineEdl.audio_tracks[1].source_in_ms,6500,"audio may extend into the declared trailing duration");
     assert.equal(await page.locator("#timelineMediaShelf .timeline-media-card").count(),3,"local media shelf should show both video clips and the title overlay");
+    const lazyThumbnailAudit=await page.evaluate(()=>{
+      const timeline=window.NexusLocalTimeline,source=timeline.state.clips.find(clip=>clip.kind==="video");
+      for(let index=0;index<8;index++)timeline.state.clips.push({...source,id:"lazy-thumbnail-"+index,name:"Lazy thumbnail "+index,assetId:"",uploadedWorkspaceId:"",serverDurationMs:0});
+      timeline.render();
+      const videos=[...document.querySelectorAll("#timelineMediaShelf .timeline-media-card video")];
+      return {count:videos.length,loaded:videos.filter(video=>video.hasAttribute("src")).length,preload:videos[0]?.preload};
+    });
+    assert.equal(lazyThumbnailAudit.preload,"none","offscreen thumbnail videos must not preload media metadata");
+    assert.ok(lazyThumbnailAudit.loaded<lazyThumbnailAudit.count,"only visible or near-visible thumbnail videos should load");
+    await page.locator("#timelineMediaShelf").evaluate(el=>{el.scrollTop=el.scrollHeight;});
+    await page.waitForFunction(()=>{
+      const videos=[...document.querySelectorAll("#timelineMediaShelf .timeline-media-card video")];
+      return videos.length>0&&videos[videos.length-1].hasAttribute("src");
+    });
     assert.equal(await page.locator("#timelineVisualTrack .timeline-visual-lane").count(),3,"visual timeline should render video, title and audio lanes");
     assert.equal(await page.locator("#timelineVisualTrack .timeline-segment.is-video").count(),2);
     assert.equal(await page.locator("#timelineVisualTrack .timeline-segment.is-title").count(),1);
