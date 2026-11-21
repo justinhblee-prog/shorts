@@ -161,9 +161,21 @@ class RetentionInventory:
                     state["active"] += 1
 
         candidates = []
+        integrity_observations = {"verified": 0, "unverified": 0}
         assets_truncated = len(asset_rows) > limit
         for row in asset_rows[:limit]:
             refs = asset_references.get(row["id"], {"snapshots": 0, "active": 0})
+            integrity_status = "unverified"
+            if row["status"] == "active" and callable(getattr(self.assets, "verify_integrity", None)):
+                try:
+                    evidence = self.assets.verify_integrity(workspace_id, principal_id, row["id"])
+                    if isinstance(evidence, dict) and evidence.get("verified") is True:
+                        integrity_status = "verified"
+                except Exception:
+                    # Missing/tampered bytes and provider errors remain unknown to the evaluator.
+                    integrity_status = "verification_failed"
+            integrity_verified = integrity_status == "verified"
+            integrity_observations["verified" if integrity_verified else "unverified"] += 1
             candidate = {
                 "id": row["id"],
                 "data_class": "workspace_asset",
@@ -174,8 +186,10 @@ class RetentionInventory:
                 "active_reference_count": refs["active"] if snapshot_inventory_complete else None,
                 "snapshot_reference_count": refs["snapshots"] if snapshot_inventory_complete else None,
                 "legal_hold": None,
-                "integrity_verified": False,
-                "storage_state_known": False,
+                "integrity_verified": integrity_verified,
+                "integrity_check_status": integrity_status,
+                "integrity_evidence_source": "workspace_asset_store.sha256" if integrity_verified else None,
+                "storage_state_known": integrity_verified,
                 "backup_state_known": False,
             }
             evaluation = evaluate_retention_candidate(candidate, policy, now=now)
@@ -192,6 +206,16 @@ class RetentionInventory:
                 row["job_status"], row["review_status"]
             )
             review_status = row["review_status"] or "pending"
+            integrity_status = "unverified"
+            if callable(getattr(self.artifacts, "get", None)):
+                try:
+                    evidence = self.artifacts.get(row["artifact_id"], workspace_id)
+                    if isinstance(evidence, dict) and evidence.get("artifact_sha256") and evidence.get("byte_size") == row["byte_size"]:
+                        integrity_status = "verified"
+                except Exception:
+                    integrity_status = "verification_failed"
+            integrity_verified = integrity_status == "verified"
+            integrity_observations["verified" if integrity_verified else "unverified"] += 1
             candidate = {
                 "id": row["artifact_id"],
                 "data_class": "render_artifact",
@@ -202,8 +226,10 @@ class RetentionInventory:
                 # The immutable EDL snapshot remains linked to the artifact's render job.
                 "snapshot_reference_count": 1,
                 "legal_hold": None,
-                "integrity_verified": False,
-                "storage_state_known": False,
+                "integrity_verified": integrity_verified,
+                "integrity_check_status": integrity_status,
+                "integrity_evidence_source": "render_artifact_store.artifact_sha256" if integrity_verified else None,
+                "storage_state_known": integrity_verified,
                 "backup_state_known": False,
             }
             evaluation = evaluate_retention_candidate(candidate, policy, now=now)
@@ -228,6 +254,7 @@ class RetentionInventory:
             "eligible_for_review_count": eligible_count,
             "blocked_count": len(candidates) - eligible_count,
             "reason_counts": dict(sorted(reason_counts.items())),
+            "integrity_observations": integrity_observations,
             "candidates": candidates,
             "truncated": assets_truncated or artifacts_truncated or snapshot_truncated,
             "snapshot_reference_inventory_complete": snapshot_inventory_complete,
