@@ -72,7 +72,29 @@ Frontend API configuration:
 - Git CLI automation CI passed; the actual Windows Claude CLI/provider session remains unverified because it requires the user's Windows environment and provider authentication.
 - Do not claim unattended local Windows execution based only on hosted CI.
 
-## 3. Validation evidence and limits
+## 3. BUILD-00352 dependency-chain audit (2026-11-21)
+
+The media/render work is not one flat set of independently mergeable PRs. The verified stack is:
+
+```text
+#436 lease-fenced render/artifact baseline
+  └─ #444 integrated EDL submission + renderer/review
+      └─ #448 verify render binary manifest at worker startup
+          └─ #449 authenticated upload-to-render integration coverage
+              └─ #450 workspace quota reservations
+                  └─ #452 incremental upload-byte reservations
+                      ├─ #453 reviewed FFmpeg/ffprobe digest lock
+                      └─ #456 global media cap + physical free-space preflight
+```
+
+Important reconciliation finding:
+- PR #444 currently reports `mergeable=false`. GitHub compare reports 59 commits ahead and 19 behind its declared base branch `feat/build-00352-lease-fenced-artifact-adoption-2026-11-20`; it has diverged from that base and requires reconciliation before review/merge.
+- A checkpoint comment was added to #444. It remains Draft/open/unmerged. Do not merge #444, #448, #449, #450, #452, #453 or #456 out of order.
+- PR #452 is correctly based on the #450 workspace-quota branch; it is 4 commits ahead of that base with no behind commits. Its later descendants inherit the upstream #449→#448→#444 dependency.
+- PRs #458, #459 and #462 are separate main-based storage/worker improvements, but they do not replace the BUILD-00352 integration stack.
+- The #444 compare shows changes across queue, asset store, render worker, API, Compose and tests; resolving this requires reconciling the complete branch, not simply changing the PR base to main.
+
+## 4. Validation evidence and limits
 
 Latest relevant checks:
 - #456 latest head `3dfcad292214649954fd645cff2c62f1cc5c5946`: Backend run [44874981857](https://github.com/justinhblee-prog/shorts/actions/runs/44874981857) success; Compose run [44874981840](https://github.com/justinhblee-prog/shorts/actions/runs/44874981840) success.
@@ -88,7 +110,7 @@ Automated CI and Compose smoke do not prove:
 - Host-level disk quotas, production monitoring, alerting or a disaster-recovery drill.
 - Full manual visual review across physical devices and API-connected acceptance with a deployed backend.
 
-## 4. External deployment prerequisites
+## 5. External deployment prerequisites
 
 1. Deploy the backend API to a supported HTTPS host; Compose now binds the published API port to loopback by default, so route remote browser traffic through a TLS reverse proxy.
 2. Configure `NEXUS_CORS_ORIGINS` with the exact Vercel frontend HTTPS origin; the API now rejects wildcard/null/path/credential origins and non-HTTPS remote origins at startup. Preserve the loopback default unless a private ingress/firewall explicitly requires another bind interface.
@@ -99,16 +121,17 @@ Automated CI and Compose smoke do not prove:
 7. Confirm backup encryption key custody, off-host backup replication, restore procedure and monitoring.
 8. Run the full visual browser QA and API-connected acceptance flow with real test credentials.
 
-## 5. Immediate next actions
+## 6. Immediate next actions
 
 1. Keep all Draft PRs open and unmerged; preserve dependency ordering (#452 before #456/#453).
-2. Continue storage lifecycle integration checks across upload, render, scratch cleanup, backup and restore.
-3. Review the fresh Vercel preview manually on physical PC/tablet/mobile devices; headless Playwright coverage is now in place.
-4. Deploy a non-production backend and verify exact-origin CORS plus authenticated frontend operations.
-5. Validate real provider and platform workflows only after credentials and test accounts are available.
-6. Refresh this handover whenever a major validation gate changes.
+2. Reconcile #444 with the current #436 baseline, then revalidate the complete #444→#448→#449→#450→#452→#453/#456 stack at exact heads.
+3. Continue storage lifecycle integration checks across upload, render, scratch cleanup, backup and restore.
+4. Review the fresh Vercel preview manually on physical PC/tablet/mobile devices; headless Playwright coverage is now in place.
+5. Deploy a non-production backend and verify exact-origin CORS plus authenticated frontend operations.
+6. Validate real provider and platform workflows only after credentials and test accounts are available.
+7. Refresh this handover whenever a major validation gate changes.
 
-## 6. Safety and release rules
+## 7. Safety and release rules
 
 - No PR merge, production deployment or public publishing without explicit authorization.
 - Public publishing remains gated by human approval; the implemented YouTube upload path is private-only.
