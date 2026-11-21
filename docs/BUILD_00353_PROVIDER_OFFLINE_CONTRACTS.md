@@ -105,3 +105,13 @@ These remain offline fake-provider contract tests and generated-fixture media in
 - The official [TikTok Media Transfer Guide](https://developers.tiktok.com/docs/en/content-posting-api-media-transfer-guide) specifies decimal chunk limits: non-final chunks are 5,000,000–64,000,000 bytes, while the final chunk may be up to 128,000,000 bytes; files below 5,000,000 bytes are sent as one whole chunk.
 - The adapter previously used (64 \times 1024^2) bytes as its 64 MB chunk size, which exceeded the documented decimal 64,000,000-byte ceiling. The base chunk constant now uses 64,000,000 bytes; the existing final-chunk calculation remains bounded by the documented 128,000,000-byte maximum.
 - Added offline boundary coverage for sub-5 MB, 5 MB, 64 MB, just-over-64 MB, just-over-128 MB and 4 GB plans. This is a source/spec alignment check using fake transport; no live TikTok request is made.
+
+
+## TikTok decimal chunk-size correction validation
+
+The complete TikTok chunk-sizing source/test head `88d3bd07568cb2398f33eb42566a4a351a0f0f82` passed:
+
+- Backend [run 44893640196](https://github.com/justinhblee-prog/shorts/actions/runs/44893640196): `scripts/validate.sh`, **960 tests**, Korean font fallback and Playwright browser smoke.
+- Compose [run 44893640194](https://github.com/justinhblee-prog/shorts/actions/runs/44893640194): ClamAV signature readiness, worker isolation, real FFmpeg render/adoption/review, authenticated upload-to-worker/private-preview E2E, encrypted backup and isolated restore.
+
+The Compose integration assertions passed. Its teardown did report the media-scan profile's ClamAV updater network/volume still in use because cleanup selected only the render profile; this separate CI cleanup defect is addressed in Draft PR #477 and is not represented as a clean teardown in this validation record.
