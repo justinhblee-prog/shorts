@@ -1258,3 +1258,78 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Backend suite: **466 tests, OK**.
 - The full `scripts/validate.sh` command completed successfully.
 - This validates candidate capture, deduplication and exact attribution logic; it does not validate live account publishing or audience outcomes.
+
+
+## Provider chunk-contract follow-up — 2026-11-21
+
+- BUILD-00353 PR #475: TikTok chunk sizing now uses decimal MB (64,000,000-byte normal chunk) aligned to the official Media Transfer Guide; final chunk remains bounded by the documented 128,000,000-byte maximum. Boundary tests cover sub-5 MB, 5 MB, 64 MB, just-over-64 MB, just-over-128 MB and 4 GB.
+- Source/test head `88d3bd07568cb2398f33eb42566a4a351a0f0f82` passed Backend run [44893640196](https://github.com/justinhblee-prog/shorts/actions/runs/44893640196): 960 tests plus Playwright browser smoke. Compose run [44893640194](https://github.com/justinhblee-prog/shorts/actions/runs/44893640194) passed ClamAV readiness, isolated worker, real FFmpeg render/adoption/review, authenticated API E2E and encrypted backup/restore. Compose teardown exposed a profile-selection cleanup warning; it is tracked separately below.
+- Latest provider docs/task-ledger HEAD `1fe84674d5566c23ad2abf3c66f8f7a3e9db40e6` passed exact-head Backend [44893919029](https://github.com/justinhblee-prog/shorts/actions/runs/44893919029) and Compose [44893919024](https://github.com/justinhblee-prog/shorts/actions/runs/44893919024). Compose assertions passed; teardown still emitted the profile-selection resource warnings described above.
+- Separate CI cleanup PR #477: [https://github.com/justinhblee-prog/shorts/pull/477](https://github.com/justinhblee-prog/shorts/pull/477) explicitly enables both `media-scan` and `render` profiles for teardown. Exact-head Compose run [44893900087](https://github.com/justinhblee-prog/shorts/actions/runs/44893900087) passed; logs confirm the ClamAV updater container, all three test volumes and the Compose network were removed without resource-in-use warnings.
+- No live TikTok/YouTube calls, credentials, external uploads or public posts were used. Provider/legal/spend gates and workspace-owned provider connection design remain external blockers. All PRs remain Draft/open/unmerged.
+
+
+## YouTube resumable-upload follow-up — 2026-11-21
+
+- BUILD-00353 PR #475 now rejects a resumable `next_chunk()` result with neither progress nor completion instead of looping indefinitely after the remote request boundary. The uncertain attempt is recorded as `reconciliation_required`, and duplicate retry remains blocked.
+- YouTube completion video IDs containing surrounding or embedded whitespace are rejected before local confirmation.
+- Fake-service regressions cover the no-progress response, one-attempt-only behavior, audit/state preservation, duplicate retry blocking and malformed IDs.
+- Exact source/test/docs/task-ledger head `06134be61630428ee4d25a2910814e020c9c7efb` passed Backend [44894234406](https://github.com/justinhblee-prog/shorts/actions/runs/44894234406): **962 tests**, repository validation, font fallback and Playwright browser smoke. Compose [44894234417](https://github.com/justinhblee-prog/shorts/actions/runs/44894234417) passed ClamAV readiness, worker isolation, FFmpeg render/adoption/review, authenticated API E2E and encrypted backup/restore.
+- Compose run 44894234417 still used the pre-fix cleanup workflow and emitted the known profile-selection warnings. Separate Draft PR #477 at head `5924e6027e3e65ac6398486e17c3f17bc25f6f83` passed Compose [44893900087](https://github.com/justinhblee-prog/shorts/actions/runs/44893900087), confirming the ClamAV updater, all test volumes and network are removed without resource-in-use warnings.
+- An earlier predecessor-head test assertion mismatch was corrected in the latest test commit; the final exact-head run above passed. No live provider HTTPS, credentials, uploads or public posts were used.
+
+
+## BUILD-00352 reconciliation stack checkpoint — 2026-11-21
+
+- Original renderer source PR #444 remains Draft/open/unmerged and GitHub reports it unmergeable against its older base. It is retained as source history only; do not merge it directly.
+- Reconciliation PR #467 is Draft/open/unmerged at head `a3c61e146c660c73eb74cd952d614de581a3e950`. Its comparison against the latest lease-fenced base is 69 commits ahead / 0 behind; GitHub reports mergeable.
+- Exact-head Backend [44894519601](https://github.com/justinhblee-prog/shorts/actions/runs/44894519601) and Compose [44894519568](https://github.com/justinhblee-prog/shorts/actions/runs/44894519568) passed. The Compose cleanup correction explicitly selects both `media-scan` and `render`; logs confirm the ClamAV updater, test volumes and network are removed without resource-in-use warnings.
+- PRs #468–#475 remain Draft/open/unmerged and GitHub currently reports each mergeable. Their latest exact-head CI states remain as listed in the task PRs: #468 Backend 44882746096 / Compose 44882746102; #469 Backend 44883656236 / Compose 44883656259; #470 Backend 44884940319 / Compose 44884940314; #471 Backend 44885516326 / Compose 44885516328; #473 Backend 44886279762 / Compose 44886279825; #474 Backend 44889771751 / Compose 44889771753; #475 Backend 44894234406 / Compose 44894234417. #472 is documentation-only and has no CI run.
+- No PR was merged, retargeted, force-pushed or deployed.
+
+
+## BUILD-00353 final exact-head recheck — 2026-11-21
+
+- Latest PR #475 head `676954eab191d4821aae418a8a52ec8bb6b8f0aa` passed Backend [44894747308](https://github.com/justinhblee-prog/shorts/actions/runs/44894747308): **962 tests**, repository validation, Korean font fallback and Playwright browser smoke.
+- Compose [44894747315](https://github.com/justinhblee-prog/shorts/actions/runs/44894747315) passed ClamAV readiness, isolated render worker, real FFmpeg render/adoption/review, authenticated upload-to-worker/private-preview E2E, encrypted backup and isolated restore.
+- The provider branch's Compose run still reports the previously identified cleanup profile warnings because its workflow copy predates PR #477. PR #477 exact-head Compose [44893900087](https://github.com/justinhblee-prog/shorts/actions/runs/44893900087) independently verifies the corrected teardown and clean removal of updater, volumes and network.
+- Latest PR #475 remains Draft/open/unmerged. No live provider credentials or external upload/publish actions were used.
+
+
+## BUILD-00353 task-ledger final exact-head validation — 2026-11-21
+
+- Final PR #475 docs/task-ledger head `c43884bcbdb67ff79031b3025fe3e8f02a8c7be3` passed Backend [44894928685](https://github.com/justinhblee-prog/shorts/actions/runs/44894928685): **962 tests**, repository validation, Korean font fallback and Playwright browser smoke.
+- Compose [44894928693](https://github.com/justinhblee-prog/shorts/actions/runs/44894928693) passed ClamAV readiness, isolated worker, real FFmpeg render/adoption/review, authenticated API E2E, encrypted backup and isolated restore.
+- The provider PR's Compose workflow copy still emits the known profile teardown warnings. Draft PR #477 exact-head Compose [44893900087](https://github.com/justinhblee-prog/shorts/actions/runs/44893900087) separately verifies corrected cleanup with no resource-in-use warnings.
+- The final docs/task-ledger commit made no source behavior changes. PR #475 remains Draft/open/unmerged.
+
+
+## Frontend preview and Windows orchestration checkpoint — 2026-11-21
+
+- UI PR #463 remains Draft/open/unmerged at `daaae441139103b90280a2dbc1f2993733d7f13f`. Responsive Playwright validation [44877213798](https://github.com/justinhblee-prog/shorts/actions/runs/44877213798) passed for PC 1440px, tablet 820px, mobile 390px, mobile landscape 844px, Auto resize 1600px → 1280px, fit/100%, no 320px horizontal overflow and no uncaught browser errors.
+- Vercel preview deployment `dpl_4P4eeKVaZqhHEEU9Q1DoGd148V9y` is `READY`, tied to the exact UI PR head. Current preview URL: [https://nexus-studio-pro-ui-preview-hah79qazj-justinhblee-9540.vercel.app/preview.html](https://nexus-studio-pro-ui-preview-hah79qazj-justinhblee-9540.vercel.app/preview.html). The PR record confirms HTTP 200 for `/preview.html`, `/`, `/app.js`, `/styles.css` and `/cyber-magic.css`. The API must still be separately deployed/configured for live data.
+- Windows multi-flow PR #440 remains Draft/open/unmerged at `4574fae820f8a3af2bf03cf7c3824f1d0c945f35`; Backend [44867575894](https://github.com/justinhblee-prog/shorts/actions/runs/44867575894) and Git CLI autopilot validation [44867575919](https://github.com/justinhblee-prog/shorts/actions/runs/44867575919) passed. Actual Windows Claude CLI/provider session and user-machine execution remain unverified.
+- Windows worker base PR #416 remains Draft/open/unmerged at `604fff33a23f1d271a7f7c6183d44b7f21e6f909`; Backend [44851183939](https://github.com/justinhblee-prog/shorts/actions/runs/44851183939) passed. Dedicated low-privilege Windows runner, ACL/egress/secret audit, actual Windows/Ollama execution and cross-run LocalAppData persistence remain external activation gates.
+- DEV-ORCH-008 PR #445 is now reconciled with latest PR #416 base by two-parent merge commit `1da9824a05983b0c7ef679a586403c7d0c55b49d`; compare is 15 ahead / 0 behind and GitHub mergeable. Exact-head Backend [44895214665](https://github.com/justinhblee-prog/shorts/actions/runs/44895214665) passed **629 tests**, frontend JS/DOM checks and worker workflow YAML parsing. Shared Windows SQLite DB and real browser integration remain unverified.
+- All referenced PRs remain Draft/open/unmerged. No Windows runner activation, workflow dispatch, secrets changes, merge, production deployment or publishing was performed.
+
+
+## Additional open-PR audit — 2026-11-21
+
+- Read-only development monitor PR #447: Draft/open, GitHub mergeable. Its latest Backend workflow [44862185026](https://github.com/justinhblee-prog/shorts/actions/runs/44862185026) is `action_required`; no job executed. Do not bypass repository workflow approval.
+- Development monitor pagination/order regression PR #455: Draft/open, mergeable. Backend workflow [44868453319](https://github.com/justinhblee-prog/shorts/actions/runs/44868453319) is `action_required`; no job executed.
+- UI preview accessibility/mobile PR #457: Draft/open, mergeable. Backend workflow [44868529200](https://github.com/justinhblee-prog/shorts/actions/runs/44868529200) is `action_required`; no job executed.
+- Persistent visual preview PR #451 exact head `515a7381037145d92d5082585387f4042b5a489e` passed Backend [44867292313](https://github.com/justinhblee-prog/shorts/actions/runs/44867292313).
+- Responsive device preview PR #460 exact head `18d5ddf36522549796ed52ad02d37e0b59b21e85` passed Backend [44870039465](https://github.com/justinhblee-prog/shorts/actions/runs/44870039465).
+- These PRs remain Draft/open/unmerged. `action_required` is an external GitHub workflow-approval gate; no approval was attempted.
+
+
+## BUILD-00357–00360 monitor and preview QA follow-up — 2026-11-21
+
+- BUILD-00357 browser-level read-only development monitor smoke remains in Draft PR #446. Exact validation [44862478067](https://github.com/justinhblee-prog/shorts/actions/runs/44862478067) passed auth states, summary, status filtering, job selection, event switching, private-field redaction and GET-only checks; desktop/mobile screenshot artifact was uploaded.
+- BUILD-00358 API contract work is retained in Draft PR #447. Its standalone workflow [44862185026](https://github.com/justinhblee-prog/shorts/actions/runs/44862185026) was previously `action_required`; its pagination/event-order coverage gaps were closed in the stacked follow-up PR #455.
+- BUILD-00359 Draft PR #455 exact head `c56ce4d331698d81d6fb020f0ae49c972821ccc1` passed Backend [44908998313](https://github.com/justinhblee-prog/shorts/actions/runs/44908998313): **635 tests passed**, worker workflow YAML parsed successfully. The tests use multiple distinct-scope jobs to prove limit=1/2 truncation and three deterministic immutable events to prove chronological ordering. No backend implementation changed.
+- BUILD-00360 Draft PR #457 executable code head `d9088036e8903d3ddb5253cc3a176a20ee6b3450` passed Backend [44909218455](https://github.com/justinhblee-prog/shorts/actions/runs/44909218455): **809 tests passed**, existing UI browser smoke passed, and the new preview accessibility smoke passed keyboard focus, feedback panel open/close, Escape focus restoration, clipboard-denied fallback, 390px/320px viewport overflow and read-only API guard. Documentation-only follow-up head is `2ebc3cb425e466e4c5a466adb4256d8472229412`; details are in `docs/UI_PREVIEW_ACCESSIBILITY.md`.
+- The preview feedback overlay now has polite/atomic status semantics, explicit control relationships, stable accessible state, visible keyboard focus, 44px touch targets, reduced-motion handling and a trimmed text comparison in its status observer to prevent self-trigger loops.
+- The latest #457 changes were not deployed. The previously verified responsive Vercel preview from PR #463 remains a separate UI snapshot and does not include the new #457 branch changes. No Vercel deployment, merge, public publishing or main-branch push was performed.
+- PRs #446, #447, #455 and #457 remain Draft/open/unmerged. #455 and #457 are mergeable; no workflow-approval gate was bypassed and no branch was rewritten.
