@@ -45,7 +45,7 @@ try{
  $fakeGh=@(
   "@echo off",
   'if "%1 %2"=="pr list" (echo [{"number":101,"title":"Timeline integration","body":"Implements BUILD-99005","headRefName":"feat/timeline-integration","baseRefName":"main"},{"number":102,"title":"DevFlow automation","body":"Queues BUILD-99006","headRefName":"main","baseRefName":"main"}] & exit /b 0)',
-  'if "%1 %2"=="pr view" (echo scripts/open-pr-file.py & exit /b 0)',
+  'if "%1 %2"=="pr view" (echo {"files":[{"path":"scripts/open-pr-file.py"}]} & exit /b 0)',
   'if "%1 %2"=="pr create" (echo https://example.invalid/draft & exit /b 0)',
   'if "%1 %2"=="auth status" exit /b 0',
   "exit /b 0"
