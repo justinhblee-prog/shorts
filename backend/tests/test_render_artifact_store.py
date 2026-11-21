@@ -1,6 +1,8 @@
 import hashlib
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from unittest.mock import patch
 from pathlib import Path
 
@@ -100,6 +102,74 @@ class RenderArtifactStoreTests(unittest.TestCase):
             )
         self.assertTrue(second_staged.exists())
         self.assertEqual(len(list(self.artifacts.glob("rart_*.mp4"))), 1)
+
+    def test_installation_cap_serializes_concurrent_cross_workspace_adoptions(self):
+        payload = b"same-sized-concurrent-render"
+        self.staged.write_bytes(payload)
+
+        other_worker = "render-worker-2"
+        other_generation = self.queue.register_worker(other_worker)["generation_token"]
+        other_snapshot = "edl_" + "c" * 32
+        other_sha = hashlib.sha256(b"other-snapshot").hexdigest()
+        other_job = self.queue.enqueue(
+            "timeline_render",
+            {"snapshot_id": other_snapshot, "snapshot_sha256": other_sha, "edl": {}},
+            workspace_id="ws_other",
+        )
+        other_claim = self.queue.claim(
+            other_worker, job_type="timeline_render", generation_token=other_generation
+        )
+        other_staged = self.staging / "other-concurrent.mp4"
+        other_staged.write_bytes(payload)
+
+        # The cap fits exactly one output. Both workers start adoption together;
+        # SQLite BEGIN IMMEDIATE must serialize the aggregate read + artifact insert.
+        limited = RenderArtifactStore(
+            self.queue, self.staging, self.artifacts,
+            max_bytes=1024, max_total_bytes=len(payload), min_free_bytes=0,
+        )
+        gate = Barrier(2)
+
+        def adopt_one(args):
+            gate.wait(timeout=5)
+            try:
+                limited.adopt(**args)
+                return "adopted"
+            except ArtifactAdoptionError as exc:
+                if "storage cap" not in str(exc):
+                    raise
+                return "capacity_rejected"
+
+        first_args = {
+            "job_id": self.job["id"],
+            "worker_id": self.worker,
+            "lease_token": self.claimed["lease_token"],
+            "generation_token": self.generation,
+            "workspace_id": "ws_test",
+            "snapshot_id": self.snapshot_id,
+            "snapshot_sha256": self.snapshot_sha,
+            "staged_path": self.staged,
+        }
+        second_args = {
+            "job_id": other_job["id"],
+            "worker_id": other_worker,
+            "lease_token": other_claim["lease_token"],
+            "generation_token": other_generation,
+            "workspace_id": "ws_other",
+            "snapshot_id": other_snapshot,
+            "snapshot_sha256": other_sha,
+            "staged_path": other_staged,
+        }
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            outcomes = list(pool.map(adopt_one, (first_args, second_args)))
+
+        self.assertCountEqual(outcomes, ["adopted", "capacity_rejected"])
+        with self.queue.db() as db:
+            count = db.execute("SELECT COUNT(*) AS n FROM render_artifacts").fetchone()["n"]
+        self.assertEqual(count, 1)
+        self.assertEqual(len(list(self.artifacts.glob("rart_*.mp4"))), 1)
+        rejected = self.staged if self.staged.exists() else other_staged
+        self.assertTrue(rejected.exists())
 
     def test_zero_artifact_free_space_reserve_disables_filesystem_preflight(self):
         with patch("render_artifact_store.shutil.disk_usage", side_effect=OSError("unavailable")):
