@@ -10,6 +10,13 @@ class ClamAVScannerTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.path = os.path.join(self.tmp.name, "artifact.mp4")
+        self.database = os.path.join(self.tmp.name, "signatures")
+        os.makedirs(self.database)
+        import time
+        for family in ("main", "daily"):
+            db_file = os.path.join(self.database, family + ".cvd")
+            with open(db_file, "wb") as handle: handle.write(b"test-signature")
+            os.utime(db_file, (time.time(), time.time()))
         with open(self.path, "wb") as handle:
             handle.write(b"test")
 
@@ -26,7 +33,7 @@ class ClamAVScannerTests(unittest.TestCase):
         ).scan(self.path)
         self.assertEqual(result, {"status": "clean", "engine": "clamav"})
         self.assertEqual(calls[0][0][0], "/usr/bin/clamscan")
-        self.assertIn("--database=/var/lib/clamav", calls[0][0])
+        self.assertIn("--database=" + self.database, calls[0][0])
         self.assertIn("--no-summary", calls[0][0])
         self.assertIn("--infected", calls[0][0])
         self.assertIn("--alert-exceeds-max=yes", calls[0][0])
@@ -36,7 +43,7 @@ class ClamAVScannerTests(unittest.TestCase):
         self.assertNotIn("shell", calls[0][1])
 
     def test_infected_exit_is_rejected(self):
-        scanner = ClamAVScanner(runner=lambda *args, **kwargs:
+        scanner = ClamAVScanner(database_dir=self.database, runner=lambda *args, **kwargs:
             type("Result", (), {"returncode": 1, "stdout": "Eicar", "stderr": ""})())
         with self.assertRaisesRegex(MediaScanError, "infected"):
             scanner.scan(self.path)
@@ -72,9 +79,37 @@ class ClamAVScannerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ClamAVScanner(max_bytes=2 * 1024 * 1024 * 1024 + 1)
 
+    def test_stale_signatures_fail_closed_before_scanner_runs(self):
+        import time
+        daily = os.path.join(self.database, "daily.cvd")
+        old = time.time() - 8 * 24 * 60 * 60
+        os.utime(daily, (old, old))
+        calls = []
+        scanner = ClamAVScanner(database_dir=self.database, max_signature_age_seconds=7 * 24 * 60 * 60, runner=lambda *args, **kwargs: calls.append(args))
+        with self.assertRaisesRegex(MediaScanError, "stale"):
+            scanner.scan(self.path)
+        self.assertEqual(calls, [])
+
+    def test_missing_core_signature_family_fails_closed(self):
+        os.unlink(os.path.join(self.database, "daily.cvd"))
+        scanner = ClamAVScanner(database_dir=self.database, runner=lambda *args, **kwargs: None)
+        with self.assertRaisesRegex(MediaScanError, "incomplete"):
+            scanner.scan(self.path)
+
+    def test_future_dated_signatures_fail_closed(self):
+        future = 2_000_000_000
+        scanner = ClamAVScanner(database_dir=self.database, clock=lambda: future - 600, runner=lambda *args, **kwargs: None)
+        os.utime(os.path.join(self.database, "main.cvd"), (future, future))
+        with self.assertRaisesRegex(MediaScanError, "future"):
+            scanner.scan(self.path)
+
+    def test_invalid_signature_age_setting_is_rejected(self):
+        with self.assertRaises(ValueError): ClamAVScanner(database_dir=self.database, max_signature_age_seconds=0)
+        with self.assertRaises(ValueError): ClamAVScanner(database_dir=self.database, max_signature_age_seconds="bad")
+
     def test_invalid_timeout_is_rejected(self):
         with self.assertRaises(ValueError):
-            ClamAVScanner(timeout=0)
+            ClamAVScanner(database_dir=self.database, timeout=0)
         with self.assertRaises(ValueError):
             ClamAVScanner(timeout="invalid")
 
