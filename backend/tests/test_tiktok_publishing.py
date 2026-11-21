@@ -1136,6 +1136,57 @@ class TikTokPublishingTests(unittest.TestCase):
         )
         self.assertEqual(stale["status"], "send_to_inbox")
 
+    def test_status_fetch_rejects_falsey_non_list_video_ids_without_state_change(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        before = self.store.get("job-1")
+        self.transport.responses.append((200, {
+            "data": {"status": "PUBLISH_COMPLETE", "publicaly_available_post_id": ""},
+            "error": {"code": "ok"},
+        }))
+        with self.assertRaisesRegex(TikTokPublishError, "video IDs"):
+            self.publisher.refresh_status("job-1")
+        after = self.store.get("job-1")
+        self.assertEqual(after["status"], before["status"])
+        self.assertEqual(after["video_id"], before["video_id"])
+        self.assertEqual(len(after["events"]), len(before["events"]))
+
+    def test_status_fetch_rejects_non_string_video_ids_without_state_change(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        before = self.store.get("job-1")
+        self.transport.responses.append((200, {
+            "data": {"status": "PUBLISH_COMPLETE", "publicaly_available_post_id": [123]},
+            "error": {"code": "ok"},
+        }))
+        with self.assertRaisesRegex(TikTokPublishError, "video IDs"):
+            self.publisher.refresh_status("job-1")
+        after = self.store.get("job-1")
+        self.assertEqual(after["status"], before["status"])
+        self.assertEqual(after["video_id"], before["video_id"])
+        self.assertEqual(len(after["events"]), len(before["events"]))
+
+    def test_status_fetch_rejects_non_string_failure_reason(self):
+        self.publisher.publish_private_approved(
+            "job-1", self.media, self.review, "AI generated short", "operator-1",
+            explicit_consent=True, privacy_level="SELF_ONLY",
+        )
+        before = self.store.get("job-1")
+        self.transport.responses.append((200, {
+            "data": {"status": "FAILED", "publicaly_available_post_id": [], "fail_reason": {"message": "bad"}},
+            "error": {"code": "ok"},
+        }))
+        with self.assertRaisesRegex(TikTokPublishError, "failure reason"):
+            self.publisher.refresh_status("job-1")
+        after = self.store.get("job-1")
+        self.assertEqual(after["status"], before["status"])
+        self.assertEqual(after["video_id"], before["video_id"])
+        self.assertEqual(len(after["events"]), len(before["events"]))
+
     def test_status_fetch_rejects_malformed_nested_data(self):
         self.publisher.publish_private_approved(
             "job-1", self.media, self.review, "AI generated short", "operator-1",
