@@ -58,7 +58,33 @@ exit 0
   $probe = [IO.File]::Open($lockPath, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
   $probe.Dispose()
  } catch { throw "Supervisor scheduler lease remained locked after completion." }
- Write-Host "PASS: detached supervisor retried a failed cycle, completed the next cycle, persisted terminal state, and released its scheduler lease."
+ # A bounded run whose final cycle fails must be marked failed, not completed.
+ Set-Content -LiteralPath (Join-Path $scripts "start-devflow-autopilot.ps1") -Value '[CmdletBinding()] param([switch]$Run,[int]$MaxTasks=1) exit 1'
+ $failurePsi = [Diagnostics.ProcessStartInfo]::new()
+ $failurePsi.FileName = (Get-Command pwsh -ErrorAction Stop).Source
+ $failurePsi.WorkingDirectory = $repo
+ $failurePsi.UseShellExecute = $false
+ foreach ($arg in @("-NoProfile", "-File", (Join-Path $scripts "start-devflow-detached.ps1"), "-Supervisor", "-RunId", "supervisor-final-failure-test", "-MaxTasks", "1", "-PollIntervalSeconds", "1", "-MaxCycles", "1")) {
+  [void]$failurePsi.ArgumentList.Add($arg)
+ }
+ $failureProcess = [Diagnostics.Process]::new()
+ $failureProcess.StartInfo = $failurePsi
+ if (-not $failureProcess.Start()) { throw "Could not start bounded failure-state test process." }
+ if (-not $failureProcess.WaitForExit(120000)) {
+  try { $failureProcess.Kill($true) } catch {}
+  throw "Bounded failure-state regression timed out."
+ }
+ if ($failureProcess.ExitCode -ne 1) { throw "Expected failed bounded cycle to return exit 1, got $($failureProcess.ExitCode)." }
+ $failureStatusPath = Join-Path (Join-Path $parent "repo-multiflow-logs") "supervisor-final-failure-test.status.json"
+ $failureStatus = Get-Content -LiteralPath $failureStatusPath -Raw | ConvertFrom-Json
+ if ($failureStatus.status -ne "failed" -or $failureStatus.last_exit_code -ne 1) {
+  throw "Failed bounded cycle was not persisted as failed: $($failureStatus | ConvertTo-Json -Compress)"
+ }
+ try {
+  $probe = [IO.File]::Open($lockPath, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+  $probe.Dispose()
+ } catch { throw "Scheduler lease remained locked after failed bounded run." }
+ Write-Host "PASS: detached supervisor retried a failed cycle, completed a later success, marks a final failed cycle as failed, persists status, and releases its scheduler lease."
 } finally {
  Set-Location $oldLocation
  Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
