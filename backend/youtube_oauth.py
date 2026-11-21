@@ -257,6 +257,8 @@ class YouTubeOAuthManager:
             data = json.loads(raw.decode("utf-8"))
         except (ValueError, UnicodeDecodeError) as exc:
             raise YouTubeOAuthError("Google OAuth returned invalid JSON") from exc
+        if not isinstance(data, dict):
+            raise YouTubeOAuthError("Google OAuth returned an invalid token response object")
         if status < 200 or status >= 300 or data.get("error"):
             code_name = str(data.get("error") or "http_" + str(status))
             raise YouTubeOAuthError("Google OAuth token exchange rejected: " + code_name)
