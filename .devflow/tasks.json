@@ -90,7 +90,8 @@
         "Real-media Compose smoke now generates two overlapping source clips and verifies the FFmpeg xfade render through the lease-fenced worker, artifact adoption and review handoff",
         "Exact crossfade head f336a1c passed Backend CI 44884777926 (925 tests plus Playwright browser smoke) and Compose CI 44884777927 (real FFmpeg crossfade, authenticated API E2E, review/private preview and encrypted backup/isolated restore)",
         "EDL v1 video clips may opt in to embedded source audio; source audio reuses the same hash-verified staged media, is trimmed to the video source bounds and fails closed when no audio stream exists",
-        "Video crossfade durations are applied as matching source-audio fade-out/fade-in intervals on the same timeline; source audio is mixed with explicit audio beds using the bounded existing mixer and a combined maximum of eight tracks"
+        "Video crossfade durations are applied as matching source-audio fade-out/fade-in intervals on the same timeline; source audio is mixed with explicit audio beds using the bounded existing mixer and a combined maximum of eight tracks",
+        "Exact source-audio crossfade head 4f216cb passed Backend CI 44885345510 (928 tests plus Playwright browser smoke) and Compose CI 44885345520 (real FFmpeg picture/source-audio crossfade, authenticated API E2E, review/private preview and encrypted backup/isolated restore)"
       ],
       "remaining": [
         "Validate representative customer media on the target runtime, including uncommon codecs, variable frame rates and long-duration inputs",
