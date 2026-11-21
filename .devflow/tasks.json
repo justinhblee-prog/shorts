@@ -100,7 +100,9 @@
         "Exact inventory head cb09e67 passed Backend CI 44886936983 (943 tests plus Playwright browser smoke) and Compose CI 44886936974 (service isolation, real FFmpeg render/adoption/review, authenticated API E2E and encrypted backup/restore)",
         "Retention inventory now requires all three stores to share one SQLite database and performs asset, snapshot, job, review and artifact reads inside one query_only read transaction; mismatched paths fail closed",
         "Reference checks are marked complete only when the bounded snapshot scan is untruncated and all snapshot payload/job states are understood; malformed or unknown state remains incomplete",
-        "Exact atomic retention inventory head 130dd2e passed Backend CI 44887197433 (944 tests plus Playwright browser smoke) and Compose CI 44887197535 (service isolation, real FFmpeg render/adoption/review, authenticated API E2E, encrypted backup and isolated restore)"
+        "Exact atomic retention inventory head 130dd2e passed Backend CI 44887197433 (944 tests plus Playwright browser smoke) and Compose CI 44887197535 (service isolation, real FFmpeg render/adoption/review, authenticated API E2E, encrypted backup and isolated restore)",
+        "Exposed workspace-scoped GET retention inventory endpoint guarded by operations.read and resolved workspace membership; policy is read from explicit NEXUS_RETENTION_POLICY_JSON and malformed configuration fails closed",
+        "Added API regression tests for authorization, workspace scope, explicit policy parsing, sanitized storage errors and read-only response semantics"
       ],
       "remaining": [
         "Validate representative customer media on the target runtime, including uncommon codecs, variable frame rates and long-duration inputs",
