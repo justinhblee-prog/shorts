@@ -146,6 +146,10 @@ class TimelineEDLTests(unittest.TestCase):
         normalized = validate_edl(payload)
         self.assertEqual(normalized["transitions"], [transition])
 
+        # Renderer sorts by timeline position; validator must not depend on JSON clip order.
+        reordered = validate_edl({**payload, "clips": [second, first]})
+        self.assertEqual(reordered["transitions"], [transition])
+
         invalid_cases = (
             [{**transition, "duration_ms": 5001}],
             [{**transition, "duration_ms": 5000}],
