@@ -74,7 +74,7 @@ def evaluate_retention_candidate(candidate, policy, *, now):
 
     retention_map = policy.get("retention_days")
     retention_days = None
-    if not isinstance(retention_map, dict) or data_class not in retention_map:
+    if not isinstance(data_class, str) or not isinstance(retention_map, dict) or data_class not in retention_map:
         reasons.append("retention_period_missing")
     else:
         retention_days = _bounded_days(retention_map.get(data_class), allow_zero=False)
