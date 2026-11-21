@@ -1055,13 +1055,21 @@ class TikTokPublisher:
         status = data.get("status")
         if not isinstance(status, str) or not status:
             raise TikTokPublishError("TikTok status response did not include a valid status")
-        video_ids = data.get("publicaly_available_post_id") or []
-        if not isinstance(video_ids, list):
+        video_ids = data.get("publicaly_available_post_id")
+        if video_ids is None:
+            video_ids = []
+        if (
+            not isinstance(video_ids, list)
+            or any(not isinstance(video_id, str) or not video_id.strip() for video_id in video_ids)
+        ):
             raise TikTokPublishError("TikTok status response video IDs have an unexpected shape")
+        fail_reason = data.get("fail_reason")
+        if fail_reason is not None and not isinstance(fail_reason, str):
+            raise TikTokPublishError("TikTok status response failure reason has an unexpected shape")
         return self.store.mark_status(
             job_id, record["attempt_id"], status,
             video_ids,
-            data.get("fail_reason"),
+            fail_reason,
             expected_status=record["status"],
         )
 
