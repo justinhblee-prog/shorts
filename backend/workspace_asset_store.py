@@ -55,7 +55,8 @@ class WorkspaceAssetStore:
 
     def __init__(self, db_path=None, storage_root=None, workspace_store=None,
                  max_asset_bytes=256 * 1024 * 1024,
-                 max_workspace_bytes=2 * 1024**3):
+                 max_workspace_bytes=2 * 1024**3,
+                 max_total_media_bytes=None):
         if isinstance(max_asset_bytes, bool) or not isinstance(max_asset_bytes, int) or not 1 <= max_asset_bytes <= 2 * 1024**3:
             raise ValueError("max_asset_bytes must be between 1 byte and 2 GiB")
         self.db_path = str(db_path or os.getenv("NEXUS_DB_PATH") or "data/nexus.sqlite3")
@@ -68,8 +69,19 @@ class WorkspaceAssetStore:
                 or not isinstance(max_workspace_bytes, int)
                 or not max_asset_bytes <= max_workspace_bytes <= 20 * 1024**4):
             raise ValueError("max_workspace_bytes must be between max_asset_bytes and 20 TiB")
+        if max_total_media_bytes is None:
+            raw_total = os.getenv("NEXUS_MAX_TOTAL_MEDIA_BYTES", str(20 * 1024**3))
+            try:
+                max_total_media_bytes = int(raw_total)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("max_total_media_bytes must be a positive integer") from exc
+        if (isinstance(max_total_media_bytes, bool)
+                or not isinstance(max_total_media_bytes, int)
+                or not max_workspace_bytes <= max_total_media_bytes <= 20 * 1024**4):
+            raise ValueError("max_total_media_bytes must be between max_workspace_bytes and 20 TiB")
         self.max_asset_bytes = max_asset_bytes
         self.max_workspace_bytes = max_workspace_bytes
+        self.max_total_media_bytes = max_total_media_bytes
         self.workspaces = workspace_store or WorkspaceStore(self.db_path)
         with self.db() as db:
             db.execute("""
@@ -199,6 +211,19 @@ class WorkspaceAssetStore:
                             if active + pending + len(chunk) > self.max_workspace_bytes:
                                 db.rollback()
                                 raise AssetError("workspace storage quota exceeded")
+                            # Enforce a second, installation-wide logical capacity
+                            # ceiling across every workspace on the shared media volume.
+                            global_active = db.execute("""
+                                SELECT COALESCE(SUM(byte_size),0) AS total
+                                FROM workspace_media_assets WHERE status='active'
+                            """).fetchone()["total"]
+                            global_pending = db.execute("""
+                                SELECT COALESCE(SUM(byte_size),0) AS total
+                                FROM workspace_asset_upload_reservations
+                            """).fetchone()["total"]
+                            if global_active + global_pending + len(chunk) > self.max_total_media_bytes:
+                                db.rollback()
+                                raise AssetError("global media storage capacity exceeded")
                             if reserved:
                                 updated = db.execute("""
                                     UPDATE workspace_asset_upload_reservations
