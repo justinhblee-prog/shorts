@@ -375,6 +375,11 @@ async function waitForServer() {
     assert.equal(await page.locator("#timelineVisualTrack .timeline-segment.is-video").count(),1);
     assert.equal(await page.locator("#timelineVisualTrack .timeline-segment.is-title").count(),1);
     assert.equal(await page.locator("#timelineVisualDuration").textContent(),"5.0s");
+    await page.locator("#timelineApproveRender").scrollIntoViewIfNeeded();
+    await page.locator("#timelineApproveRender").click();
+    await page.waitForFunction(()=>document.querySelector("#timelineRenderReview").hidden===true);
+    assert.equal(capturedTimelineDecision.decision,"approved");
+
     await page.locator("#timelineMediaFilter").fill("Render smoke");
     assert.equal(await page.locator("#timelineMediaShelf .timeline-media-card").count(),1,"media shelf filter should narrow the asset board");
     await page.locator("#timelineMediaFilter").fill("");
@@ -383,10 +388,6 @@ async function waitForServer() {
     assert.match(await page.locator("#timelineSelectedMeta").textContent(),/검사 완료/,"detail inspector should show server scan status");
     assert.equal(await page.locator("#timelineServerPreview").isVisible(),true,"rendered review artifact preview missing");
     assert.match(await page.locator("#timelineServerPreview").getAttribute("src"),/^blob:/,"private artifact should be fetched as an authenticated browser blob");
-
-    await page.locator("#timelineApproveRender").click();
-    await page.waitForFunction(()=>document.querySelector("#timelineRenderReview").hidden===true);
-    assert.equal(capturedTimelineDecision.decision,"approved");
     checkpoint("authenticated workspace upload → EDL validation → render status → private artifact preview → human review decision verified (API contract mock)");
 
 
