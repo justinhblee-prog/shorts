@@ -168,11 +168,21 @@ Automated CI and Compose smoke do not prove:
 - Current uploaded media `retention_until` defaults to 30 days but is metadata only; no asset expiry/purge worker exists. Backup archives default to 14-day pruning, independently of live media retention. Indexed render artifacts, EDL snapshots and review decisions are immutable and have no retention purge.
 - The design specifies separate retention classes, unresolved owner/legal policy inputs, read-only eligibility evaluation, append-only tombstones/grace periods, lease-fenced binary purge and backup/replica coordination. No data deletion or retention period selection is included.
 
+
+## 5.7. Workspace-scoped read-only retention inventory
+
+- Draft PR [#474](https://github.com/justinhblee-prog/shorts/pull/474) is stacked on #473 via branch `feat/build-00352-retention-readonly-inventory-2026-11-21`.
+- The inventory requires workspace membership, uses bounded workspace-filtered SELECT queries with SQLite `query_only`, and reports uploaded media, EDL snapshot asset references, job/review state and indexed artifact metadata without exposing storage paths.
+- Malformed/truncated snapshots and unknown job state block reference checks. Cross-store reads are explicitly non-atomic; `reference_check_complete` always remains false.
+- Legal-hold, file-integrity/storage and backup/replica state are unknown by design, so all candidates remain ineligible. No DB writes, filesystem access, queue mutation, leases, tombstones or deletion.
+- Functional inventory head `cb09e67ba4a24c8c10e581d0da368d04ae7d1c33` passed Backend [run `44886936983`](https://github.com/justinhblee-prog/shorts/actions/runs/44886936983) (**943 tests plus Playwright browser smoke**) and Compose [run `44886936974`](https://github.com/justinhblee-prog/shorts/actions/runs/44886936974) (service isolation, real FFmpeg render/adoption/review, authenticated API E2E and encrypted backup/restore).
+- Latest docs/task-ledger head `84792f4680dff1c9948dad90aa4dc1987041f3a2` is awaiting exact-head CI. It records that a single consistent read snapshot and authoritative legal-hold/storage/backup providers are still required before any reference check can be marked complete.
+
 ## 6. Immediate next actions
 
 1. Keep all Draft PRs open and unmerged; preserve dependency ordering (#452 before #456/#453).
 2. Reconcile #444 with the current #436 baseline, then revalidate the complete #444→#448→#449→#450→#452→#453/#456 stack at exact heads.
-3. Revalidate the latest docs/task-ledger head for PR #471, then review PR #472's non-destructive retention design. Revalidate PR #473's latest docs/task-ledger head, then extend only read-only retention inventory/observability. Keep all destructive retention operations blocked until owner/legal policy inputs are approved.
+3. Revalidate the latest docs/task-ledger head for PR #471, then review PR #472's non-destructive retention design. Verify PR #474's latest docs/task-ledger head, then implement only a consistent read-only snapshot and blocker observability. Keep all destructive retention operations blocked until owner/legal policy inputs and authoritative hold/storage/backup providers are approved.
 4. Review the fresh Vercel preview manually on physical PC/tablet/mobile devices; headless Playwright coverage is now in place.
 5. Deploy a non-production backend and verify exact-origin CORS plus authenticated frontend operations.
 6. Validate real provider and platform workflows only after credentials and test accounts are available.
