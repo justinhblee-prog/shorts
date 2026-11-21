@@ -1396,7 +1396,8 @@
       $id("timelineClipCount").textContent=state.clips.length+" CLIPS";
       const videoDuration=state.clips.filter(c=>c.kind==="video").reduce((sum,c)=>sum+Math.max(0,c.outPoint-c.inPoint),0);
       state.clips.filter(c=>c.kind==="title").forEach(c=>{c.duration=Math.max(0.1,videoDuration||60);if(c.outPoint>c.duration)c.outPoint=c.duration;});
-      $id("timelineTotalDuration").textContent=videoDuration.toFixed(1)+"s";
+      const displayDuration=videoDuration>0?videoDuration:state.clips.reduce((sum,c)=>sum+Math.max(0,c.outPoint-c.inPoint),0);
+      $id("timelineTotalDuration").textContent=displayDuration.toFixed(1)+"s";
       if(!state.clips.length){list.innerHTML='<div class="empty-state">영상 파일 또는 타이틀을 추가하세요.</div>';inspector.hidden=true;setPreview(null);return;}
       list.replaceChildren();
       state.clips.forEach((clip,index)=>{
