@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param()
 $ErrorActionPreference="Stop"
-$originalPath=$env:PATH;$oldGhToken=$env:GH_TOKEN
+$originalPath=$env:PATH;$oldGhToken=$env:GH_TOKEN;$oldGitHubRefName=$env:GITHUB_REF_NAME
 if($PSVersionTable.PSVersion.Major -lt 7){throw "PowerShell 7+ required."}
 $repoRoot=(git rev-parse --show-toplevel 2>$null)
 if($LASTEXITCODE -ne 0 -or -not $repoRoot){throw "Run from the repository checkout."}
@@ -66,6 +66,7 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  $log=Join-Path $temp "agent.log";$env:DEVFLOW_TEST_LOG=$log
  $env:PATH="$bin;$env:PATH"
  $env:GH_TOKEN="fake-supervisor-token-must-not-reach-agent"
+ $env:GITHUB_REF_NAME="main"
  $env:DEVFLOW_AGENT_COMMAND=(Get-Command pwsh).Source
  $env:DEVFLOW_AGENT_ARGS_JSON=@(("-NoProfile","-File",$agent,"{prompt_file}")|ConvertTo-Json -Compress)
  Push-Location $checkout
@@ -108,6 +109,7 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
 }finally{
  $env:PATH=$originalPath
  if($null -eq $oldGhToken){Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue}else{$env:GH_TOKEN=$oldGhToken}
+ if($null -eq $oldGitHubRefName){Remove-Item Env:GITHUB_REF_NAME -ErrorAction SilentlyContinue}else{$env:GITHUB_REF_NAME=$oldGitHubRefName}
  Remove-Item Env:DEVFLOW_TEST_LOG,Env:DEVFLOW_AGENT_COMMAND,Env:DEVFLOW_AGENT_ARGS_JSON -ErrorAction SilentlyContinue
  if($temp -and (Test-Path $temp)){Remove-Item -LiteralPath $temp -Recurse -Force}
 }
