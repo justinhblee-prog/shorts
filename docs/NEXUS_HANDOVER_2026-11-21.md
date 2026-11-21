@@ -198,6 +198,17 @@ Automated CI and Compose smoke do not prove:
 - Current backup code verifies archive-manifest database/media checksums during restore, but there is no per-object backup/replica registry. Legal-hold state also has no authoritative provider. Both remain unknown and block every eligibility decision. No files, backups or indexed artifacts were deleted.
 - Latest inventory increment docs/task ledger head: `741730c`. Backend suite and Playwright smoke passed; Compose exercised service isolation, ClamAV readiness, FFmpeg render/adoption/review, authenticated upload/preview, encrypted backup and isolated restore.
 
+
+## 5.5. BUILD-00353 offline provider contract increment
+
+- Draft PR [#475](https://github.com/justinhblee-prog/shorts/pull/475), branch `test/build-00353-offline-provider-contracts-2026-11-21`, stacked on validated #474 head `741730c`.
+- Audited current YouTube/TikTok OAuth and publishing adapters. Both OAuth implementations accept injected transports for deterministic offline testing; publishing suites use fake Google service objects and fake TikTok transports.
+- Hardened Google and TikTok OAuth token adapters to reject non-object JSON responses. TikTok token expiry values must be positive, non-boolean JSON integers before tokens are encrypted/persisted.
+- Added no-network regression tests for malformed response objects and invalid TikTok expiry values. Added matrix/runbook `docs/BUILD_00353_PROVIDER_OFFLINE_CONTRACTS.md`.
+- Exact-head CI for #475 is pending/not yet visible; do not mark validated until Backend and Compose checks on the current head pass.
+- BUILD-00353 remains externally blocked for live HTTPS contract checks, real script/voice/video generation, provider cost/latency evidence and publishing. Current OAuth stores are singleton/global; workspace-owned provider connections remain design-only in `WORKSPACE_PROVIDER_CONNECTION_CONTRACT.md`.
+- No credentials, scopes, connected accounts, external uploads or public posts were changed. No live network calls were made.
+
 ## 6. Immediate next actions
 
 1. Keep all Draft PRs open and unmerged; preserve dependency ordering (#452 before #456/#453).
