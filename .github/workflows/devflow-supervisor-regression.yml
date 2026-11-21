@@ -7,6 +7,7 @@ on:
     paths:
       - scripts/start-devflow-detached.ps1
       - scripts/test-devflow-detached-supervisor.ps1
+      - scripts/install-devflow-scheduled-task.ps1
       - .github/workflows/devflow-supervisor-regression.yml
   pull_request:
     branches:
@@ -27,6 +28,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Validate per-user Windows scheduled supervisor task definition
+        shell: pwsh
+        run: |
+          & "$PWD/scripts/install-devflow-scheduled-task.ps1" -ValidateOnly -MaxTasks 3 -PollIntervalSeconds 60
+          if ($LASTEXITCODE -ne 0) {
+            throw "Scheduled supervisor task definition validation failed."
+          }
       - name: Verify PowerShell detached scheduler retry behavior
         shell: pwsh
         run: |
