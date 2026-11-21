@@ -126,6 +126,8 @@ class RetentionInventoryTests(unittest.TestCase):
         self.assertEqual(result["eligible_for_review_count"], 0)
         self.assertEqual(result["blocked_count"], 3)
         self.assertTrue(result["read_only"])
+        self.assertFalse(result["reference_check_complete"])
+        self.assertEqual(result["reference_snapshot_consistency"], "non_atomic")
         self.assertFalse(result["destructive_action_performed"])
         self.assertEqual(
             {item["candidate"]["id"] for item in result["candidates"]},
@@ -134,6 +136,8 @@ class RetentionInventoryTests(unittest.TestCase):
         asset = next(x for x in result["candidates"] if x["candidate"]["id"] == "asset-a")
         self.assertEqual(asset["candidate"]["active_reference_count"], 1)
         self.assertEqual(asset["candidate"]["snapshot_reference_count"], 1)
+        self.assertFalse(asset["candidate"]["reference_check_complete"])
+        self.assertIn("reference_check_incomplete", asset["evaluation"]["reason_codes"])
         self.assertIn("legal_hold_state_unknown", asset["evaluation"]["reason_codes"])
         self.assertIn("backup_implications_unknown", asset["evaluation"]["reason_codes"])
         artifact = next(x for x in result["candidates"] if x["candidate"]["id"] == "rart-a")
