@@ -121,7 +121,7 @@ def main():
 
         # The standard EICAR test string must be detected by the live database.
         eicar = (
-            b"X5O!P%@AP[4\\\\PZX54(P^)7CC)7}$"
+            b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$"
             b"EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
         )
         infected = request(
@@ -150,9 +150,13 @@ def main():
             "clips": [
                 {"id": "title", "type": "title", "start_ms": 0,
                  "end_ms": 500, "text": "Authenticated API E2E"},
-                {"id": "video", "type": "video", "start_ms": 500,
+                {"id": "video", "type": "video", "start_ms": 0,
                  "end_ms": 2500, "asset_id": asset_id,
-                 "source_in_ms": 0, "source_out_ms": 2000},
+                 "source_in_ms": 0, "source_out_ms": 2500},
+            ],
+            "audio_tracks": [
+                {"id": "source-audio", "asset_id": asset_id, "start_ms": 0,
+                 "source_in_ms": 0, "source_out_ms": 2500},
             ],
         }
         idempotency = "api-e2e-render-20261121-001"
