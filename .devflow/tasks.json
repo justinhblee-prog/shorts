@@ -147,7 +147,8 @@
         "Audited existing YouTube and TikTok OAuth/publishing adapters and their injected offline transports/service factories; confirmed current OAuth token stores are global singleton connections",
         "Both OAuth adapters reject non-object JSON token responses before provider field access; TikTok access/refresh expiry values require positive non-boolean JSON integers",
         "Added deterministic no-network regression tests for malformed OAuth response objects and TikTok expiry type/range boundaries",
-        "Documented offline provider contract coverage and external acceptance gates in docs/BUILD_00353_PROVIDER_OFFLINE_CONTRACTS.md"
+        "Documented offline provider contract coverage and external acceptance gates in docs/BUILD_00353_PROVIDER_OFFLINE_CONTRACTS.md",
+        "Exact offline provider contract head eca95fc passed Backend CI 44888635179 (949 tests plus Playwright browser smoke) and Compose CI 44888635188 (service isolation, ClamAV readiness, FFmpeg render/adoption/review, authenticated upload/private preview, encrypted backup and isolated restore)"
       ],
       "remaining": [
         "Run exact-head Backend and Compose CI for offline contract changes",
