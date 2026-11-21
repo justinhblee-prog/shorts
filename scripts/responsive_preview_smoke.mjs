@@ -57,7 +57,7 @@ async function waitForServer() {
       await page.waitForFunction(expected =>
         getComputedStyle(document.querySelector("#device")).width === expected,
       width);
-      assert.equal(await device.evaluate(el => el.classList.contains(mode)), true);
+      assert.equal(await device.evaluate((el, expectedMode) => el.classList.contains(expectedMode), mode), true);
       assert.equal(await page.locator('[data-device="' + mode + '"]').getAttribute("aria-pressed"), "true");
     }
 
