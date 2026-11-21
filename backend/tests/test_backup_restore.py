@@ -89,9 +89,8 @@ class BackupRestoreTests(unittest.TestCase):
         (self.media / "clip.mp4").write_bytes(b"restore-media")
         backup = create_backup(self.db, self.media, self.backups)["backup_path"]
         self._create_db("current")
-        ample = type("DiskUsage", (), {"free": 10**12})()
         low = type("DiskUsage", (), {"free": 0})()
-        with patch("backup_restore.shutil.disk_usage", side_effect=[ample, low]):
+        with patch("backup_restore.shutil.disk_usage", return_value=low):
             with patch.dict(os.environ, {"NEXUS_RESTORE_MIN_FREE_BYTES": "0"}):
                 with self.assertRaisesRegex(BackupRestoreError, "Insufficient free disk space for restore staging"):
                     restore_backup(backup, self.db, self.media, self.backups, confirm_restore=True)
