@@ -21,6 +21,130 @@
   const currentWorkspace = () => api()?.getWorkspaceId() || "";
   const videoClips = () => (local()?.state.clips||[]).filter(clip=>clip.kind==="video");
   const titleClips = () => (local()?.state.clips||[]).filter(clip=>clip.kind==="title");
+  const formatTime = value => Math.max(0,Number(value||0)).toFixed(1)+"s";
+  const formatBytes = value => {
+    const bytes=Number(value||0);if(bytes<1024)return bytes+" B";
+    if(bytes<1024*1024)return (bytes/1024).toFixed(1)+" KB";
+    if(bytes<1024*1024*1024)return (bytes/1024/1024).toFixed(1)+" MB";
+    return (bytes/1024/1024/1024).toFixed(2)+" GB";
+  };
+  function renderMediaShelf(){
+    const shelf=$("timelineMediaShelf");if(!shelf)return;
+    const clips=local()?.state.clips||[];
+    const query=($("timelineMediaFilter")?.value||"").trim().toLocaleLowerCase();
+    const visible=clips.filter(clip=>(clip.name+" "+clip.kind).toLocaleLowerCase().includes(query));
+    $("timelineMediaShelfCount").textContent=visible.length+" / "+clips.length+" ITEMS";
+    shelf.replaceChildren();
+    if(!visible.length){
+      const empty=document.createElement("div");empty.className="empty-state";
+      empty.textContent=clips.length?"검색 결과가 없습니다.":"동영상을 추가하면 썸네일이 여기에 표시됩니다.";
+      shelf.append(empty);
+    }
+    for(const clip of visible){
+      const selected=local()?.state.selected===clip.id;
+      const card=document.createElement("button");card.type="button";
+      card.className="timeline-media-card"+(selected?" is-selected":"");
+      card.setAttribute("aria-pressed",String(Boolean(selected)));
+      card.setAttribute("aria-label",clip.name+" 미디어 선택");
+      const thumb=document.createElement("span");thumb.className="timeline-media-thumb";
+      if(clip.kind==="video"&&clip.url){
+        const video=document.createElement("video");video.src=clip.url;video.muted=true;video.playsInline=true;video.preload="metadata";
+        video.setAttribute("aria-hidden","true");
+        video.addEventListener("loadedmetadata",()=>{
+          const target=Math.min(Math.max(0,clip.inPoint+0.12),Math.max(0,video.duration-0.08));
+          try{video.currentTime=target;}catch{}
+        },{once:true});
+        video.addEventListener("seeked",()=>video.pause(),{once:true});
+        video.addEventListener("error",()=>thumb.classList.add("is-unavailable"),{once:true});
+        thumb.append(video);
+        const play=document.createElement("span");play.className="timeline-thumb-play";play.textContent="▶";thumb.append(play);
+      }else{
+        thumb.classList.add("is-title");
+        const glyph=document.createElement("b");glyph.textContent="Aa";thumb.append(glyph);
+        const snippet=document.createElement("small");snippet.textContent=clip.text||clip.name;thumb.append(snippet);
+      }
+      const body=document.createElement("span");body.className="timeline-media-card-body";
+      const name=document.createElement("b");name.className="timeline-media-name";name.textContent=clip.name;
+      const meta=document.createElement("small");meta.textContent=clip.kind==="video"?formatTime(clip.outPoint-clip.inPoint)+" · "+formatBytes(clip.sizeBytes):"TITLE OVERLAY · "+formatTime(clip.outPoint-clip.inPoint);
+      const status=document.createElement("span");status.className="timeline-media-status";
+      if(clip.kind==="title"){status.textContent="타이틀 오버레이";status.classList.add("is-title");}
+      else if(clip.uploadedWorkspaceId===currentWorkspace()&&clip.assetId&&clip.serverDurationMs){status.textContent="서버 검사 완료";status.classList.add("is-verified");}
+      else if(clip.assetId){status.textContent="서버 검사 대기";status.classList.add("is-pending");}
+      else{status.textContent="로컬 원본";status.classList.add("is-local");}
+      body.append(name,meta,status);card.append(thumb,body);
+      card.addEventListener("click",()=>{local()?.selectClip?.(clip.id);renderTimelineViews();});
+      shelf.append(card);
+    }
+    const selected=local()?.state.clips.find(clip=>clip.id===local()?.state.selected);
+    const details=$("timelineSelectedMeta");
+    if(details){
+      details.replaceChildren();
+      if(!selected){
+        details.textContent="미디어를 선택하면 상세 정보가 표시됩니다.";
+      }else{
+        const rows=[
+          ["유형",selected.kind==="video"?"VIDEO SOURCE":"TITLE OVERLAY"],
+          ["원본 길이",selected.kind==="video"?formatTime(selected.duration):"—"],
+          ["편집 구간",formatTime(selected.inPoint)+" — "+formatTime(selected.outPoint)],
+          ["파일 크기",selected.kind==="video"?formatBytes(selected.sizeBytes):"—"],
+          ["서버 상태",selected.kind==="title"?"렌더 시 영상에 합성":(selected.serverDurationMs?"검사 완료":selected.assetId?"검사 대기":"업로드 전")]
+        ];
+        rows.forEach(([label,value])=>{
+          const row=document.createElement("div");row.className="timeline-meta-row";
+          const key=document.createElement("span");key.textContent=label;
+          const val=document.createElement("b");val.textContent=value;
+          row.append(key,val);details.append(row);
+        });
+      }
+    }
+  }
+  function renderVisualTrack(){
+    const root=$("timelineVisualTrack");if(!root)return;
+    const clips=local()?.state.clips||[];
+    const videos=clips.filter(clip=>clip.kind==="video");
+    const titles=clips.filter(clip=>clip.kind==="title");
+    const duration=videos.reduce((sum,clip)=>sum+Math.max(0,clip.outPoint-clip.inPoint),0);
+    $("timelineVisualDuration").textContent=formatTime(duration);
+    root.replaceChildren();
+    if(!videos.length||duration<=0){
+      const empty=document.createElement("div");empty.className="empty-state";empty.textContent="영상 클립을 추가하면 시간축이 생성됩니다.";root.append(empty);return;
+    }
+    const ruler=document.createElement("div");ruler.className="timeline-ruler";
+    const step=duration>90?15:duration>45?10:5;
+    const ticks=[];for(let t=0;t<duration;t+=step)ticks.push(t);if(!ticks.length||ticks[ticks.length-1]!==duration)ticks.push(duration);
+    ticks.forEach(t=>{
+      const tick=document.createElement("span");tick.className="timeline-ruler-tick";tick.style.left=(t/duration*100)+"%";tick.textContent=Math.round(t)+"s";ruler.append(tick);
+    });
+    root.append(ruler);
+    const addLane=(label,className,items,makeSegment)=>{
+      const row=document.createElement("div");row.className="timeline-visual-lane "+className;
+      const title=document.createElement("b");title.className="timeline-lane-label";title.textContent=label;
+      const track=document.createElement("div");track.className="timeline-lane-track";
+      if(items.length)items.forEach(item=>track.append(makeSegment(item)));
+      else{const empty=document.createElement("span");empty.className="timeline-lane-empty";empty.textContent=label==="AUDIO"?"오디오 트랙 없음":"클립 없음";track.append(empty);}
+      row.append(title,track);root.append(row);
+    };
+    let cursor=0;
+    addLane("VIDEO","is-video",videos,clip=>{
+      const length=Math.max(0,clip.outPoint-clip.inPoint),segment=document.createElement("button");
+      segment.type="button";segment.className="timeline-segment is-video"+(local()?.state.selected===clip.id?" is-selected":"");
+      segment.style.left=(cursor/duration*100)+"%";segment.style.width=(length/duration*100)+"%";segment.textContent=clip.name;segment.title=clip.name+" · "+formatTime(length);
+      segment.addEventListener("click",()=>local()?.selectClip?.(clip.id));cursor+=length;return segment;
+    });
+    addLane("TITLE","is-title",titles,clip=>{
+      const start=Math.min(clip.inPoint,duration),end=Math.min(clip.outPoint,duration),segment=document.createElement("button");
+      segment.type="button";segment.className="timeline-segment is-title"+(local()?.state.selected===clip.id?" is-selected":"");
+      segment.style.left=(start/duration*100)+"%";segment.style.width=(Math.max(0,end-start)/duration*100)+"%";segment.textContent=clip.text||clip.name;segment.title=clip.text||clip.name;
+      segment.addEventListener("click",()=>local()?.selectClip?.(clip.id));return segment;
+    });
+    const audio=state.audio;
+    const audioDuration=audio?Math.min(Number(audio.serverDurationMs?msToSeconds(audio.serverDurationMs):audio.duration||0),duration):0;
+    addLane("AUDIO","is-audio",audio&&audioDuration>0?[audio]:[],item=>{
+      const segment=document.createElement("span");segment.className="timeline-segment is-audio";
+      segment.style.left="0%";segment.style.width=(audioDuration/duration*100)+"%";segment.textContent=item.file.name;segment.title=item.file.name+" · "+formatTime(audioDuration);return segment;
+    });
+  }
+  function renderTimelineViews(){renderMediaShelf();renderVisualTrack();}
   function requireEditorContext(){
     if(!api()?.hasToken()){say("실제 렌더링을 위해 설정에서 백엔드 API 주소와 운영자 토큰을 연결하세요.","error");return false;}
     if(!currentWorkspace()){say("상단 워크스페이스를 선택하거나 새 작업공간을 생성하세요.","error");return false;}
@@ -197,6 +321,7 @@
       if(state.audio?.url)URL.revokeObjectURL(state.audio.url);
       state.audio={file,url,duration:probe.duration,assetId:"",uploadedWorkspaceId:"",serverDurationMs:0};
       $("timelineAudioStatus").textContent=file.name+" · "+probe.duration.toFixed(1)+"초 · 서버 검사 전";
+      renderTimelineViews();
     },{once:true});
     probe.addEventListener("error",()=>{
       URL.revokeObjectURL(url);state.audio=null;$("timelineAudioStatus").textContent="오디오 메타데이터를 읽을 수 없습니다.";
@@ -225,9 +350,11 @@
     $("timelineApproveRender").addEventListener("click",()=>decideRender("approved"));
     $("timelineRevisionRender").addEventListener("click",()=>decideRender("revision_requested"));
     $("timelineRejectRender").addEventListener("click",()=>decideRender("rejected"));
-    window.addEventListener("nexus:workspace-changed",workspaceChanged);
-    window.addEventListener("nexus:auth-changed",()=>{clearPrivatePreview();if(!api()?.hasToken())say("API 인증이 초기화되었습니다. 렌더링을 계속하려면 다시 연결하세요.");});
-    workspaceChanged();
+    window.addEventListener("nexus:workspace-changed",()=>{workspaceChanged();renderTimelineViews();});
+    window.addEventListener("nexus:timeline-updated",renderTimelineViews);
+    window.addEventListener("nexus:auth-changed",()=>{clearPrivatePreview();renderTimelineViews();if(!api()?.hasToken())say("API 인증이 초기화되었습니다. 렌더링을 계속하려면 다시 연결하세요.");});
+    $("timelineMediaFilter").addEventListener("input",renderMediaShelf);
+    workspaceChanged();renderTimelineViews();
   }
   if($("timelineEditor")){
     bind();
