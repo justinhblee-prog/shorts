@@ -298,6 +298,8 @@ class TimelineFFmpegRenderer:
                 source = source_metadata[clip["asset_id"]]
                 if not source["has_video"]:
                     raise TimelineRenderError("video source has no video stream")
+                if clip.get("include_source_audio", False) and not source["has_audio"]:
+                    raise TimelineRenderError("source audio was requested but the video asset has no audio stream")
                 if clip["source_out_ms"] > source["duration_ms"] + 1:
                     raise TimelineRenderError("video source trim exceeds probed media duration")
                 argv.extend(["-protocol_whitelist", "file,pipe", "-i", str(staged)])
