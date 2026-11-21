@@ -147,7 +147,7 @@ jobs:
       - name: Verify real FFmpeg EDL render, artifact adoption and review
         run: docker compose exec -T timeline-render-worker python timeline_render_real_media_smoke.py
       - name: Verify authenticated API upload, shared worker render, review and private preview
-        run: docker compose exec -T timeline-render-worker python timeline_render_api_e2e_smoke.py
+        run: docker compose exec -T api python timeline_render_api_e2e_smoke.py
       - name: Verify scheduled backup and isolated restore
         run: |
           set -eu
