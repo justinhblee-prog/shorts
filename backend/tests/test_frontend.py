@@ -108,6 +108,13 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("NEXUS_CORS_ORIGINS=", env)
         self.assertNotIn("allow_origins=[\"*\"]", app_py)
 
+    def test_api_port_is_loopback_bound_by_default(self):
+        compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
+        env = (ROOT / ".env.example").read_text(encoding="utf-8")
+        self.assertIn('${NEXUS_API_BIND_ADDRESS:-127.0.0.1}:8502:8502', compose)
+        self.assertIn("NEXUS_API_BIND_ADDRESS=127.0.0.1", env)
+        self.assertNotIn('- "8502:8502"', compose)
+
     def test_external_media_urls_require_https_without_embedded_credentials(self):
         app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
         self.assertIn("function safeExternalMediaUrl(value)", app_js)
