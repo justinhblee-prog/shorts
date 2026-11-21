@@ -83,8 +83,9 @@ if($Supervisor){
    Start-Sleep -Seconds ([int]$delay)
   }
   $lock.Dispose();$lock=$null
+  $terminalStatus=if($lastExit -eq 0){"completed"}else{"failed"}
   Write-JsonAtomic $statusPath @{
-   run_id=$RunId;status="completed";cycle=$cycle;max_cycles=$MaxCycles
+   run_id=$RunId;status=$terminalStatus;cycle=$cycle;max_cycles=$MaxCycles
    last_exit_code=$lastExit;consecutive_failures=$consecutiveFailures
    finished_at=[DateTime]::UtcNow.ToString("o")
   }
