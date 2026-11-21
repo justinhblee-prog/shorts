@@ -202,10 +202,11 @@ def validate_edl(payload: Any) -> dict:
         overlap = float(previous["end_ms"]) - float(clip["start_ms"])
         transition = transitions_by_pair.get(pair)
         if overlap > 1.0:
-            if transition is None or not math.isclose(overlap, transition["duration_ms"], abs_tol=0.001):
-                raise EDLValidationError("overlapping video clips require a matching crossfade of the exact overlap duration")
-            if float(clip["end_ms"]) <= float(previous["end_ms"]):
-                raise EDLValidationError("crossfade destination clip must extend beyond the source clip")
+            if transition is not None:
+                if not math.isclose(overlap, transition["duration_ms"], abs_tol=0.001):
+                    raise EDLValidationError("crossfade duration must exactly match the adjacent clip overlap")
+                if float(clip["end_ms"]) <= float(previous["end_ms"]):
+                    raise EDLValidationError("crossfade destination clip must extend beyond the source clip")
         elif transition is not None:
             raise EDLValidationError("crossfade requires overlapping adjacent video clips")
     if set(transitions_by_pair) - adjacent_pairs:
