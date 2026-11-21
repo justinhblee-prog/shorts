@@ -1548,3 +1548,18 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Exact-head Actions validation pending.
 
 - BUILD-00351 exact checkpoint `1dbd12852bf41c9c58c11a801a30d9d3000daffa` passed 725 backend tests and the health-aware five-service Compose integration: [backend 44506538368](https://github.com/justinhblee-prog/shorts/actions/runs/44506538368), [Compose 44506538484](https://github.com/justinhblee-prog/shorts/actions/runs/44506538484). Worker, scheduler, metrics collector and backup reported healthy; backup success marker and encrypted isolated restore were verified.
+
+
+## DevFlow continuous supervisor checkpoint — 2026-11-21
+
+- Draft PR [#491](https://github.com/justinhblee-prog/shorts/pull/491) changes the detached DevFlow supervisor from a one-shot process into a persistent polling loop. Default polling is every five minutes; failed cycles use bounded exponential backoff (5/10/20/30 minutes), and one exclusive scheduler lease prevents overlapping supervisors.
+- The supervisor records cycle count, last exit code, next poll time and per-cycle stdout/stderr logs. Bounded final failures are recorded as `failed`, not `completed`.
+- Added a foreground Task Scheduler mode and per-user installer. The task starts at Windows logon under the current user with limited privileges, runs Agent/GitHub preflight before registration, stores no password, and can be explicitly started, replaced or uninstalled.
+- Open-PR duplicate detection now scans up to 1,000 PRs and searches task IDs in title, body and head/base branch metadata. A regression proves a task is skipped when its ID appears only in an open PR body.
+- Exact executable-head validation at `bc68aff42fde10654925e99e183cfd6ff5ac1751`:
+  - Git CLI autopilot validation [44911482287](https://github.com/justinhblee-prog/shorts/actions/runs/44911482287): passed PowerShell parsing, scheduled-task definition validation, Agent CLI contract, three concurrent isolated workers, open-PR duplicate guard, detached lifecycle, fake-Agent end-to-end Draft PR pipeline and merge/deploy safety checks.
+  - Detached supervisor regression [44911482140](https://github.com/justinhblee-prog/shorts/actions/runs/44911482140): passed retry-after-failure, terminal status, lease release, generated run ID and cycle-log checks.
+  - Backend/browser smoke [44911482128](https://github.com/justinhblee-prog/shorts/actions/runs/44911482128): passed full `scripts/validate.sh`, Korean font fallback and Playwright browser smoke.
+- Validation boundary: the worker E2E uses a fake Agent and disposable Git remote. No real Ollama/model execution or user-PC Task Scheduler registration is claimed. The installer is committed but must be explicitly run from the persistent Windows checkout after reviewing this Draft PR.
+- Queue boundary: the current manifest's eligible BUILD-00357–00360 work is already represented by open Draft PRs and is skipped by duplicate protection; BUILD-00353/00354 remain externally blocked. The supervisor therefore polls safely but currently has no new runnable manifest task. Do not change task status or dispatch duplicate work just to keep the loop busy.
+- PR #491 remains Draft/open/unmerged. No merge, deployment, publishing, main-branch push or credential changes were performed.
