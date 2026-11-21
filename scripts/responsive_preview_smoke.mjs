@@ -79,14 +79,24 @@ async function waitForServer() {
 
     await page.locator('[data-device="auto"]').click();
     await page.waitForFunction(() => document.querySelector("#device").classList.contains("auto"));
-    const autoWidthAt1600 = await device.evaluate(el => parseFloat(getComputedStyle(el).width));
-    assert.ok(autoWidthAt1600 > 1000, "Auto mode should fill the available desktop viewport");
+    const autoMeasurementsAt1600 = await device.evaluate(el => {
+      const wrap = el.parentElement;
+      const style = getComputedStyle(wrap);
+      return {
+        deviceWidth: parseFloat(getComputedStyle(el).width),
+        availableWidth: wrap.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+      };
+    });
+    assert.ok(
+      Math.abs(autoMeasurementsAt1600.deviceWidth - autoMeasurementsAt1600.availableWidth) <= 2,
+      "Auto mode must fill the available preview width: " + JSON.stringify(autoMeasurementsAt1600)
+    );
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.waitForFunction(previous =>
       Math.abs(parseFloat(getComputedStyle(document.querySelector("#device")).width) - previous) > 100,
-    autoWidthAt1600);
+    autoMeasurementsAt1600.deviceWidth);
     const autoWidthAt1280 = await device.evaluate(el => parseFloat(getComputedStyle(el).width));
-    assert.ok(autoWidthAt1280 < autoWidthAt1600, "Auto mode must follow browser resize");
+    assert.ok(autoWidthAt1280 < autoMeasurementsAt1600.deviceWidth, "Auto mode must follow browser resize");
 
     await page.screenshot({ path: "artifacts/nexus-responsive-preview.png", fullPage: true });
 
