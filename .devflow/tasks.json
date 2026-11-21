@@ -190,6 +190,50 @@
         "Expand the UI from one audio bed to multiple independent audio tracks and add explicit project-duration/timeline controls",
         "Validate representative codecs, variable frame rates and longer inputs; transitions, gaps and overlaps remain outside the current UI EDL v1 subset"
       ]
+    },
+    {
+      "id": "BUILD-00362",
+      "title": "Build visual media shelf, clip inspector and multi-lane timeline",
+      "priority": 5,
+      "status": "in_progress",
+      "depends_on": [
+        "BUILD-00361"
+      ],
+      "scope": [
+        "frontend timeline workspace",
+        "local media thumbnail shelf",
+        "selected clip detail inspector",
+        "video/title/audio visual timeline",
+        "Playwright responsive browser tests",
+        "handover documentation"
+      ],
+      "acceptance": [
+        "Show local video and title clips in a searchable visual media shelf with thumbnail/placeholder, duration, file size and server-scan state",
+        "Selecting a shelf item updates the local preview, selected clip state and detail inspector",
+        "Show selected clip type, source duration, trim range, file size and private server scan status",
+        "Render a time ruler and separate video sequence, timed title overlay and optional audio-bed lanes",
+        "Selecting a video/title segment selects the corresponding clip in the editor",
+        "Preserve EDL v1 render submission, private artifact preview and human review actions",
+        "Keep the editor responsive across desktop, tablet and narrow mobile widths",
+        "Do not auto-publish or expose public media URLs"
+      ],
+      "external_gates": [
+        "Browser codec support for customer video thumbnail extraction and representative media sizes",
+        "Live authenticated API host and operator credentials for server scan status",
+        "Performance validation with larger media libraries and long timelines"
+      ],
+      "implemented_increment": [
+        "Added a searchable local media shelf for video and title clips with thumbnail previews, duration, size and scan status",
+        "Added a selected-clip detail inspector with source metadata and server scan state",
+        "Added a graphical timeline ruler with sequential video, timed title-overlay and optional audio-bed lanes",
+        "Bound shelf cards and timeline segments to the existing local clip selection and preview state",
+        "Extended browser and responsive smoke assertions for media shelf, visual timeline and inspector behavior"
+      ],
+      "remaining": [
+        "Run exact-head backend, Playwright and responsive CI; do not mark complete until all pass",
+        "Validate thumbnail extraction with representative real customer codecs and large files",
+        "Add explicit zoom/scroll controls, multi-audio tracks and timeline duration controls in a later increment"
+      ]
     }
   ]
 }
