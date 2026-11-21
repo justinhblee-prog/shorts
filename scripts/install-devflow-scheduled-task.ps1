@@ -30,7 +30,7 @@ if(-not(Test-Path -LiteralPath $launcher)){throw "Detached supervisor script is 
 $identity=[Security.Principal.WindowsIdentity]::GetCurrent().Name
 $pwsh=(Get-Command pwsh -ErrorAction Stop).Source
 $arguments=@(
- "-NoProfile","-NonInteractive","-File",$launcher,
+ "-NoProfile","-NonInteractive","-File",$launcher,"-Supervisor",
  "-MaxTasks",[string]$MaxTasks,
  "-PollIntervalSeconds",[string]$PollIntervalSeconds
 )
