@@ -12,6 +12,7 @@ import socket
 import threading
 import time
 
+from media_binary_pin import verify_binary_manifest
 from queue_store import JobQueue
 from render_artifact_store import RenderArtifactStore
 from timeline_ffmpeg_renderer import TimelineFFmpegRenderer, workspace_asset_resolver
@@ -27,6 +28,19 @@ STAGING_ROOT = os.getenv("NEXUS_RENDER_STAGING_ROOT", "/app/data/render-staging"
 ARTIFACT_ROOT = os.getenv("NEXUS_RENDER_ARTIFACT_ROOT", "/app/data/render-artifacts")
 FFMPEG_PATH = os.getenv("NEXUS_FFMPEG_PATH", "/usr/bin/ffmpeg")
 FFPROBE_PATH = os.getenv("NEXUS_FFPROBE_PATH", "/usr/bin/ffprobe")
+
+
+def verify_media_binaries():
+    """Fail closed unless the configured FFmpeg tools match the image manifest."""
+    manifest_path = os.getenv(
+        "NEXUS_MEDIA_BINARY_MANIFEST", "/usr/share/nexus-media-binaries.sha256"
+    )
+    verified = verify_binary_manifest((FFMPEG_PATH, FFPROBE_PATH), manifest_path)
+    print(
+        "media_binary_manifest_verified "
+        f"ffmpeg_sha256={verified[FFMPEG_PATH]} ffprobe_sha256={verified[FFPROBE_PATH]}"
+    )
+    return verified
 FONT_PATH = os.getenv("NEXUS_TITLE_FONT_PATH", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
 
 
@@ -75,6 +89,8 @@ def _resolve_snapshot_creator(workspace_id, payload):
 
 
 def build_worker():
+    # Verify before opening the durable queue or registering a worker generation.
+    verify_media_binaries()
     queue = JobQueue(DB_PATH, LEASE_SECONDS)
     workspaces = WorkspaceStore(DB_PATH)
     assets = WorkspaceAssetStore(DB_PATH, PRIVATE_ROOT, workspaces)
