@@ -19,7 +19,7 @@ try{
  New-Item -ItemType Directory -Force -Path (Join-Path $seed "scripts"),(Join-Path $seed ".devflow")|Out-Null
  Copy-Item $engineSource (Join-Path $seed "scripts/git-cli-multiflow-parallel.ps1")
  Copy-Item $agentProcessHelper (Join-Path $seed "scripts/devflow-agent-process.ps1")
- Set-Content (Join-Path $seed "scripts/devflow.py") "from pathlib import Path; Path(__file__).resolve().parents[1].joinpath('.validator-ran').write_text('ok', encoding='utf-8')" -Encoding utf8
+ Set-Content (Join-Path $seed "scripts/devflow.py") "from pathlib import Path; import os; root=Path(__file__).resolve().parents[1]; root.joinpath('.validator-ran').write_text('ok', encoding='utf-8'); root.joinpath('.validator-token-leak').write_text('leaked', encoding='utf-8') if os.getenv('GH_TOKEN') else None" -Encoding utf8
  $manifest=@{
   policy=@{default_base="main";max_parallel_worktrees=3;auto_merge=$false;auto_deploy=$false}
   tasks=@(
@@ -98,6 +98,8 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  $workerRoots=@(Get-ChildItem -LiteralPath (Join-Path (Split-Path $checkout -Parent) "checkout-worktrees") -Directory -ErrorAction SilentlyContinue)
  $validated=@($workerRoots|Where-Object{Test-Path (Join-Path $_.FullName ".validator-ran")})
  if($validated.Count -ne 3){throw "Expected task-worktree validators to execute in all three isolated worktrees; got $($validated.Count)."}
+ $validationLeaks=@($workerRoots|Where-Object{Test-Path (Join-Path $_.FullName ".validator-token-leak")})
+ if($validationLeaks.Count -gt 0){throw "Supervisor GitHub credentials leaked into task validation."}
  if($stateData.tasks."BUILD-99004"){throw "Dependency-gated task unexpectedly entered worker state."}
  if($stateData.tasks."BUILD-99005"){throw "Task with an open PR body reference was unexpectedly dispatched."}
  Write-Host "PASS: three fake agents overlapped (start spread $($delta)ms), produced Draft PR states, and pushed isolated branches."
