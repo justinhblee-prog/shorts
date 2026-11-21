@@ -143,6 +143,53 @@
         "Target host access and deployment authorization",
         "YouTube OAuth and explicit private-test authorization"
       ]
+    },
+    {
+      "id": "BUILD-00361",
+      "title": "Connect NEXUS timeline editor to secure EDL render pipeline",
+      "priority": 4,
+      "status": "in_progress",
+      "depends_on": [
+        "BUILD-00352"
+      ],
+      "scope": [
+        "frontend timeline editor",
+        "workspace-scoped media upload",
+        "EDL v1 render and review UI",
+        "browser integration tests",
+        "docs"
+      ],
+      "acceptance": [
+        "Preserve the fixed sidebar, active workspace selector and request-level workspace isolation",
+        "Keep local source preview, clip trim/reorder, title overlays and JSON export",
+        "Create operator-owned workspaces and upload private video/audio assets through authenticated workspace APIs",
+        "Do not allow unscanned or rejected media into render; preserve fail-closed ClamAV/ffprobe behavior",
+        "Build normalized sequential video clips, timed title overlays and optional audio-bed settings as EDL v1",
+        "Validate EDL server-side before idempotent render submission; show actual job status",
+        "Preview only the integrity-checked private review artifact and record artifact-bound human decisions",
+        "Never auto-publish or expose public upload controls from this editor",
+        "Verify the editor workflow with browser automation and responsive layout checks"
+      ],
+      "external_gates": [
+        "A reachable API host built from the BUILD-00352 integration branch plus an operator token with workspace.read and media.manage permissions",
+        "Target-host ClamAV signatures, ffprobe and isolated render worker configuration",
+        "Representative customer-media compatibility and persistent-storage validation"
+      ],
+      "implemented_increment": [
+        "Added a production-centered studio floor with API-derived queue/review counts and a real-review-video spotlight",
+        "Retained the existing fixed navigation, workspace selector, keyboard search and scoped X-Nexus-Workspace-Id API behavior",
+        "Added browser-local clip preview, source trim/reorder and timed title overlays with private server render submission controls",
+        "Connected workspace creation, binary media upload, fail-closed rescan, EDL v1 validation, idempotent render submission/status, private artifact download and artifact-bound review decisions",
+        "Added optional audio-bed upload with gain and fade controls",
+        "Added a Playwright API-contract smoke for upload → validate → render → private preview → human review"
+      ],
+      "remaining": [
+        "Run exact-head backend and browser CI; do not mark this task complete until all required jobs pass",
+        "Validate the UI against a live authenticated API deployed from the BUILD-00352 integration branch",
+        "Run real clean/infected media scan and FFmpeg render using target-host ClamAV signatures and persistent storage",
+        "Expand the UI from one audio bed to multiple independent audio tracks and add explicit timeline duration controls",
+        "Validate representative customer codecs, variable frame rates and longer inputs; transitions and overlaps remain unsupported in EDL v1"
+      ]
     }
   ]
 }
