@@ -43,28 +43,21 @@ async function waitForServer() {
     const frame = page.locator("iframe");
     const app = page.frameLocator("iframe");
     assert.equal(await app.locator('link[href="/cyber-magic.css"]').count(), 1);
-    await app.locator("body").evaluate(el => getComputedStyle(el).getPropertyValue("--nexus-accent").trim()).then(value => assert.equal(value, "#a78bfa"));
+    await app.locator("body").evaluate(el => getComputedStyle(el).getPropertyValue("--violet").trim()).then(value => assert.equal(value, "#a58bff"));
     assert.equal(await app.locator(".topbar").evaluate(el => getComputedStyle(el).position), "fixed");
     assert.equal(await app.locator(".topbar").evaluate(el => Math.round(el.getBoundingClientRect().width)), 258);
-    assert.equal(await app.locator(".hero-visual").evaluate(el => getComputedStyle(el).display), "grid");
-    assert.equal(await app.locator(".command-center").count(), 1);
-    assert.equal(await app.locator(".command-grid").count(), 1);
-    assert.equal(await app.locator(".global-command").count(), 1);
-    assert.equal(await app.locator("#globalSearch").getAttribute("type"), "search");
     assert.equal(await app.locator(".studio-floor").count(), 1);
     assert.equal(await app.locator(".stage-node").count(), 4);
+    assert.equal(await app.locator(".studio-rail").count(), 1);
     assert.equal(await app.locator("#studioMediaSpotlight").count(), 1);
-    assert.match(await app.locator("#studioMediaSpotlight").textContent(), /검수 가능한 영상/);
-    await app.locator("#globalSearch").fill("콘텐츠 제작");
-    assert.ok(await app.locator("#globalSearchResults button").count() > 0, "Global search should return matching workspace content");
-    await app.locator("#globalSearchResults button").first().click();
-    assert.equal(await app.locator("#globalSearchResults").isVisible(), false);
-    await app.locator("body").press("Control+k");
-    assert.equal(await app.locator("#globalSearch").evaluate(el => document.activeElement === el), true, "Ctrl+K should focus global search");
-    await app.locator("#globalSearch").press("Escape");
-    assert.equal(await app.locator(".gate-list li").count(), 4);
-    assert.equal(await app.locator("#overviewTrends").count(), 1);
-    assert.match(await app.locator("body").textContent(), /운영 커맨드 센터/);
+    assert.match(await app.locator("#studioMediaSpotlight").textContent(), /검수 대기 영상/);
+    assert.equal(await app.locator("#workspaceSearch").count(), 1);
+    assert.equal(await app.locator(".main-nav a").count(), 9);
+    assert.equal(await app.locator("#timelineEditor").count(), 1);
+    assert.equal(await app.locator("#timelineSubmitRender").count(), 1);
+    assert.equal(await app.locator("#timelineCreateWorkspace").count(), 1);
+    assert.equal(await app.locator("#timelineAudioInput").count(), 1);
+    assert.equal(await app.locator("#timelineRenderReview").count(), 1);
     assert.equal(await app.locator(".button-primary").first().evaluate(el => getComputedStyle(el).backgroundImage.includes("linear-gradient")), true);
     await frame.waitFor();
     await page.waitForFunction(() => {
@@ -165,8 +158,10 @@ async function waitForServer() {
       viewport: window.innerWidth,
       document: document.documentElement.scrollWidth,
     }));
-    const mobileCommandGrid = await page.locator(".command-grid").evaluate(el => getComputedStyle(el).gridTemplateColumns);
-    assert.ok(!mobileCommandGrid.includes(","), "Command center must stack into one column on mobile: " + mobileCommandGrid);
+    const mobileWorkbenchColumns = await page.locator(".studio-floor-grid").evaluate(el => getComputedStyle(el).gridTemplateColumns);
+    assert.ok(!mobileWorkbenchColumns.includes(","), "Studio workbench must stack into one column on mobile: " + mobileWorkbenchColumns);
+    const mobileEditorColumns = await page.locator(".timeline-server-controls").evaluate(el => getComputedStyle(el).gridTemplateColumns);
+    assert.ok(!mobileEditorColumns.includes(","), "Timeline server controls must stack on mobile: " + mobileEditorColumns);
     assert.ok(
       mobileDimensions.document <= mobileDimensions.viewport,
       "Dashboard horizontal overflow at 320px: " + JSON.stringify(mobileDimensions)
