@@ -70,6 +70,17 @@ class OperatorRoleTests(unittest.TestCase):
         self.assertFalse(has_permission("analyst", "review.decide", role_map_json=roles))
         self.assertFalse(has_permission("producer", "publish.execute", role_map_json=roles))
 
+    def test_development_monitor_is_read_only_operator_permission(self):
+        roles = json.dumps({
+            "operator": ["operator"],
+            "reviewer": ["reviewer"],
+            "worker": ["worker"],
+        })
+        self.assertTrue(has_permission("operator", "development.read", role_map_json=roles))
+        self.assertFalse(has_permission("reviewer", "development.read", role_map_json=roles))
+        self.assertFalse(has_permission("worker", "development.read", role_map_json=roles))
+        self.assertFalse(has_permission("operator", "development.write", role_map_json=roles))
+
     def test_admin_role_grants_wildcard(self):
         self.assertTrue(has_permission("root", "any.future.permission",
                                        role_map_json=json.dumps({"root": ["admin"]})))
