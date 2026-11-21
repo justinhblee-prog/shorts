@@ -10,7 +10,7 @@ Entry point: `RetentionInventory.list_workspace(workspace_id, principal_id, poli
 - Requires workspace membership before querying data.
 - Uses bounded, workspace-filtered SELECT queries and sets SQLite `PRAGMA query_only=ON` on each inventory connection.
 - Reads original asset metadata, immutable EDL snapshot references, render artifact metadata, job states and review decisions.
-- Does not read media bytes, expose storage paths/keys, verify file hashes, update rows, acquire leases, change queue state, create tombstones or delete files.
+- Does not read or return media bytes, expose storage paths/keys or raw digests, update rows, acquire leases, change queue state, create tombstones or delete files. It does perform read-only per-object integrity checks through existing asset/artifact stores.
 - Limits each asset/artifact class to 1–200 rows; snapshot reference scans are bounded to ten times the per-class limit. Truncation or malformed/unknown snapshot/job state marks the scan incomplete and blocks eligibility.
 - Requires asset, artifact and snapshot stores to point to the same SQLite database, then reads all three record classes through one `query_only` read transaction. A mismatched database path fails closed.
 - The reference scan is complete only when the bounded snapshot query is not truncated and every snapshot payload/job state is understood. Malformed or unknown records mark it incomplete.
@@ -28,7 +28,7 @@ The inventory is exposed through `GET /api/operator/workspaces/{workspace_id}/re
 
 ## Per-object integrity and storage observations
 
-- Original assets use `WorkspaceAssetStore.verify_integrity`: it authorizes workspace membership, opens the private object without following symlinks, requires a regular file and compares byte size plus SHA-256 with the registered metadata. The path and digest are not returned by the inventory endpoint.
+- Original assets use `WorkspaceAssetStore.verify_integrity`: it authorizes workspace membership, opens the private object without following symlinks, requires a regular file and compares byte size plus SHA-256 with registered metadata. The path and digest are not returned by the inventory endpoint.
 - Render artifacts use `RenderArtifactStore.get`, which resolves the indexed object within the configured private artifact root and verifies its current SHA-256 and byte size against immutable index metadata. The endpoint reports only a verified/unverified status and evidence source.
 - These filesystem observations run after the single SQLite read transaction. Reference counts and metadata are transaction-consistent; file integrity is a point-in-time observation and can change after the check. Any missing file, mismatch, permission error or provider exception remains unverified and blocks review eligibility.
 - Aggregate `integrity_observations` counts verified and unverified candidates. No storage path, storage key, raw digest, media bytes or exception detail is exposed.
@@ -37,11 +37,11 @@ The inventory is exposed through `GET /api/operator/workspaces/{workspace_id}/re
 
 ## Deliberately unknown state
 
-The current schema has no legal-hold provider or per-object backup/replica inventory. This read-only layer also does not hash media files or stat storage paths. Therefore it supplies:
+The current schema has no legal-hold provider or per-object backup/replica inventory. The read-only layer verifies active source-asset and indexed render-artifact bytes against their registered size/hash using the existing storage adapters. Those observations happen after the SQLite reference snapshot and are point-in-time only. Missing, inaccessible or mismatched objects remain unverified. Therefore it supplies:
 
 - `legal_hold: null`
-- `integrity_verified: false`
-- `storage_state_known: false`
+- `integrity_verified: false` only when the corresponding object check is absent, failed or unavailable; successful per-object checks report verified evidence
+- `storage_state_known: false` (there is no authoritative storage lifecycle/replica provider)
 - `backup_state_known: false`
 
 These conditions deliberately block every candidate from `eligible_for_review`. A reference scan may be complete for the single read transaction, but this is not a purge authorization. Do not infer a no-hold state, verified media integrity or a backup guarantee.
@@ -66,10 +66,8 @@ Latest inventory head `cb09e67ba4a24c8c10e581d0da368d04ae7d1c33` passed Backend 
 
 The atomic read-snapshot revision at head `130dd2e9d9392880418e21aa3253defcfb466a92` passed Backend [run 44887197433](https://github.com/justinhblee-prog/shorts/actions/runs/44887197433) (**944 tests plus Playwright browser smoke**) and Compose [run 44887197535](https://github.com/justinhblee-prog/shorts/actions/runs/44887197535) (service isolation, real FFmpeg render/adoption/review, authenticated API E2E, encrypted backup and isolated restore). The single read transaction makes reference counts internally consistent; unknown legal-hold, integrity/storage and backup state still blocks all candidates.
 
-## Authenticated API follow-up
+## Authenticated API and integrity provider validation
 
-Draft PR #474 adds the workspace-scoped GET endpoint and API authorization/configuration regression tests. Exact-head Backend and Compose CI are pending for the endpoint increment; prior inventory-only head `49d5e6c9ceeb3ed4baa58bed736277c50efd290c` passed Backend [run 44887364377](https://github.com/justinhblee-prog/shorts/actions/runs/44887364377) and Compose [run 44887364444](https://github.com/justinhblee-prog/shorts/actions/runs/44887364444). Do not claim the new endpoint validated until its own exact-head checks pass.
+Draft PR #474 exact head `741730c3787f449f950d98bd4b3142192021a18e` passed Backend [run 44888403066](https://github.com/justinhblee-prog/shorts/actions/runs/44888403066) and Compose [run 44888403123](https://github.com/justinhblee-prog/shorts/actions/runs/44888403123). Backend CI completed `scripts/validate.sh`, Korean font fallback checks and Playwright browser smoke. Compose CI built the services, verified ClamAV readiness, worker isolation/resource limits, real FFmpeg EDL render and artifact adoption/review, authenticated API upload-to-worker/private-preview flow, plus encrypted backup and isolated restore.
 
-## Integrity provider increment
-
-Draft PR #474 now reads per-object integrity evidence from the existing asset and render-artifact stores. Exact-head CI is pending; the prior endpoint head `367b62d` passed Backend [44888131768](https://github.com/justinhblee-prog/shorts/actions/runs/44888131768) and Compose [44888131774](https://github.com/justinhblee-prog/shorts/actions/runs/44888131774). The new integrity increment must pass its own exact-head Backend and Compose runs before it is marked validated.
+The inventory endpoint requires `operations.read` and resolved workspace membership, reads explicit `NEXUS_RETENTION_POLICY_JSON`, and sanitizes malformed policy/storage errors. Asset integrity uses no-follow regular-file opens with size/SHA-256 comparison; render artifact integrity uses the existing indexed artifact store. Filesystem checks are point-in-time observations after the consistent SQLite metadata snapshot. The inventory does not establish legal-hold state, object-level backup/replica coverage, storage lifecycle state, production database scale, target persistent-filesystem behavior or customer-media compliance. Those unknowns continue to block all candidates from eligibility; no deletion or purge path exists.
