@@ -1182,3 +1182,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Missing, malformed, replaced or symlinked ownership markers fail closed. Provider-owned scratch, completed media, logs and unrelated filesystem consumers are outside this cleanup scope.
 - Docker Compose explicitly configures `/app/data/worker-scratch` and `NEXUS_WORKER_SCRATCH_GRACE_SECONDS` (default 3600); `.env.example` already carries the matching defaults.
 - CI run [44873298422](https://github.com/justinhblee-prog/shorts/actions/runs/44873298422) passed after the Compose wiring commit. The run executes the backend workflow; physical volume quota enforcement and live provider behavior remain deployment-level checks.
+
+
+### BUILD-00363 follow-up — scratch capacity and renderer staging (2026-11-21)
+
+- Route renderer MP4 `.part` downloads into the active job's private scratch directory, then atomically adopt the completed file into the shared media directory. Reject scratch/media directories on different filesystems rather than silently losing atomicity.
+- Protect lease heartbeat updates from planted predictable-name symlinks by using exclusive unpredictable temporary files.
+- Prune expired scratch before checking free capacity. Before claiming a job, wait when the scratch filesystem has less than `NEXUS_WORKER_SCRATCH_MIN_FREE_BYTES` (default 1 GiB; 0 disables).
+- The free-space check is advisory preflight, not a physical quota or disk reservation. Container/host volume limits and provider-owned scratch remain separate deployment controls.
+- GitHub Actions run [44874416537](https://github.com/justinhblee-prog/shorts/actions/runs/44874416537) passed **472 tests** on PR head `6368c1d348d20138e2f3bb0b6b28fbc58d1a4216`.
