@@ -444,6 +444,14 @@ async function waitForServer() {
       const videos=[...document.querySelectorAll("#timelineMediaShelf .timeline-media-card video")];
       return videos.length>0&&videos[videos.length-1].hasAttribute("src");
     });
+    const detachedThumbnailCleanup=await page.evaluate(()=>{
+      const timeline=window.NexusLocalTimeline;
+      const previous=[...document.querySelectorAll("#timelineMediaShelf .timeline-media-card video")];
+      timeline.render();
+      return {previousCount:previous.length,released:previous.every(video=>!video.hasAttribute("src")&&video.paused)};
+    });
+    assert.ok(detachedThumbnailCleanup.previousCount>0,"thumbnail lifecycle fixture should contain video cards");
+    assert.equal(detachedThumbnailCleanup.released,true,"rerender must release detached thumbnail media sources and pause decoders");
 
 
     failQueueStats = true;
