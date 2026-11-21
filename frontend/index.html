@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0b1020">
+  <meta name="theme-color" content="#100b20">
   <title>NEXUS STUDIO PRO — Shorts Operations</title>
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/cyber-magic.css">
 </head>
 <body>
   <header class="topbar">
@@ -37,6 +38,24 @@
       <article class="metric-card"><span class="metric-label">검수 대기</span><strong id="metricReview">—</strong><small>사람의 승인 필요</small></article>
       <article class="metric-card"><span class="metric-label">활성 브랜드</span><strong id="metricBrands">10</strong><small>KR · US · JP · GB</small></article>
       <article class="metric-card"><span class="metric-label">누적 수익 장부</span><strong id="metricRevenue">—</strong><small>실제 기록 데이터 기준</small></article>
+    </section>
+
+    <section class="command-center" aria-label="실시간 운영 대시보드">
+      <div class="command-center-heading"><div><div class="eyebrow">LIVE CONTROL / GLOBAL OPERATIONS</div><h2>운영 커맨드 센터</h2><p>작업 큐, 검수 게이트, 시장 신호를 한눈에 확인합니다.</p></div><span class="command-live"><i></i> API DATA WHEN CONNECTED</span></div>
+      <div class="command-grid">
+        <article class="command-panel command-queue"><div class="command-panel-head"><div><span class="panel-kicker">PRODUCTION PULSE</span><h3>실시간 제작 흐름</h3></div><span class="command-icon">⌁</span></div>
+          <div class="pulse-stats"><div><small>대기 작업</small><b id="overviewQueued">—</b></div><div><small>실행 중</small><b id="overviewRunning">—</b></div><div><small>검수 대기</small><b id="overviewReview">—</b></div></div>
+          <div class="queue-track" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+          <div class="queue-foot"><span id="overviewQueueStatus">운영 상태 · 인증 필요</span><span id="overviewWorkers">Worker —</span></div><a class="command-link" href="#operations">작업·Worker 상세 보기 ↗</a>
+        </article>
+        <article class="command-panel command-gates"><div class="command-panel-head"><div><span class="panel-kicker">TRUST & SAFETY GATES</span><h3>검수 · 게시 보호 단계</h3></div><span class="command-icon">◇</span></div>
+          <ol class="gate-list"><li><span>01</span><div><b>AI 제작 및 파일 스테이징</b><small>실제 산출물과 파일 지문 확인</small></div><em>INPUT</em></li><li><span>02</span><div><b>품질 · 정책 사전검사</b><small>미디어·음성·자막·권리 항목 점검</small></div><em>CHECK</em></li><li><span>03</span><div><b>사람의 검수와 명시적 승인</b><small>차단 항목 해결 전 승인 불가</small></div><em class="gate-required">REQUIRED</em></li><li><span>04</span><div><b>플랫폼 비공개 게시</b><small>공개 전 계정에서 결과 대조</small></div><em>PRIVATE</em></li></ol><a class="command-link" href="#review">검수 워크스페이스 열기 ↗</a>
+        </article>
+        <article class="command-panel command-market"><div class="command-panel-head"><div><span class="panel-kicker">GLOBAL SIGNALS</span><h3>글로벌 시장 신호</h3></div><span class="command-icon">↗</span></div><div id="overviewTrends" class="overview-trends"><div class="empty-state">API 인증 후 저장된 트렌드를 불러옵니다.</div></div><a class="command-link" href="#discovery">시장 인텔리전스 전체 보기 ↗</a></article>
+        <article class="command-panel command-performance"><div class="command-panel-head"><div><span class="panel-kicker">MEASURED PERFORMANCE</span><h3>실측 성과 스냅샷</h3></div><span class="command-icon">⌗</span></div>
+          <div class="performance-snapshot"><div><small>관측 조회수 변화 합계</small><b id="overviewViewDelta">—</b></div><div><small>측정 브랜드</small><b id="overviewMeasured">—</b></div></div><p id="overviewPerformanceNote">YouTube Analytics 실측 데이터 연결 후 표시됩니다. 예상치와 실제 성과는 분리합니다.</p><a class="command-link" href="#operations">성과 분석 및 수익 장부 ↗</a>
+        </article>
+      </div>
     </section>
 
     <section class="section" id="studio">
