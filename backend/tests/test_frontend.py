@@ -108,6 +108,20 @@ class FrontendPortalTests(unittest.TestCase):
         self.assertIn("NEXUS_CORS_ORIGINS=", env)
         self.assertNotIn("allow_origins=[\"*\"]", app_py)
 
+    def test_cors_origin_parser_requires_exact_secure_origins(self):
+        from cors_config import parse_cors_origins, CorsOriginConfigurationError
+        self.assertEqual(
+            parse_cors_origins(" https://Studio.Example.com/ , https://studio.example.com:443, http://localhost:8502 "),
+            ["https://studio.example.com", "http://localhost:8502"],
+        )
+        for invalid in (
+            "*", "null", "https://example.com/path", "https://user:pass@example.com",
+            "http://example.com", "https://example.com?x=1", "ftp://example.com",
+        ):
+            with self.subTest(origin=invalid):
+                with self.assertRaises(CorsOriginConfigurationError):
+                    parse_cors_origins(invalid)
+
     def test_api_port_is_loopback_bound_by_default(self):
         compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
         env = (ROOT / ".env.example").read_text(encoding="utf-8")
