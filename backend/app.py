@@ -3,6 +3,7 @@ import logging
 import secrets
 from typing import Any, Literal
 from fastapi import FastAPI, HTTPException, Header, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
@@ -56,6 +57,19 @@ for access_handler in uvicorn_access_logger.handlers:
 
 
 app=FastAPI(title="NEXUS STUDIO PRO API",version="0.1.0")
+cors_origins=[
+    origin.strip().rstrip("/")
+    for origin in os.getenv("NEXUS_CORS_ORIGINS", "").split(",")
+    if origin.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Review-Token"],
+    max_age=600,
+)
 rate_limit_store=SQLiteRateLimitStore(os.getenv("NEXUS_DB_PATH","data/nexus.sqlite3"))
 app.add_middleware(
     ApiRateLimitMiddleware,
