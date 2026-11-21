@@ -788,10 +788,10 @@ class TikTokPublisher:
         if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
             raise TikTokPublishError("TikTok upload size must be a positive integer")
         chunk_size = min(CHUNK_SIZE, size)
-        # TikTok requires files larger than 64 MiB to use multiple chunks.
-        # Near the 64 MiB boundary, a 64 MiB chunk would floor-divide to one;
+        # TikTok requires files larger than 64 MB to use multiple chunks.
+        # Near the 64 MB boundary, a 64 MiB chunk would floor-divide to one;
         # reduce the base chunk so the final chunk remains within TikTok's
-        # documented 128 MiB maximum (the final chunk may exceed chunk_size).
+        # documented 128 MB maximum (the final chunk may exceed chunk_size).
         if size > CHUNK_SIZE and size // chunk_size < 2:
             chunk_size = size // 2
         chunk_count = max(1, size // chunk_size)
