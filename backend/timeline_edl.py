@@ -101,7 +101,11 @@ def validate_edl(payload: Any) -> dict:
     if max(item["end_ms"] for item in normalized) > MAX_DURATION_MS:
         raise EDLValidationError("timeline exceeds maximum duration")
 
-    video_clips = [item for item in normalized if item["type"] == "video"]
+    # Match the renderer: EDL payload clip order is not the timeline order.
+    video_clips = sorted(
+        (item for item in normalized if item["type"] == "video"),
+        key=lambda item: (item["start_ms"], item["id"]),
+    )
     transition_pairs = set()
     transitions = []
     if "transitions" in payload:
