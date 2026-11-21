@@ -61,6 +61,8 @@ async function waitForServer() {
     assert.equal(await app.locator("#timelineMediaShelf").count(), 1);
     assert.equal(await app.locator("#timelineVisualTrack").count(), 1);
     assert.equal(await app.locator("#timelineSelectedMeta").count(), 1);
+    const desktopTimelineColumns=await app.locator(".timeline-workspace").evaluate(el=>getComputedStyle(el).gridTemplateColumns);
+    assert.equal(desktopTimelineColumns.trim().split(/\\s+/).length,3,"Desktop editor should show media bin, preview and detail inspector: "+desktopTimelineColumns);
     assert.equal(await app.locator(".button-primary").first().evaluate(el => getComputedStyle(el).backgroundImage.includes("linear-gradient")), true);
     await frame.waitFor();
     await page.waitForFunction(() => {
@@ -165,6 +167,11 @@ async function waitForServer() {
     assert.ok(!mobileWorkbenchColumns.includes(","), "Studio workbench must stack into one column on mobile: " + mobileWorkbenchColumns);
     const mobileEditorColumns = await page.locator(".timeline-server-controls").evaluate(el => getComputedStyle(el).gridTemplateColumns);
     assert.ok(!mobileEditorColumns.includes(","), "Timeline server controls must stack on mobile: " + mobileEditorColumns);
+    const mobileTimelineColumns=await page.locator(".timeline-workspace").evaluate(el=>getComputedStyle(el).gridTemplateColumns);
+    assert.equal(mobileTimelineColumns.trim().split(/\\s+/).length,1,"Timeline workspace must stack on mobile: "+mobileTimelineColumns);
+    const mobileShelfColumns=await page.locator(".timeline-media-shelf").evaluate(el=>getComputedStyle(el).gridTemplateColumns);
+    assert.equal(mobileShelfColumns.trim().split(/\\s+/).length,2,"Media shelf should remain a compact two-column board on mobile: "+mobileShelfColumns);
+    assert.equal(await page.locator(".timeline-visual-track-panel").evaluate(el=>getComputedStyle(el).overflowX),"auto");
     assert.ok(
       mobileDimensions.document <= mobileDimensions.viewport,
       "Dashboard horizontal overflow at 320px: " + JSON.stringify(mobileDimensions)
