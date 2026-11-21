@@ -47,3 +47,8 @@ The new interaction layer is presentation/navigation only. Existing production, 
 ## Workspace-aware studio floor and EDL editor — 2026-11-21
 
 The fixed left navigation, workspace selector and global keyboard search remain the primary shell. The production floor is placed immediately after the operating KPIs and gives Discover/Create/Review/Measure a single visual route, while the existing local timeline remains the source-preview/editing surface. Server render controls are visually subordinate to the timeline and clearly distinguish private upload, server render, review-pending artifact and human decision. The artifact preview stays private; approval is not publication.
+
+
+## Media bin and visual timeline — 2026-11-21
+
+The editing workspace now follows a three-zone arrangement: a searchable local media bin with vertical video thumbnails, a central source/server preview, and a right-side clip sequence plus detail inspector. A full-width timeline below uses a ruler and distinct video, title-overlay and audio-bed lanes. Shelf cards and timeline segments share the same clip selection state. The design preserves the existing left navigation, workspace context, violet palette and human-review boundary.

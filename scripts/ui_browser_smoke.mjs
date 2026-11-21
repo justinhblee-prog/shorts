@@ -367,12 +367,27 @@ async function waitForServer() {
     assert.equal(capturedTimelineEdl.clips.filter(clip=>clip.type==="video").length,1);
     assert.equal(capturedTimelineEdl.clips.find(clip=>clip.type==="video").asset_id,"asset-smoke");
     assert.equal(capturedTimelineEdl.clips.find(clip=>clip.type==="title").text,"Render smoke");
-    assert.equal(await page.locator("#timelineServerPreview").isVisible(),true,"rendered review artifact preview missing");
-    assert.match(await page.locator("#timelineServerPreview").getAttribute("src"),/^blob:/,"private artifact should be fetched as an authenticated browser blob");
+    const shelfDebug=await page.evaluate(()=>({filter:document.querySelector("#timelineMediaFilter")?.value,clips:window.NexusLocalTimeline?.state.clips?.map(c=>({id:c.id,name:c.name,kind:c.kind,assetId:c.assetId,uploadedWorkspaceId:c.uploadedWorkspaceId})),count:document.querySelector("#timelineMediaShelfCount")?.textContent,cards:[...document.querySelectorAll("#timelineMediaShelf .timeline-media-card")].map(el=>el.textContent)}));
+    console.log("[ui-smoke] media shelf state",JSON.stringify(shelfDebug));
+    assert.equal(await page.locator("#timelineMediaShelf .timeline-media-card").count(),2,"local media shelf should show the uploaded video and title overlay");
 
+    assert.equal(await page.locator("#timelineVisualTrack .timeline-visual-lane").count(),3,"visual timeline should render video, title and audio lanes");
+    assert.equal(await page.locator("#timelineVisualTrack .timeline-segment.is-video").count(),1);
+    assert.equal(await page.locator("#timelineVisualTrack .timeline-segment.is-title").count(),1);
+    assert.equal(await page.locator("#timelineVisualDuration").textContent(),"5.0s");
+    await page.locator("#timelineApproveRender").scrollIntoViewIfNeeded();
     await page.locator("#timelineApproveRender").click();
     await page.waitForFunction(()=>document.querySelector("#timelineRenderReview").hidden===true);
     assert.equal(capturedTimelineDecision.decision,"approved");
+
+    await page.locator("#timelineMediaFilter").fill("Render smoke");
+    assert.equal(await page.locator("#timelineMediaShelf .timeline-media-card").count(),1,"media shelf filter should narrow the asset board");
+    await page.locator("#timelineMediaFilter").fill("");
+    await page.locator("#timelineMediaShelf .timeline-media-card").first().click();
+    assert.equal(await page.locator("#timelineInspector").isVisible(),true,"selecting a media card should open the clip detail inspector");
+    assert.match(await page.locator("#timelineSelectedMeta").textContent(),/검사 완료/,"detail inspector should show server scan status");
+    assert.equal(await page.locator("#timelineServerPreview").isVisible(),true,"rendered review artifact preview missing");
+    assert.match(await page.locator("#timelineServerPreview").getAttribute("src"),/^blob:/,"private artifact should be fetched as an authenticated browser blob");
     checkpoint("authenticated workspace upload → EDL validation → render status → private artifact preview → human review decision verified (API contract mock)");
 
 
