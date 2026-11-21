@@ -250,7 +250,8 @@
       edlClips.push({id:clip.id,type:"title",start_ms:start,end_ms:end,text:clip.text});
     }
     const audioTracks=audioTracksInput.map((track,index)=>{
-      const startMs=Math.min(Math.max(0,Math.round(Number(track.startMs)||0)),cursor-1);
+      const startMs=Math.max(0,Math.round(Number(track.startMs)||0));
+      if(startMs>=cursor)throw new Error(track.name+" · 시작 위치가 프로젝트 길이보다 늦습니다.");
       const sourceIn=Math.max(0,Math.round(Number(track.sourceInMs)||0)),requestedSourceOut=Number(track.sourceOutMs);
       const sourceOut=Math.min(track.serverDurationMs,Number.isFinite(requestedSourceOut)?Math.round(requestedSourceOut):track.serverDurationMs,sourceIn+Math.max(0,cursor-startMs));
       if(sourceOut<=sourceIn)throw new Error(track.name+" · 타임라인에 배치할 오디오 구간이 없습니다.");
