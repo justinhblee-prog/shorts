@@ -76,3 +76,8 @@ The inventory endpoint requires `operations.read` and resolved workspace members
 ## Documentation and task-ledger exact-head validation
 
 The documentation/task-ledger follow-up at head `dd8a1a161db97729ca4c984bd5ce8d1cc2224f18` passed Backend [run 44889450213](https://github.com/justinhblee-prog/shorts/actions/runs/44889450213) and Compose [run 44889450217](https://github.com/justinhblee-prog/shorts/actions/runs/44889450217). Backend repository validation, font fallback and Playwright browser smoke passed. Compose service readiness, ClamAV, worker isolation, generated-media FFmpeg render/adoption/review, authenticated API upload-to-worker/private preview, encrypted backup and isolated restore passed. This validates the exact docs/ledger head; generated-media and isolated-storage limits remain unchanged.
+
+
+## Latest exact-head validation
+
+The latest feature plus documentation/task-ledger head before this validation-note update, `b99c3143c96aeaaa420acca03dec64e3ef86ac67`, passed Backend [run 44889623438](https://github.com/justinhblee-prog/shorts/actions/runs/44889623438) and Compose [run 44889623410](https://github.com/justinhblee-prog/shorts/actions/runs/44889623410). Backend repository validation, font fallback and Playwright browser smoke passed. Compose completed service readiness, ClamAV, worker isolation, real FFmpeg render/adoption/review, authenticated API upload-to-worker/private preview, encrypted backup and isolated restore. The current follow-up changes only this validation record and the task ledger; exact-head reruns are required.
