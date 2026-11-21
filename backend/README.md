@@ -603,3 +603,8 @@ Production jobs can be cancelled only before review handoff. A running productio
 ### BUILD-00138 — metrics collector lease ownership
 
 The YouTube Data API, YouTube Analytics and TikTok metrics collectors use renewable, token-fenced leases. Snapshot and collection-state writes verify the active owner/token in the same SQLite transaction, so results arriving after lease replacement or expiry are rejected. The heartbeat is checked before and after provider work. Configure `NEXUS_METRICS_LEASE_SECONDS` (default 300 seconds) for YouTube Data API/TikTok and `YOUTUBE_ANALYTICS_LEASE_SECONDS` (default 900 seconds) for Analytics. Restart the metrics-collector service after deploying the SQLite lease-token migration.
+
+
+### Private media storage capacity
+
+`NEXUS_MAX_TOTAL_MEDIA_BYTES` sets an installation-wide logical cap across all workspaces (default 20 GiB). Active private assets and all unexpired in-flight upload reservations are summed inside the same SQLite `BEGIN IMMEDIATE` transaction before each chunk is staged. The total cap must be at least as large as `NEXUS_MAX_WORKSPACE_ASSET_BYTES`. This is an application-level admission limit for the workspace asset store; it is not an operating-system filesystem quota and does not include unrelated files, render scratch space, backups or other containers. Configure host/container volume quotas and free-space alerts separately.
