@@ -1,6 +1,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   let token = "";
+  let apiOrigin = localStorage.getItem("nexusApiOrigin") || "";
   let reviewer = "operator";
   let brands = [];
   let toastTimer;
@@ -37,10 +38,21 @@
   const money = (n,c="USD") => new Intl.NumberFormat("en-US",{style:"currency",currency:c,maximumFractionDigits:2}).format(Number(n||0));
   function toast(message){$("toast").textContent=message;$("toast").classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>$("toast").classList.remove("show"),2800);}
   function msg(id,text,error=false){const el=$(id);el.textContent=text;el.classList.toggle("error",!!error);}
+  function normalizeApiOrigin(value){
+    const raw=String(value||"").trim();
+    if(!raw)return "";
+    let url;
+    try{url=new URL(raw);}catch{throw new Error("API 주소는 https:// 도메인 형식으로 입력하세요.");}
+    const localHost=["localhost","127.0.0.1","[::1]"].includes(url.hostname);
+    if((url.protocol!=="https:"&&!(url.protocol==="http:"&&localHost))||url.username||url.password||url.search||url.hash||url.pathname!=="/")
+      throw new Error("API 주소는 HTTPS 도메인 또는 localhost 주소만 허용됩니다.");
+    return url.origin;
+  }
   async function api(path,options={}){
     const headers={"Content-Type":"application/json",...(options.headers||{})};
     if(token) headers["X-Review-Token"]=token;
-    const response=await fetch(path,{...options,headers});
+    const target=(apiOrigin||window.location.origin)+path;
+    const response=await fetch(target,{...options,headers});
     const raw=await response.text();let data={};
     try{data=raw?JSON.parse(raw):{};}catch{data={detail:raw};}
     if(!response.ok) throw new Error(typeof data.detail==="string"?data.detail:JSON.stringify(data.detail||data));
@@ -426,10 +438,15 @@
   });
   $("openSettings").addEventListener("click",()=>$("settingsDialog").showModal());
   $("saveToken").addEventListener("click",async()=>{
+    try{
+      apiOrigin=normalizeApiOrigin($("apiOriginInput").value);
+      if(apiOrigin)localStorage.setItem("nexusApiOrigin",apiOrigin);else localStorage.removeItem("nexusApiOrigin");
+    }catch(e){msg("tokenMessage",e.message,true);return;}
     token=$("tokenInput").value.trim();reviewer=$("reviewerInput").value.trim()||"operator";
     try{await api("/api/queue/stats");$("settingsDialog").close();msg("tokenMessage","인증 성공");await refreshAll();}
     catch(e){token="";msg("tokenMessage",e.message,true);}
   });
+  $("apiOriginInput").value=apiOrigin;
   $("clearToken").addEventListener("click",()=>{token="";$("tokenInput").value="";setConnection(false,"인증 필요");msg("tokenMessage","토큰이 메모리에서 초기화되었습니다.");});
   $("refreshAll").addEventListener("click",refreshAll);
   $("loadReviews").addEventListener("click",()=>loadReviews().catch(e=>toast(e.message)));
