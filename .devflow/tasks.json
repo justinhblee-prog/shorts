@@ -161,7 +161,8 @@
         "Added offline regressions asserting malformed status identity/failure fields do not change publication status, video ID or audit-event count",
         "TikTok API error envelope now accepts only omitted/null, string, or object with non-empty string code; malformed arrays, scalar types and malformed error objects fail closed",
         "Added offline fake-transport regressions for malformed TikTok error envelope arrays and non-string nested error codes",
-        "Exact full provider source/test/docs/task-ledger head 2e47ec503441530093a3292ebb9068c9067210c6 passed Backend CI 44893080562 (repository validation, font fallback, Playwright browser smoke) and Compose CI 44893080568 (ClamAV readiness, worker isolation, real generated-media FFmpeg render/adoption/review, authenticated API upload-to-worker/private-preview E2E, encrypted backup and isolated restore; cleanup completed)"
+        "Exact full provider source/test/docs/task-ledger head 2e47ec503441530093a3292ebb9068c9067210c6 passed Backend CI 44893080562 (repository validation, font fallback, Playwright browser smoke) and Compose CI 44893080568 (ClamAV readiness, worker isolation, real generated-media FFmpeg render/adoption/review, authenticated API upload-to-worker/private-preview E2E, encrypted backup and isolated restore; cleanup completed)",
+        "Aligned TikTok upload chunk sizing to the official decimal-byte limits (64,000,000-byte regular chunks, up to 128,000,000-byte final chunk) and added offline boundary tests from sub-5 MB through 4 GB; no live provider request."
       ],
       "remaining": [
         "Verify configured providers against actual HTTPS contracts only after operator credentials, spend ceiling, licensing and data-processing approval are supplied",
