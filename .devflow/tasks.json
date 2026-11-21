@@ -97,7 +97,9 @@
         "Exact evaluator head 50c7f20 passed Backend CI 44886115569 (939 tests plus Playwright browser smoke) and Compose CI 44886115567 (service isolation, real FFmpeg render/adoption/review, authenticated API E2E and encrypted backup/isolated restore)",
         "Added workspace-authorized bounded read-only retention inventory using SQLite query_only SELECT connections; reports workspace-scoped source assets, immutable snapshot references, render jobs/reviews and indexed artifact metadata without exposing storage paths",
         "Inventory reports observed reference counts and blocker reason codes; malformed/truncated/unknown job state fails closed. Cross-store reads are explicitly non-atomic and reference_check_complete remains false; legal hold, integrity/storage and backup state remain unknown, so no candidate can become eligible",
-        "Exact inventory head cb09e67 passed Backend CI 44886936983 (943 tests plus Playwright browser smoke) and Compose CI 44886936974 (service isolation, real FFmpeg render/adoption/review, authenticated API E2E and encrypted backup/restore)"
+        "Exact inventory head cb09e67 passed Backend CI 44886936983 (943 tests plus Playwright browser smoke) and Compose CI 44886936974 (service isolation, real FFmpeg render/adoption/review, authenticated API E2E and encrypted backup/restore)",
+        "Retention inventory now requires all three stores to share one SQLite database and performs asset, snapshot, job, review and artifact reads inside one query_only read transaction; mismatched paths fail closed",
+        "Reference checks are marked complete only when the bounded snapshot scan is untruncated and all snapshot payload/job states are understood; malformed or unknown state remains incomplete"
       ],
       "remaining": [
         "Validate representative customer media on the target runtime, including uncommon codecs, variable frame rates and long-duration inputs",
@@ -107,7 +109,7 @@
         "Run end-to-end authenticated API upload → current ClamAV signature scan → render queue → worker adoption → review preview using production-like persistent storage; CI now exercises real ClamAV scanning and EICAR rejection with generated media on isolated Docker volumes, but target storage remains unvalidated.",
         "Measure production workload resource usage and enforce disk quota/network egress policy on the target host",
         "Obtain owner/legal approval for retention periods, grace windows, legal holds, export/review windows and backup/replica deletion semantics; only then design a separate tombstone/purge workflow. The current evaluator is read-only and no indexed artifacts or source media are deleted.",
-        "Replace non-atomic cross-store retention inventory reads with one consistent read snapshot before any reference check can be marked complete; add authoritative legal-hold, storage-integrity and per-object backup/replica providers. Keep all candidates ineligible until these providers and owner/legal policy inputs exist."
+        "Add authoritative legal-hold, file-integrity/storage and per-object backup/replica state providers. Keep candidates blocked until these providers and owner/legal policy inputs exist; no tombstone or purge."
       ]
     },
     {
