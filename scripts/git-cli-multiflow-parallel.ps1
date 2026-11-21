@@ -166,12 +166,19 @@ function Test-ScopeOverlap([string[]]$Left,[string[]]$Right){
  }}
  return $false
 }
+$stateDir=[IO.Path]::GetFullPath($StateRoot);New-Item -ItemType Directory -Force -Path $stateDir|Out-Null
+$statePath=Join-Path $stateDir "state.json";$state=Read-State $statePath
 $activeWorktreeText=& git -C $root worktree list --porcelain
 if($LASTEXITCODE -ne 0){throw "Cannot inspect active worktrees; refusing overlapping dispatch."}
-$activeWorktreeIds=@([regex]::Matches(($activeWorktreeText -join "`n"),'(?i)BUILD-[0-9]{5}')|ForEach-Object{$_.Value}|Sort-Object -Unique)
+$worktreeTaskIds=@([regex]::Matches(($activeWorktreeText -join "`n"),'(?i)BUILD-[0-9]{5}')|ForEach-Object{$_.Value}|Sort-Object -Unique)
+$activeWorktreeIds=@($worktreeTaskIds|Where-Object{Test-LeaseHeld ([string]$_) $stateDir})
 $activeWorktreeScopes=@()
 foreach($activeTask in @($manifest.tasks|Where-Object{$activeWorktreeIds -contains [string]$_.id})){
  $activeWorktreeScopes+=Get-TaskScopePaths $activeTask
+}
+$completedStateScopes=@()
+foreach($completedTask in @($manifest.tasks|Where-Object{$state.tasks[[string]$_.id] -and $state.tasks[[string]$_.id].status -eq "draft_pr_created"})){
+ $completedStateScopes+=Get-TaskScopePaths $completedTask
 }
 $openFiles=@()
 foreach($pr in $openPrs){
@@ -194,12 +201,11 @@ foreach($t in @($manifest.tasks|Where-Object{$_.status -in @("ready","in_progres
  $scopePaths=Get-TaskScopePaths $t
  if(Test-ScopeOverlap $scopePaths $openFiles){Write-Host "[QUEUE] Deferred $($t.id): scope overlaps an open PR.";continue}
  if(Test-ScopeOverlap $scopePaths $activeWorktreeScopes){Write-Host "[QUEUE] Deferred $($t.id): scope overlaps an active worktree.";continue}
+ if(Test-ScopeOverlap $scopePaths $completedStateScopes){Write-Host "[QUEUE] Deferred $($t.id): scope is reserved by a completed worker PR.";continue}
  if(Test-ScopeOverlap $scopePaths $acceptedScopes){Write-Host "[QUEUE] Deferred $($t.id): scope overlaps another selected task.";continue}
  $eligible+=$t;$acceptedScopes+= $scopePaths
 }
 if(-not $eligible.Count){Write-Host "No runnable tasks. Open-PR, dependency, and external gates remain enforced.";exit 0}
-$stateDir=[IO.Path]::GetFullPath($StateRoot);New-Item -ItemType Directory -Force -Path $stateDir|Out-Null
-$statePath=Join-Path $stateDir "state.json";$state=Read-State $statePath
 $queue=[Collections.Generic.Queue[object]]::new()
 foreach($t in @($eligible|Select-Object -First $MaxTasks)){
  $prior=$state.tasks[[string]$t.id]
