@@ -164,6 +164,38 @@ class RenderArtifactStoreTests(unittest.TestCase):
             with self.subTest(grace=grace), self.assertRaises(ValueError):
                 self.store.reconcile_orphaned_staging(grace_seconds=grace)
 
+    def test_artifact_volume_quota_counts_unindexed_files_and_rejects_adoption(self):
+        existing = self.artifacts / "operator-retained-backup.bin"
+        existing.write_bytes(b"x" * 10)
+        store = RenderArtifactStore(
+            self.queue, self.staging, self.artifacts,
+            max_bytes=1024, max_storage_bytes=30,
+        )
+        usage = store.storage_usage()
+        self.assertEqual(usage, {
+            "files": 1,
+            "used_bytes": 10,
+            "max_bytes": 30,
+            "available_bytes": 20,
+        })
+        with self.assertRaisesRegex(ArtifactAdoptionError, "storage quota"):
+            store.adopt(
+                self.job["id"], self.worker, self.claimed["lease_token"],
+                self.generation, "ws_test", self.snapshot_id,
+                self.snapshot_sha, self.staged,
+            )
+        self.assertTrue(self.staged.exists())
+        self.assertEqual(existing.read_bytes(), b"x" * 10)
+        self.assertEqual(list(self.artifacts.iterdir()), [existing])
+
+    def test_artifact_volume_quota_configuration_rejects_invalid_values(self):
+        for quota in (0, -1, True, 1.5, "1024"):
+            with self.subTest(quota=quota), self.assertRaises(ValueError):
+                RenderArtifactStore(
+                    self.queue, self.staging, self.artifacts,
+                    max_storage_bytes=quota,
+                )
+
     def test_optional_ffprobe_metadata_is_persisted_with_adopted_artifact(self):
         binary = Path(self.temp.name) / "ffprobe"
         binary.write_bytes(b"fixture-binary")
