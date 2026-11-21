@@ -739,15 +739,22 @@ class YouTubePublisher:
             heartbeat_thread.start()
             response=None
             while response is None:
-                _,response=request.next_chunk()
+                status,response=request.next_chunk()
                 if response is None:
+                    if status is None:
+                        raise YouTubeUploadError(
+                            "YouTube resumable upload returned neither progress nor completion; "
+                            "remote outcome requires reconciliation"
+                        )
                     self.store.touch_upload(job_id,upload_attempt.get("attempt_id"))
             if not isinstance(response,dict):
                 raise YouTubeUploadError(
                     "YouTube upload response has an unexpected shape; remote outcome requires reconciliation"
                 )
             video_id=response.get("id")
-            if not isinstance(video_id,str) or not video_id.strip():
+            if (not isinstance(video_id,str) or not video_id.strip()
+                    or video_id != video_id.strip()
+                    or any(character.isspace() for character in video_id)):
                 raise YouTubeUploadError(
                     "YouTube upload response did not contain a valid video ID; remote outcome requires reconciliation"
                 )
