@@ -43,12 +43,23 @@ class WorkerScratchWorkspace:
             "lease_token_sha256": self.lease_token_hash,
             "lease_expires_at": self.clock() + self.lease_seconds,
         }
-        temporary = self.path / ".lease-update.tmp"
-        with temporary.open("w", encoding="utf-8") as stream:
-            json.dump(payload, stream, separators=(",", ":"))
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, self.marker)
+        # mkstemp uses exclusive creation and unpredictable names. Never open a
+        # predictable temp path with mode "w": a job subprocess could plant a
+        # symlink there and redirect the worker's lease write outside scratch.
+        fd, temporary_name = tempfile.mkstemp(
+            prefix=".nexus-lease-update-", dir=str(self.path)
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as stream:
+                json.dump(payload, stream, separators=(",", ":"))
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary_name, self.marker)
+        finally:
+            try:
+                os.unlink(temporary_name)
+            except FileNotFoundError:
+                pass
 
     def start(self):
         self.root.mkdir(parents=True, exist_ok=True)
