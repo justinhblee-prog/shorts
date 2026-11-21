@@ -50,7 +50,7 @@ try{
  $env:DEVFLOW_AGENT_COMMAND=$agent;$env:DEVFLOW_AGENT_ARGS_JSON='["{prompt_file}"]'
  Push-Location $repo
  try{
-  $launch=& pwsh -NoProfile -File (Join-Path $repo "scripts/start-devflow-detached.ps1") -MaxTasks 1 2>&1
+  $launch=& pwsh -NoProfile -File (Join-Path $repo "scripts/start-devflow-detached.ps1") -MaxTasks 1 -MaxCycles 1 2>&1
   if($LASTEXITCODE -ne 0){throw "Detached supervisor launch failed: $($launch -join [Environment]::NewLine)"}
  }finally{Pop-Location}
  $deadline=[DateTime]::UtcNow.AddSeconds(90);$status=$null;$run=$null
@@ -59,7 +59,7 @@ try{
   $meta=@(Get-ChildItem $logs -Filter "*.run.json" -ErrorAction SilentlyContinue|Sort-Object LastWriteTime -Descending|Select-Object -First 1)
   if($meta){$run=Get-Content $meta[0].FullName -Raw|ConvertFrom-Json;$statusPath=[string]$run.status_file;if(Test-Path $statusPath){$status=Get-Content $statusPath -Raw|ConvertFrom-Json}}
  }while([DateTime]::UtcNow -lt $deadline -and (-not $status -or $status.status -notin @("completed","failed","failed_to_start")))
- if(-not $status -or $status.status -ne "completed" -or $status.exit_code -ne 0){
+ if(-not $status -or $status.status -ne "completed" -or $status.last_exit_code -ne 0){
   $err=if($run -and (Test-Path $run.stderr_log)){Get-Content $run.stderr_log -Raw}else{"<no supervisor stderr>"}
   $out=if($run -and (Test-Path $run.stdout_log)){Get-Content $run.stdout_log -Raw}else{"<no supervisor stdout>"}
   throw "Detached E2E supervisor failed. status=$($status.status); stdout=$out; stderr=$err"
