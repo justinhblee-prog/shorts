@@ -603,19 +603,32 @@ def restore_backup(archive_path, db_path, media_dir, backup_dir,
         # duplicating staged data into the live target volumes, ensure each
         # destination can hold its copy while retaining the configured reserve.
         restore_media_bytes = sum(item["size"] for item in manifest.get("media_files", []))
-        _require_restore_staging_space(db_path.parent, staged_db.stat().st_size)
-        _require_restore_staging_space(media_dir.parent, restore_media_bytes)
+        restore_db_bytes = staged_db.stat().st_size
+        same_target_volume = os.stat(db_path.parent).st_dev == os.stat(media_dir.parent).st_dev
+        if same_target_volume:
+            _require_restore_staging_space(
+                db_path.parent, restore_db_bytes + restore_media_bytes
+            )
+        else:
+            _require_restore_staging_space(db_path.parent, restore_db_bytes)
+            _require_restore_staging_space(media_dir.parent, restore_media_bytes)
         new_db = db_path.parent / (db_path.name + ".restore-" + _stamp())
         new_media = media_dir.parent / (media_dir.name + ".restore-" + _stamp())
         old_db = db_path.parent / (db_path.name + ".pre-restore-" + _stamp())
         old_media = media_dir.parent / (media_dir.name + ".pre-restore-" + _stamp())
-        shutil.copy2(staged_db, new_db)
-        _copy_media(staged_media, new_media)
-
-        pre_restore = create_backup(
-            db_path, media_dir, backup_dir, retain_days=retain_days,
-            encryption_key=encryption_key,
-        )["backup_path"]
+        try:
+            shutil.copy2(staged_db, new_db)
+            _copy_media(staged_media, new_media)
+            pre_restore = create_backup(
+                db_path, media_dir, backup_dir, retain_days=retain_days,
+                encryption_key=encryption_key,
+            )["backup_path"]
+        except Exception:
+            if new_db.exists():
+                new_db.unlink()
+            if new_media.exists():
+                shutil.rmtree(new_media)
+            raise
         moved_old_db = False
         moved_old_media = False
         installed_db = False
