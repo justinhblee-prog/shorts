@@ -74,6 +74,30 @@ def _resolve_snapshot_creator(workspace_id, payload):
     return row[0]
 
 
+ARTIFACT_RECONCILE_INTERVAL_SECONDS = 300
+ARTIFACT_RECONCILE_GRACE_SECONDS = 7200
+
+
+def reconcile_artifacts(artifact_store):
+    """Prune only crash-left staging and unindexed files, then report counts."""
+    staging = artifact_store.reconcile_orphaned_staging(
+        grace_seconds=ARTIFACT_RECONCILE_GRACE_SECONDS
+    )
+    indexed = artifact_store.reconcile_orphaned_files(
+        grace_seconds=ARTIFACT_RECONCILE_GRACE_SECONDS
+    )
+    result = {"staging": staging, "unindexed": indexed}
+    print(
+        "timeline_render_artifact_reconciliation_completed "
+        f"staging_files_removed={staging['removed_files']} "
+        f"staging_directories_removed={staging['removed_directories']} "
+        f"staging_bytes_removed={staging['removed_bytes']} "
+        f"unindexed_files_removed={indexed['removed']} "
+        f"unindexed_bytes_removed={indexed['removed_bytes']}"
+    )
+    return result
+
+
 def build_worker():
     queue = JobQueue(DB_PATH, LEASE_SECONDS)
     workspaces = WorkspaceStore(DB_PATH)
@@ -122,10 +146,17 @@ def main():
         )
         last_cleanup = 0.0
         while not stopping.is_set():
-            if time.monotonic() - last_cleanup >= 300:
-                artifact_store.reconcile_orphaned_files(grace_seconds=7200)
-                artifact_store.reconcile_orphaned_staging(grace_seconds=7200)
+            if time.monotonic() - last_cleanup >= ARTIFACT_RECONCILE_INTERVAL_SECONDS:
                 last_cleanup = time.monotonic()
+                try:
+                    reconcile_artifacts(artifact_store)
+                except Exception as exc:
+                    # A transient filesystem failure must be visible without
+                    # silently killing the render worker; the next interval retries.
+                    print(
+                        "timeline_render_artifact_reconciliation_failed "
+                        f"error_type={type(exc).__name__}"
+                    )
             if queue.is_paused():
                 stopping.wait(IDLE_SECONDS)
                 continue
