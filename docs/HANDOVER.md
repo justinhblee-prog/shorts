@@ -1579,3 +1579,11 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Added a graphical time ruler with separate sequential VIDEO, timed TITLE overlay and optional AUDIO bed lanes. The existing precise trim/reorder controls and authenticated EDL render/review actions remain intact.
 - Browser and responsive assertions now cover the shelf, visual lanes, filter, selected inspector and server scan status. Exact-head CI is pending for this increment.
 - Future scope: timeline zoom/scroll controls, multiple independent audio tracks and explicit project duration; no gaps, overlaps or transitions are added to this UI increment.
+
+
+## BUILD-00361 / BUILD-00362 — multi-track audio integration — 2026-11-21
+
+- Stacked UI integration branch `feat/nexus-multitrack-visual-timeline-2026-11-21` is based on the visual media shelf PR #482 head, preserving the searchable media bin, inspector and video/title/audio visual lanes.
+- Added up to eight independently configured audio tracks with timeline start, source in/out, gain, fade-in and fade-out controls. The visual AUDIO lane displays each track's actual start offset and clipped duration.
+- The browser API-contract smoke creates valid PCM WAV fixtures, sets distinct per-track gain/start values and asserts both tracks in the normalized EDL.
+- No live API, customer-media or target-host render claim is made; exact-head CI remains required.
