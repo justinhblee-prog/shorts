@@ -68,7 +68,8 @@ async function waitForServer() {
     }));
     assert.notEqual(firstFocus.outlineStyle, "none");
     assert.ok(parseFloat(firstFocus.outlineWidth) >= 2);
-    const toggle = page.getByRole("button", { name: "화면 피드백" });
+    const toggle = page.locator(".nexus-feedback-toggle");
+    assert.equal(await page.getByRole("button", { name: "화면 피드백" }).count(), 1);
     assert.equal(await toggle.getAttribute("aria-controls"), "nexusFeedbackPanel");
     await toggle.click();
     assert.equal(await toggle.getAttribute("aria-expanded"), "true");
