@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from ffmpeg_edl_renderer import EDLFFmpegRenderer, EDLRenderError, build_video_argv
+from timeline_edl import EDLValidationError
 
 
 class FakeProcess:
@@ -69,6 +70,7 @@ class EDLFFmpegRendererTests(unittest.TestCase):
              "end_ms": 2500, "text": "hello: world, [safe]"},
             dict(self.edl["clips"][1], start_ms=2500, end_ms=4500),
         ]
+        title["gaps"] = [{"after_clip_id": "clip1", "before_clip_id": "clip2", "duration_ms": 500}]
         with self.assertRaisesRegex(EDLRenderError, "configured trusted font"):
             build_video_argv(title, {"asset1": self.video, "asset2": self.video},
                              self.root / "out.mp4", ffmpeg_path=str(self.binary))
@@ -86,6 +88,7 @@ class EDLFFmpegRendererTests(unittest.TestCase):
         self.assertIn(r"hello\: world\, \[safe\]", title_graph)
         gap = dict(self.edl)
         gap["clips"] = [self.edl["clips"][0], dict(self.edl["clips"][1], start_ms=3000, end_ms=5000)]
+        gap["gaps"] = [{"after_clip_id": "clip1", "before_clip_id": "clip2", "duration_ms": 1000}]
         gap_argv, gap_duration = build_video_argv(
             gap, {"asset1": self.video, "asset2": self.video},
             self.root / "gap.mp4", ffmpeg_path=str(self.binary),
@@ -96,7 +99,7 @@ class EDLFFmpegRendererTests(unittest.TestCase):
         overlap = dict(self.edl)
         overlap["clips"] = [self.edl["clips"][0],
             dict(self.edl["clips"][1], start_ms=1000, end_ms=3000)]
-        with self.assertRaises(EDLRenderError):
+        with self.assertRaises(EDLValidationError):
             build_video_argv(overlap, {"asset1": self.video, "asset2": self.video},
                              self.root / "out.mp4", ffmpeg_path=str(self.binary))
         with self.assertRaises(EDLRenderError):

@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from timeline_edl import validate_edl
+from timeline_edl import EDLValidationError, validate_edl
 from timeline_ffmpeg_renderer import (
     RenderCancelled, TimelineFFmpegRenderer, TimelineRenderError,
     run_bounded_process,
@@ -216,12 +216,8 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
 
         unsafe = json.loads(json.dumps(crossfade))
         unsafe["edl"].pop("transitions")
-        self._rehash(unsafe)
-        with self.assertRaisesRegex(TimelineRenderError, "gaps or overlaps"):
-            self.renderer(
-                unsafe, stop_event=threading.Event(),
-                workspace_id="ws_demo", principal_id="alice",
-            )
+        with self.assertRaises(EDLValidationError):
+            self._rehash(unsafe)
 
     def test_renders_internal_black_gap_between_adjacent_video_clips(self):
         with_gap = json.loads(json.dumps(self.payload))
@@ -261,12 +257,8 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
 
         unsafe = json.loads(json.dumps(with_gap))
         unsafe["edl"].pop("gaps")
-        self._rehash(unsafe)
-        with self.assertRaisesRegex(TimelineRenderError, "undeclared gaps or overlaps"):
-            self.renderer(
-                unsafe, stop_event=threading.Event(),
-                workspace_id="ws_demo", principal_id="alice",
-            )
+        with self.assertRaises(EDLValidationError):
+            self._rehash(unsafe)
 
     def test_renders_explicit_trailing_black_gap_and_audio_to_project_end(self):
         extended = json.loads(json.dumps(self.payload))

@@ -146,6 +146,10 @@ class TimelineEDLTests(unittest.TestCase):
         normalized = validate_edl(payload)
         self.assertEqual(normalized["transitions"], [transition])
 
+        # Renderer sorts by timeline position; validator must not depend on JSON clip order.
+        reordered = validate_edl({**payload, "clips": [second, first]})
+        self.assertEqual(reordered["transitions"], [transition])
+
         invalid_cases = (
             [{**transition, "duration_ms": 5001}],
             [{**transition, "duration_ms": 5000}],
@@ -199,6 +203,62 @@ class TimelineEDLTests(unittest.TestCase):
         }
         with self.assertRaisesRegex(EDLValidationError, "both a crossfade and a black gap"):
             validate_edl(conflicting)
+
+    def test_rejects_title_clip_beyond_project_duration(self):
+        title = {
+            "id": "title-late", "type": "title", "start_ms": 4500,
+            "end_ms": 6000, "text": "Too late",
+        }
+        with self.assertRaisesRegex(EDLValidationError, "title clip extends"):
+            validate_edl({
+                **self.valid, "clips": [dict(self.valid["clips"][0]), title],
+                "project_duration_ms": 5500,
+            })
+        # Without an explicit duration, the renderer's duration is the video end.
+        with self.assertRaisesRegex(EDLValidationError, "title clip extends"):
+            validate_edl({
+                **self.valid, "clips": [dict(self.valid["clips"][0]), title],
+            })
+
+    def test_rejects_crossfade_interval_that_does_not_match_declared_duration(self):
+        first = {
+            "id": "video-a", "type": "video", "start_ms": 0, "end_ms": 5000,
+            "asset_id": "asset_a", "source_in_ms": 0, "source_out_ms": 5000,
+        }
+        second = {
+            "id": "video-b", "type": "video", "start_ms": 4000, "end_ms": 9000,
+            "asset_id": "asset_b", "source_in_ms": 0, "source_out_ms": 5000,
+        }
+        transition = {
+            "from_clip_id": "video-a", "to_clip_id": "video-b",
+            "type": "crossfade", "duration_ms": 500,
+        }
+        base = {
+            "schema": SCHEMA, "version": 1, "timebase": "milliseconds",
+            "clips": [first, second], "transitions": [transition],
+        }
+        with self.assertRaisesRegex(EDLValidationError, "match their declared"):
+            validate_edl(base)
+        # A declared transition cannot silently degrade into a hard cut.
+        hard_cut = {**second, "start_ms": 5000, "end_ms": 10000}
+        with self.assertRaisesRegex(EDLValidationError, "match their declared"):
+            validate_edl({**base, "clips": [first, hard_cut]})
+
+    def test_rejects_black_gap_interval_that_does_not_match_declared_duration(self):
+        first = {
+            "id": "video-a", "type": "video", "start_ms": 0, "end_ms": 2000,
+            "asset_id": "asset_a", "source_in_ms": 0, "source_out_ms": 2000,
+        }
+        second = {
+            "id": "video-b", "type": "video", "start_ms": 2300, "end_ms": 4300,
+            "asset_id": "asset_b", "source_in_ms": 0, "source_out_ms": 2000,
+        }
+        gap = {"after_clip_id": "video-a", "before_clip_id": "video-b", "duration_ms": 500}
+        with self.assertRaisesRegex(EDLValidationError, "match their declared"):
+            validate_edl({
+                "schema": SCHEMA, "version": 1, "timebase": "milliseconds",
+                "clips": [first, second], "gaps": [gap],
+            })
 
 if __name__ == "__main__":
     unittest.main()

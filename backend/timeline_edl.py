@@ -101,7 +101,11 @@ def validate_edl(payload: Any) -> dict:
     if max(item["end_ms"] for item in normalized) > MAX_DURATION_MS:
         raise EDLValidationError("timeline exceeds maximum duration")
 
-    video_clips = [item for item in normalized if item["type"] == "video"]
+    # Match the renderer: EDL payload clip order is not the timeline order.
+    video_clips = sorted(
+        (item for item in normalized if item["type"] == "video"),
+        key=lambda item: (item["start_ms"], item["id"]),
+    )
     transition_pairs = set()
     transitions = []
     if "transitions" in payload:
@@ -178,6 +182,27 @@ def validate_edl(payload: Any) -> dict:
         if gap_pairs.intersection(transition_pairs):
             raise EDLValidationError("an adjacent video pair cannot have both a crossfade and a black gap")
 
+    # Keep the API validator and renderer on the same timeline contract:
+    # every adjacent video pair must start exactly where its declared join places it.
+    transition_by_pair = {
+        (item["from_clip_id"], item["to_clip_id"]): item for item in transitions
+    }
+    gap_by_pair = {
+        (item["after_clip_id"], item["before_clip_id"]): item for item in gaps
+    }
+    for index in range(1, len(video_clips)):
+        previous, current = video_clips[index - 1], video_clips[index]
+        pair = (previous["id"], current["id"])
+        transition = transition_by_pair.get(pair)
+        gap = gap_by_pair.get(pair)
+        overlap_ms = transition["duration_ms"] if transition else 0
+        gap_ms = gap["duration_ms"] if gap else 0
+        expected_start = previous["end_ms"] - overlap_ms + gap_ms
+        if not math.isclose(current["start_ms"], expected_start, abs_tol=1.0):
+            raise EDLValidationError(
+                "adjacent video clips must be sequential and match their declared crossfade or black-gap duration"
+            )
+
     project_duration = None
     if "project_duration_ms" in payload:
         project_duration = _number(payload["project_duration_ms"], "project_duration_ms")
@@ -188,6 +213,17 @@ def validate_edl(payload: Any) -> dict:
         if (not float(project_duration).is_integer() or project_duration < video_end
                 or project_duration < 1 or project_duration > MAX_DURATION_MS):
             raise EDLValidationError("project_duration_ms must be a whole-millisecond duration covering the video timeline")
+
+    effective_project_duration = project_duration
+    if effective_project_duration is None:
+        effective_project_duration = max(
+            (item["end_ms"] for item in video_clips), default=0
+        )
+    if effective_project_duration > 0 and any(
+        item["type"] == "title" and item["end_ms"] > effective_project_duration
+        for item in normalized
+    ):
+        raise EDLValidationError("title clip extends beyond the project duration")
 
     raw_audio = payload.get("audio_tracks", [])
     if not isinstance(raw_audio, list) or len(raw_audio) > 8:
