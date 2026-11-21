@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import time
 from pathlib import Path
 
 
@@ -14,7 +15,7 @@ class ClamAVScanner:
     """Run ClamAV without a shell and require an explicit clean exit."""
 
     def __init__(self, executable=None, timeout=None, database_dir=None, runner=None,
-                 max_bytes=None):
+                 max_bytes=None, max_signature_age_seconds=None, clock=None):
         self.executable = str(
             executable if executable is not None
             else os.getenv("NEXUS_CLAMSCAN_PATH", "clamscan")
@@ -39,19 +40,51 @@ class ClamAVScanner:
             self.max_bytes = int(raw_max_bytes)
         except (TypeError, ValueError) as exc:
             raise ValueError("scanner max_bytes must be a positive integer no larger than 2 GiB") from exc
+        raw_signature_age = (
+            max_signature_age_seconds if max_signature_age_seconds is not None
+            else os.getenv("NEXUS_CLAMAV_MAX_SIGNATURE_AGE_SECONDS", "604800")
+        )
+        try:
+            self.max_signature_age_seconds = int(raw_signature_age)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("ClamAV maximum signature age must be a positive integer") from exc
+        self.clock = clock if clock is not None else time.time
         self.runner = runner if runner is not None else subprocess.run
         if (
             not self.executable
             or self.timeout < 1
             or self.max_bytes < 1
             or self.max_bytes > 2 * 1024 * 1024 * 1024
+            or self.max_signature_age_seconds < 1
             or not self.database_dir
             or any(ord(character) < 32 or ord(character) == 127 for character in self.executable)
             or any(ord(character) < 32 or ord(character) == 127 for character in self.database_dir)
         ):
             raise ValueError("scanner executable, database directory and positive timeout are required")
 
+    def _require_fresh_signatures(self):
+        """Require core databases and a fresh daily signature database."""
+        directory = Path(self.database_dir)
+        now = float(self.clock())
+        for family in ("main", "daily"):
+            candidates = [directory / (family + suffix) for suffix in (".cld", ".cvd")]
+            existing = [candidate for candidate in candidates if candidate.is_file()]
+            if not existing:
+                raise MediaScanError("ClamAV signature database is incomplete: " + family)
+            try:
+                newest_mtime = max(candidate.stat().st_mtime for candidate in existing)
+            except OSError as exc:
+                raise MediaScanError("ClamAV signature database could not be inspected") from exc
+            age = now - newest_mtime
+            if age < -300:
+                raise MediaScanError("ClamAV signature timestamp is in the future")
+            # main.cvd is a slowly changing base database; only daily.cvd/.cld
+            # is expected to refresh frequently and is subject to the age limit.
+            if family == "daily" and age > self.max_signature_age_seconds:
+                raise MediaScanError("ClamAV daily signatures are stale; refresh the media-scan database")
+
     def scan(self, path):
+        self._require_fresh_signatures()
         target = Path(path)
         if target.is_symlink() or not target.is_file():
             raise MediaScanError("Media scan target must be a regular non-symlink file")

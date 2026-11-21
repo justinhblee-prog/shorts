@@ -490,3 +490,8 @@ GitHub Actions run [43796187131](https://github.com/justinhblee-prog/shorts/acti
 ### BUILD-00138 validation checkpoint
 
 GitHub Actions run [43797131269](https://github.com/justinhblee-prog/shorts/actions/runs/43797131269) passed **462 backend tests** and the complete validation script. After deployment, restart the collector service and verify token-column migrations before enabling multiple collector instances.
+
+
+### ClamAV signature freshness policy
+
+The scanner requires both `main` and `daily` signature databases (`.cvd` or `.cld`); only `daily` is subject to the age limit because `main` is a slowly changing base database. The default maximum age is seven days (`NEXUS_CLAMAV_MAX_SIGNATURE_AGE_SECONDS=604800`). Preflight and every media scan reject missing, stale or future-dated database files. If this gate blocks staging, inspect the `clamav-updater` service logs and restore a successful `freshclam` update before retrying; do not disable scanning merely to bypass stale signatures.
