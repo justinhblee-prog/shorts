@@ -248,7 +248,7 @@ class TimelineFFmpegRenderer:
             expected_start = cursor - overlap_ms + gap_ms
             if abs(float(clip["start_ms"]) - expected_start) > 1.0:
                 raise TimelineRenderError(
-                    "video clip timing must match an explicit crossfade overlap or black-gap interval"
+                    "video clips must be sequential; undeclared gaps or overlaps require an explicit crossfade or black-gap interval"
                 )
             if transition and overlap_ms >= min(
                 float(video_clips[index - 1]["end_ms"] - video_clips[index - 1]["start_ms"]),
