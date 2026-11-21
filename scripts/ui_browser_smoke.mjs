@@ -453,6 +453,20 @@ async function waitForServer() {
     assert.ok(detachedThumbnailCleanup.previousCount>0,"thumbnail lifecycle fixture should contain video cards");
     assert.equal(detachedThumbnailCleanup.released,true,"rerender must release detached thumbnail media sources and pause decoders");
 
+    const fallbackThumbnailAudit=await page.evaluate(()=>{
+      const nativeObserver=window.IntersectionObserver;
+      try{
+        delete window.IntersectionObserver;
+        window.NexusLocalTimeline.render();
+        const videos=[...document.querySelectorAll("#timelineMediaShelf .timeline-media-card video")];
+        return {count:videos.length,loaded:videos.filter(video=>video.hasAttribute("src")).length};
+      }finally{
+        window.IntersectionObserver=nativeObserver;
+      }
+    });
+    assert.ok(fallbackThumbnailAudit.count>0,"fallback fixture should contain video thumbnails");
+    assert.equal(fallbackThumbnailAudit.loaded,fallbackThumbnailAudit.count,"browsers without IntersectionObserver must eagerly load thumbnail sources");
+
 
     failQueueStats = true;
     await page.locator("#refreshAll").click();
