@@ -111,3 +111,10 @@ The eight mandatory launch gates remain at **1/8**. CI and synthetic fixtures do
 - Exact-head browser + responsive CI: `44901102049` passed on `c0e4168544a56faafc5c999fa577af5e498651e3`.
 - Exact-head Compose real-media render/API integration: `44901102137` passed on the same commit.
 - Browser API interception and Compose real backend tests are separate evidence; neither substitutes for validation against the target hosted API, target persistent storage, fresh target ClamAV signatures or customer media.
+
+
+## BUILD-00362 — visual timeline workspace
+
+- **Frontend workstream:** add a searchable media bin with local video thumbnails and a clip detail inspector; visualize video sequence, title overlays and optional audio bed on a time ruler.
+- **Interaction:** media shelf cards and timeline segments select the same local clip state and update the preview/inspector. Existing server render flow remains separate and authenticated.
+- **Validation:** Playwright contract tests assert shelf/filter/selection/scan metadata and visual lanes; responsive smoke checks narrow layouts. Customer codec and large-library performance validation remain external.
