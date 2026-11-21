@@ -1624,3 +1624,10 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Timeline UI exposes hard cut / crossfade / black-screen connection modes and a shared duration control. Black intervals appear as distinct BLACK markers, and downstream clip positions and total duration include each interval.
 - Tests cover EDL schema validation and unsafe gaps, renderer graph construction and rejection of undeclared gaps, browser UI/API-contract EDL generation, and a real FFmpeg/ffprobe worker render with internal and trailing black sections plus title/audio and private review handoff.
 - Internal black-gap support is implemented. Customer-specific media/target-host validation remains external.
+
+
+## BUILD-00362 — lazy media thumbnail loading — 2026-11-21
+
+- Video shelf thumbnails now defer assigning their object-URL source until the card approaches the visible shelf viewport. The shelf uses an IntersectionObserver rooted to its own scroll container with a 96px prefetch margin and `preload=none`; browsers without IntersectionObserver use a compatibility fallback.
+- Browser smoke adds additional fixture clips, verifies that offscreen thumbnails do not all preload, then scrolls the shelf and verifies deferred thumbnails begin loading.
+- This reduces concurrent metadata/decode work for larger local media lists. Representative customer codecs, unusually large source files and large-library performance still require target-browser validation.
