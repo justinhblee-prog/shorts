@@ -35,6 +35,18 @@ class WorkerScratchWorkspace:
         self.marker = self.path / ".nexus-lease.json"
         self._previous = None
 
+    @classmethod
+    def available_bytes(cls, root=None):
+        """Return free bytes on the filesystem that contains the worker scratch root."""
+        root_path = Path(root or os.getenv("NEXUS_WORKER_SCRATCH_DIR", "data/worker-scratch")).absolute()
+        root_path.mkdir(parents=True, exist_ok=True)
+        if root_path.is_symlink() or not root_path.is_dir():
+            raise ScratchWorkspaceError("Scratch root must be a real directory")
+        try:
+            return shutil.disk_usage(root_path).free
+        except OSError as exc:
+            raise ScratchWorkspaceError("Scratch filesystem free space could not be checked") from exc
+
     def _write_lease(self):
         payload = {
             "version": 1,
