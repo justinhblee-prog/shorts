@@ -88,6 +88,7 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  $stateData=Get-Content (Join-Path $state "state.json") -Raw|ConvertFrom-Json
  foreach($id in @("BUILD-99001","BUILD-99002","BUILD-99006")){
   if($stateData.tasks.$id.status -ne "draft_pr_created"){throw "Unexpected final state for ${id}: $($stateData.tasks.$id.status)"}
+  if([int]$stateData.tasks.$id.attempt_count -ne 1){throw "Expected one persisted worker attempt for ${id}."}
  }
  $remoteBranches=@(& git --git-dir=$origin branch --list "autopilot/*")
  if($remoteBranches.Count -ne 3){throw "Expected three worker branches; overlapping task scope or supervisor self-reference was mishandled."}
@@ -98,6 +99,10 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  }finally{Pop-Location}
  $branchesAfterRerun=@(& git --git-dir=$origin branch --list "autopilot/*")
  if($branchesAfterRerun.Count -ne 3){throw "Completed Draft PR tasks were dispatched again on rerun."}
+ $stateAfterRerun=Get-Content (Join-Path $state "state.json") -Raw|ConvertFrom-Json
+ foreach($id in @("BUILD-99001","BUILD-99002","BUILD-99006")){
+  if([int]$stateAfterRerun.tasks.$id.attempt_count -ne 1){throw "Idempotent rerun incremented attempts for completed task ${id}."}
+ }
  if($events.Count -lt 3 -or ($events|Where-Object kind -eq "credential-leak").Count -gt 0){throw "Supervisor GitHub credentials leaked into an Agent process."}
  $workerRoots=@(Get-ChildItem -LiteralPath (Join-Path (Split-Path $checkout -Parent) "checkout-worktrees") -Directory -ErrorAction SilentlyContinue)
  $validated=@($workerRoots|Where-Object{Test-Path (Join-Path $_.FullName ".validator-ran")})
