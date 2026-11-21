@@ -103,7 +103,11 @@
         "Exact atomic retention inventory head 130dd2e passed Backend CI 44887197433 (944 tests plus Playwright browser smoke) and Compose CI 44887197535 (service isolation, real FFmpeg render/adoption/review, authenticated API E2E, encrypted backup and isolated restore)",
         "Exposed workspace-scoped GET retention inventory endpoint guarded by operations.read and resolved workspace membership; policy is read from explicit NEXUS_RETENTION_POLICY_JSON and malformed configuration fails closed",
         "Added API regression tests for authorization, workspace scope, explicit policy parsing, sanitized storage errors and read-only response semantics",
-        "Exact authenticated retention inventory API head 4cdc962 passed Backend CI 44887993545 (backend validation and Playwright browser smoke) and Compose CI 44887993469 (real FFmpeg integration, authenticated API E2E, encrypted backup and isolated restore)"
+        "Exact authenticated retention inventory API head 4cdc962 passed Backend CI 44887993545 (backend validation and Playwright browser smoke) and Compose CI 44887993469 (real FFmpeg integration, authenticated API E2E, encrypted backup and isolated restore)",
+        "Added read-only WorkspaceAssetStore.verify_integrity: workspace-authorized no-follow regular-file open, byte-size and SHA-256 comparison without returning storage paths",
+        "Retention inventory verifies each active source asset against registered SHA-256 and each render artifact through RenderArtifactStore.get; exposes only verification status/source and aggregate verified/unverified counts",
+        "Per-object integrity/storage checks are explicitly point-in-time observations after the atomic SQLite reference snapshot; missing, mismatched or unavailable objects fail closed",
+        "Backup manifest has per-file hashes but no authoritative per-object backup/replica registry; backup_state_known and legal_hold remain unknown and block all retention eligibility"
       ],
       "remaining": [
         "Validate representative customer media on the target runtime, including uncommon codecs, variable frame rates and long-duration inputs",
