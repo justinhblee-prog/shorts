@@ -1092,5 +1092,72 @@ class YouTubePublishingTests(unittest.TestCase):
         self.assertEqual(after["status"],"uploading")
         self.assertEqual(after["events"],before["events"])
 
+
+    def test_resumable_upload_without_progress_or_completion_requires_reconciliation(self):
+        class NoProgressRequest:
+            def __init__(self):
+                self.calls = 0
+
+            def next_chunk(self):
+                self.calls += 1
+                return None, None
+
+        class NoProgressVideos:
+            def __init__(self):
+                self.request = NoProgressRequest()
+                self.insert_calls = 0
+
+            def insert(self, **kwargs):
+                self.insert_calls += 1
+                return self.request
+
+        class NoProgressService:
+            def __init__(self):
+                self._videos = NoProgressVideos()
+
+            def videos(self):
+                return self._videos
+
+        service = NoProgressService()
+        publisher = YouTubePublisher(self.uploads, service)
+        with self.assertRaisesRegex(YouTubeUploadError, "outcome is uncertain"):
+            publisher.upload_approved(
+                "job-1", self.media, self.review, "Approved title",
+                "Approved description",
+            )
+        record = self.uploads.get("job-1")
+        self.assertEqual(record["status"], "reconciliation_required")
+        self.assertIsNone(record["video_id"])
+        self.assertEqual(record["events"][-1]["event_type"], "upload_outcome_uncertain")
+        self.assertEqual(service._videos.request.calls, 1)
+
+        with self.assertRaises(YouTubeUploadError):
+            publisher.upload_approved(
+                "job-1", self.media, self.review, "Approved title",
+                "Approved description",
+            )
+        self.assertEqual(service._videos.insert_calls, 1)
+
+    def test_upload_video_id_with_surrounding_whitespace_requires_reconciliation(self):
+        class MalformedVideos:
+            def insert(self, **kwargs):
+                return FakeRequest({"id": " yt-video-123 "})
+
+        class MalformedService:
+            def videos(self):
+                return MalformedVideos()
+
+        publisher = YouTubePublisher(self.uploads, MalformedService())
+        with self.assertRaisesRegex(YouTubeUploadError, "valid video ID"):
+            publisher.upload_approved(
+                "job-1", self.media, self.review, "Approved title",
+                "Approved description",
+            )
+        record = self.uploads.get("job-1")
+        self.assertEqual(record["status"], "reconciliation_required")
+        self.assertIsNone(record["video_id"])
+        self.assertEqual(record["events"][-1]["event_type"], "upload_outcome_uncertain")
+
+
 if __name__=="__main__":
     unittest.main()
