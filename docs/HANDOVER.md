@@ -1258,3 +1258,12 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Backend suite: **466 tests, OK**.
 - The full `scripts/validate.sh` command completed successfully.
 - This validates candidate capture, deduplication and exact attribution logic; it does not validate live account publishing or audience outcomes.
+
+
+## Provider chunk-contract follow-up — 2026-11-21
+
+- BUILD-00353 PR #475: TikTok chunk sizing now uses decimal MB (64,000,000-byte normal chunk) aligned to the official Media Transfer Guide; final chunk remains bounded by the documented 128,000,000-byte maximum. Boundary tests cover sub-5 MB, 5 MB, 64 MB, just-over-64 MB, just-over-128 MB and 4 GB.
+- Source/test head `88d3bd07568cb2398f33eb42566a4a351a0f0f82` passed Backend run [44893640196](https://github.com/justinhblee-prog/shorts/actions/runs/44893640196): 960 tests plus Playwright browser smoke. Compose run [44893640194](https://github.com/justinhblee-prog/shorts/actions/runs/44893640194) passed ClamAV readiness, isolated worker, real FFmpeg render/adoption/review, authenticated API E2E and encrypted backup/restore. Compose teardown exposed a profile-selection cleanup warning; it is tracked separately below.
+- Latest provider docs/task-ledger HEAD is `1fe84674d5566c23ad2abf3c66f8f7a3e9db40e6`; exact-head Backend [44893919029](https://github.com/justinhblee-prog/shorts/actions/runs/44893919029) and Compose [44893919024](https://github.com/justinhblee-prog/shorts/actions/runs/44893919024) are pending at handover update time.
+- Separate CI cleanup PR #477: [https://github.com/justinhblee-prog/shorts/pull/477](https://github.com/justinhblee-prog/shorts/pull/477) explicitly enables both `media-scan` and `render` profiles for teardown. Exact-head Compose run [44893900087](https://github.com/justinhblee-prog/shorts/actions/runs/44893900087) is pending.
+- No live TikTok/YouTube calls, credentials, external uploads or public posts were used. Provider/legal/spend gates and workspace-owned provider connection design remain external blockers. All PRs remain Draft/open/unmerged.
