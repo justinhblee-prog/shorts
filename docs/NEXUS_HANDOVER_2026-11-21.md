@@ -135,13 +135,22 @@ Automated CI and Compose smoke do not prove:
 - Zero reserve disables the free-space inspection; inability to inspect capacity fails closed when the reserve is enabled. Existing indexed artifacts are never automatically deleted.
 - Adds regression tests for aggregate cross-workspace accounting, low/unavailable free space and the zero-reserve bypass.
 - This logical cap is not an OS/container hard quota and excludes temporary staging/unindexed files. Retention/deletion and target-host quotas remain open.
-- Prior Backend [run `44883306345`](https://github.com/justinhblee-prog/shorts/actions/runs/44883306345) passed. Compose [run `44883306353`](https://github.com/justinhblee-prog/shorts/actions/runs/44883306353) exposed that the temporary FFmpeg smoke helper uses its own `/tmp` artifact store and inherited the production 1 GiB free-space reserve; the helper now disables that reserve only for its disposable fixture store. The actual render worker receives both cap/reserve variables explicitly from Compose. Exact-head Backend [run `44883656236`](https://github.com/justinhblee-prog/shorts/actions/runs/44883656236) and Compose [run `44883656259`](https://github.com/justinhblee-prog/shorts/actions/runs/44883656259) are queued.
+- The temporary FFmpeg smoke helper uses its own `/tmp` artifact store and disables the production 1 GiB free-space reserve only for that disposable fixture store. The actual render worker receives both cap/reserve variables explicitly from Compose. Exact-head Backend [run `44883656236`](https://github.com/justinhblee-prog/shorts/actions/runs/44883656236) and Compose [run `44883656259`](https://github.com/justinhblee-prog/shorts/actions/runs/44883656259) passed.
+
+
+## 5.3. EDL timeline duration, black gaps and explicit transitions
+
+- Draft PR [#470](https://github.com/justinhblee-prog/shorts/pull/470) is stacked on #469 via branch `feat/build-00352-edl-gap-duration-2026-11-21`.
+- Exact-head commit `e65d67f` passed Backend [run `44884162098`](https://github.com/justinhblee-prog/shorts/actions/runs/44884162098) and Compose [run `44884162025`](https://github.com/justinhblee-prog/shorts/actions/runs/44884162025): black initial/internal/trailing gaps and optional whole-millisecond project duration.
+- The follow-up adds optional EDL v1 adjacent video crossfades (100–5000 ms), exact overlap matching and per-clip transition-duration bounds. FFmpeg uses deterministic `xfade=fade` offsets after normalizing clip streams. Existing audio-bed tracks remain independently positioned and muxed to the same project duration; embedded source-audio crossfades are not yet implemented.
+- Latest crossfade code/doc/task-ledger head: `f92ac61`. Backend [run `44884526272`](https://github.com/justinhblee-prog/shorts/actions/runs/44884526272) and Compose [run `44884526271`](https://github.com/justinhblee-prog/shorts/actions/runs/44884526271) are running. Do not mark the crossfade increment validated until both exact-head checks pass.
+- Legacy EDL v1 payloads without the optional `transitions` field preserve their previous canonical snapshot digest. All work remains Draft/open/unmerged.
 
 ## 6. Immediate next actions
 
 1. Keep all Draft PRs open and unmerged; preserve dependency ordering (#452 before #456/#453).
 2. Reconcile #444 with the current #436 baseline, then revalidate the complete #444→#448→#449→#450→#452→#453/#456 stack at exact heads.
-3. Continue storage lifecycle integration checks across upload, render, scratch cleanup, backup and restore.
+3. Continue storage lifecycle integration checks across upload, render, scratch cleanup, backup and restore; validate EDL crossfade CI and keep embedded source-audio transitions as a separate follow-up.
 4. Review the fresh Vercel preview manually on physical PC/tablet/mobile devices; headless Playwright coverage is now in place.
 5. Deploy a non-production backend and verify exact-origin CORS plus authenticated frontend operations.
 6. Validate real provider and platform workflows only after credentials and test accounts are available.
