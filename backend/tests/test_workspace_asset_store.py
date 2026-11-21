@@ -78,6 +78,21 @@ class WorkspaceAssetStoreTests(unittest.TestCase):
             )
 
 
+    def test_upload_preserves_configured_physical_media_free_space(self):
+        from unittest.mock import patch
+        usage = type("Usage", (), {"free": 50})()
+        with patch.dict(os.environ, {"NEXUS_MEDIA_MIN_FREE_BYTES": "100"}):
+            with patch("workspace_asset_store.shutil.disk_usage", return_value=usage):
+                with self.assertRaisesRegex(AssetError, "insufficient media storage free space"):
+                    self.store.register_stream(
+                        "ws_studio", "alice", io.BytesIO(b"four"), "low-space.mp4"
+                    )
+        with self.store.db() as db:
+            active = db.execute("SELECT COUNT(*) AS count FROM workspace_media_assets").fetchone()["count"]
+            pending = db.execute("SELECT COUNT(*) AS count FROM workspace_asset_upload_reservations").fetchone()["count"]
+        self.assertEqual(active, 0)
+        self.assertEqual(pending, 0)
+
     def test_installation_wide_capacity_counts_assets_across_workspaces(self):
         self.workspaces.create("Other", "bob", "ws_other")
         first = self.store.register_stream(
