@@ -603,3 +603,19 @@ Production jobs can be cancelled only before review handoff. A running productio
 ### BUILD-00138 — metrics collector lease ownership
 
 The YouTube Data API, YouTube Analytics and TikTok metrics collectors use renewable, token-fenced leases. Snapshot and collection-state writes verify the active owner/token in the same SQLite transaction, so results arriving after lease replacement or expiry are rejected. The heartbeat is checked before and after provider work. Configure `NEXUS_METRICS_LEASE_SECONDS` (default 300 seconds) for YouTube Data API/TikTok and `YOUTUBE_ANALYTICS_LEASE_SECONDS` (default 900 seconds) for Analytics. Restart the metrics-collector service after deploying the SQLite lease-token migration.
+
+
+## Cross-origin frontend connection
+
+The frontend can be hosted separately from the FastAPI service. Set the API root in
+the dashboard's API settings; the browser stores only this origin (not credentials).
+The API must explicitly allow the exact frontend origin:
+
+```dotenv
+NEXUS_CORS_ORIGINS=https://your-frontend.example
+```
+
+Use comma-separated exact origins when more than one frontend is required. Wildcard
+origins and credentialed CORS are intentionally disabled. The review token remains
+in browser memory and is sent only to the configured API origin. Use HTTPS outside
+localhost development.
