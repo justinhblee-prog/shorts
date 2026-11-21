@@ -123,3 +123,11 @@ The Compose integration assertions passed. Its teardown did report the media-sca
 - Completion video IDs with surrounding or embedded whitespace are rejected before the local upload is finalized.
 - Added fake-service regressions proving the no-progress case is attempted only once, remains uncertain and blocks a second insert; malformed whitespace IDs also remain unconfirmed.
 - These tests do not call YouTube HTTPS or use account credentials.
+
+
+## Latest exact-head validation
+
+- Source/test/docs head `676954eab191d4821aae418a8a52ec8bb6b8f0aa` passed Backend [44894747308](https://github.com/justinhblee-prog/shorts/actions/runs/44894747308): 962 tests, repository validation, Korean font fallback and Playwright browser smoke.
+- Compose [44894747315](https://github.com/justinhblee-prog/shorts/actions/runs/44894747315) passed ClamAV readiness, isolated render worker, real FFmpeg render/adoption/review, authenticated API E2E and encrypted backup/restore.
+- This PR branch's workflow copy still emits the known profile-cleanup resource warnings. Draft PR #477 exact-head Compose [44893900087](https://github.com/justinhblee-prog/shorts/actions/runs/44893900087) validates the corrected cleanup separately, with all containers, volumes and network removed.
+- No live provider requests, account credentials, external uploads or public posts were used.
