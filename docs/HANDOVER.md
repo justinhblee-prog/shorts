@@ -1258,3 +1258,49 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Backend suite: **466 tests, OK**.
 - The full `scripts/validate.sh` command completed successfully.
 - This validates candidate capture, deduplication and exact attribution logic; it does not validate live account publishing or audience outcomes.
+
+
+## 2026-11-20 — PR #416 Windows worker security follow-up
+
+- PR #416 remains Draft/Open/Unmerged. Current source head before this documentation follow-up: `6e5c2a14e7c29d6d90120303014bc5abedc44cae`.
+- Existing exact-head CI run `44651976963` passed 13/13 steps, including 615 backend tests, repository validation and workflow YAML parsing. This is not Windows runner/Ollama execution evidence.
+- **Withdrawn finding:** a later reinspection confirmed recovery was already a separate read-only `recover-reviews` job. The earlier statement that recovery inherited development write permissions was incorrect and is superseded by the 2026-11-21 permission-review correction below.
+- Operational blockers remain: no OS-level sandbox, dedicated low-privilege Windows account/VM, verified ACL and outbound egress policy, secret inventory audit, real Windows self-hosted execution, actual Ollama generation, multi-run LocalAppData SQLite persistence, and a disposable Draft PR publication/recovery round-trip.
+- Do not dispatch, enable schedule, change runner/secrets/repository settings, merge or deploy without explicit authorization. Keep PR #416 Draft.
+- Security details: `docs/DEVELOPMENT_WORKER_SECURITY_REVIEW.md`.
+
+
+## 2026-11-21 — PR #416 permission-review correction
+
+- Reinspection found the recovery permission split was already implemented in the workflow at head `7cd1941074315ce715c8d1fcb86592f9df21e747`: separate `recover-reviews` job is read-only (`contents: read`, `pull-requests: read`), while the development job alone has the three required write scopes. The previous handover note describing this as an outstanding gap was incorrect and is superseded.
+- Added YAML-parsed exact permission-map contract test in `backend/tests/test_development_worker_workflow_contract.py` (commit `71adeb3ed0c85b0f54ee86714217d4bfd170fdd1`). Security review correction is in `docs/DEVELOPMENT_WORKER_SECURITY_REVIEW.md`.
+- Exact permission-map YAML contract test commit `71adeb3ed0c85b0f54ee86714217d4bfd170fdd1` passed push run `44842242282` and PR run `44842249505`. Documentation follow-up commit `78ec6bd4b95254f9a64b89c24d4d6d37f1877521` passed run `44842253418`, whose logs confirm **621 backend tests**, `scripts/validate.sh`, and workflow YAML parsing succeeded. Current PR head `d84273bcc005ec11817aa6894b56c2ecfaec52f7` is a later documentation-only commit and has no exact-SHA CI evidence in the runs checked.
+- Both CI runs for prior head `7cd1941074315ce715c8d1fcb86592f9df21e747` completed successfully: push run `44657256271` and PR run `44657261511`. These hosted runs do not validate Windows self-hosted execution or Ollama.
+- Activation remains blocked on OS-level isolation, runner identity/ACL/egress and secret audit, actual Windows/Ollama run, multi-run SQLite persistence, and disposable Draft PR recovery round-trip. No dispatch, activation, runner/secret change, merge or deployment was performed.
+
+
+### 2026-11-21 — latest PR #416 CI and documentation correction
+
+- Rechecked PR #416: Open, Draft, Unmerged, mergeable. Latest head: `d84273bcc005ec11817aa6894b56c2ecfaec52f7`.
+- Runs `44842242282` and `44842249505` passed for permission-contract test commit `71adeb3ed0c85b0f54ee86714217d4bfd170fdd1`; run `44842253418` passed for documentation commit `78ec6bd4b95254f9a64b89c24d4d6d37f1877521`. The latter log confirms 621 backend tests, full repository validation, and worker workflow YAML parse.
+- The latest PR head `d84273...` is documentation-only and was not itself covered by those exact-SHA CI runs. Do not claim otherwise.
+- Corrected the security review and this handover to withdraw the false claim that recovery shared development write permissions. The workflow already separates the jobs; the exact permission maps are now parsed and asserted by tests.
+- Activation remains blocked by missing OS-level Windows runner isolation, ACL/network egress and secret audit, real Windows/Ollama execution, cross-run LocalAppData persistence, and disposable Draft PR recovery round-trip. Keep PR Draft/open/unmerged; no dispatch, schedule activation, runner/secret change, merge, or deployment.
+
+
+### 2026-11-21 — PR #416 exact-head validation and security-review consolidation
+
+- PR #416 head `8028d2688e5f5f6ba9db6e84099530cbc2a22df6` passed exact-head hosted CI run [44843382240](https://github.com/justinhblee-prog/shorts/actions/runs/44843382240). Dependency installation, `sh scripts/validate.sh`, and worker workflow YAML parsing all succeeded. The validation suite includes 621 backend tests.
+- Rewrote `docs/DEVELOPMENT_WORKER_SECURITY_REVIEW.md` to remove superseded and contradictory review notes. It now records the exact permission maps: global `contents: read`; recovery `contents: read` + `pull-requests: read`; development `contents: write` + `pull-requests: write` + `actions: write`. The YAML-parsed contract test asserts these maps exactly.
+- Corrected the permission description: write scopes are job-level on `development-cycle`, not workflow-global. The separate intake token is read-only and distinct from the publication job token.
+- Latest review document commit: `0aefe59f025ffca8459d75bdf352e9cccf4098dd`. This is a documentation-only follow-up after the exact-head CI run; do not describe this later doc commit as independently CI-tested.
+- PR #416 remains Open, Draft, Unmerged. Keep it that way. No workflow dispatch, schedule activation, runner/secret change, merge, or deployment.
+- Activation blockers remain: dedicated low-privilege Windows runner/VM, ACL and egress restrictions, secret inventory, real Windows/Ollama execution, cross-run LocalAppData persistence, and disposable Draft PR publication/recovery round-trip.
+
+
+### 2026-11-21 — PR #416 security-review CI completion
+
+- Security-review documentation commit `0aefe59f025ffca8459d75bdf352e9cccf4098dd` was included in PR validation run [44845419802](https://github.com/justinhblee-prog/shorts/actions/runs/44845419802). The run completed successfully: dependency installation, `sh scripts/validate.sh`, and explicit worker workflow YAML parsing all passed.
+- This was PR validation for a merge ref containing the security-review commit; it does **not** establish exact-SHA validation for the later documentation-only branch head `f9bdba674cdd9beab046f421748aa929e97201ea`.
+- The consolidated security review is current in `docs/DEVELOPMENT_WORKER_SECURITY_REVIEW.md`. Hosted validation does not remove any operational activation blocker.
+- PR #416 remains Draft/Open/Unmerged. No dispatch, schedule activation, runner or secret change, merge, or deployment was performed.

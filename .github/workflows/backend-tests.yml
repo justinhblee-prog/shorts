@@ -5,12 +5,20 @@ on:
       - "backend/**"
       - "frontend/**"
       - "scripts/**"
+      - ".github/workflows/nexus-development-job-worker.yml"
+      - "docs/**"
+      - "README.md"
+      - ".gitignore"
       - ".github/workflows/backend-tests.yml"
   pull_request:
     paths:
       - "backend/**"
       - "frontend/**"
       - "scripts/**"
+      - ".github/workflows/nexus-development-job-worker.yml"
+      - "docs/**"
+      - "README.md"
+      - ".gitignore"
       - ".github/workflows/backend-tests.yml"
 jobs:
   test:
@@ -22,3 +30,4 @@ jobs:
           python-version: "3.11"
       - run: pip install -r backend/requirements.txt
       - run: sh scripts/validate.sh
+      - run: python -c "import yaml; yaml.safe_load(open('.github/workflows/nexus-development-job-worker.yml', encoding='utf-8'))"
