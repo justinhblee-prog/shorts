@@ -42,14 +42,10 @@ jobs:
           ref: ${{ github.ref_name }}
           clean: true
 
-      - name: Install PowerShell and Python
-        uses: microsoft/setup-powershell@v1
-
-      - name: Install GitHub CLI
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gh
+      - name: Pin Python runtime
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
       - name: Install and start isolated Ollama runtime
         shell: bash
