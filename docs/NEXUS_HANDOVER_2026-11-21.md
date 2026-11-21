@@ -252,3 +252,11 @@ Automated CI and Compose smoke do not prove:
 - YouTube and TikTok OAuth adapters reject non-object token JSON before persistence; TikTok expiry fields require positive non-boolean JSON integers. Deterministic fake-transport tests verify malformed payloads do not persist credentials.
 - Exact-head Backend [44888809207](https://github.com/justinhblee-prog/shorts/actions/runs/44888809207) passed repository validation and Playwright browser smoke (**949 tests**); Compose [44888809309](https://github.com/justinhblee-prog/shorts/actions/runs/44888809309) passed the real-media render/API/backup integration suite.
 - These are offline contract tests, not live Google/YouTube or TikTok HTTPS verification. Live provider validation remains blocked by operator credentials, an approved spend ceiling, licensing/data-processing review and authorized private test accounts. Existing token stores are global singleton connections; workspace-owned provider credentials remain a separate prerequisite before enabling independent B2B tenant connections.
+
+
+## 5.9. Latest validation-note and provider contract follow-up
+
+- PR #474 latest validation-note/task-ledger head `6b5ba0ee0da2ad103369f897804dadda10be9923`: Backend [44889771751](https://github.com/justinhblee-prog/shorts/actions/runs/44889771751) and Compose [44889771753](https://github.com/justinhblee-prog/shorts/actions/runs/44889771753) are running. Earlier code/integrity head `741730c3787f449f950d98bd4b3142192021a18e` and docs/task head `dd8a1a161db97729ca4c984bd5ce8d1cc2224f18` both passed their exact-head checks.
+- PR #475 TikTok publishing response-hardening code/test head `ee5e563330d9e4e1956f24b3ba710fc19ebb048f` passed Backend [44889554706](https://github.com/justinhblee-prog/shorts/actions/runs/44889554706) and Compose [44889554618](https://github.com/justinhblee-prog/shorts/actions/runs/44889554618).
+- PR #475 latest docs/task-ledger head `bff3af66e4adebb22839db616db943a01d404b49`: Backend [44889779907](https://github.com/justinhblee-prog/shorts/actions/runs/44889779907) and Compose [44889779960](https://github.com/justinhblee-prog/shorts/actions/runs/44889779960) are running.
+- Both PRs remain Draft/open/unmerged. Live provider HTTPS/account validation remains externally gated; BUILD-00354 target-host deployment remains blocked.
