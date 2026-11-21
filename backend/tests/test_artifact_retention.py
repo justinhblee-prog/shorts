@@ -140,6 +140,12 @@ class ArtifactRetentionEligibilityTests(unittest.TestCase):
         result = evaluate_retention_candidate(artifact, self.policy, now=self.now)
         self.assertIn("review_not_terminal", result["reason_codes"])
 
+    def test_timestamp_overflow_fails_closed(self):
+        candidate = {**self.asset, "created_at": "9999-12-31T23:59:59+00:00"}
+        result = evaluate_retention_candidate(candidate, self.policy, now=self.now)
+        self.assertFalse(result["eligible_for_review"])
+        self.assertIn("retention_timestamp_out_of_range", result["reason_codes"])
+
     def test_invalid_candidate_shape_fails_closed(self):
         result = evaluate_retention_candidate(None, self.policy, now=self.now)
         self.assertFalse(result["eligible_for_review"])
