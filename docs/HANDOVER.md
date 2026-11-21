@@ -1286,3 +1286,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Exact-head Backend [44894519601](https://github.com/justinhblee-prog/shorts/actions/runs/44894519601) and Compose [44894519568](https://github.com/justinhblee-prog/shorts/actions/runs/44894519568) passed. The Compose cleanup correction explicitly selects both `media-scan` and `render`; logs confirm the ClamAV updater, test volumes and network are removed without resource-in-use warnings.
 - PRs #468–#475 remain Draft/open/unmerged and GitHub currently reports each mergeable. Their latest exact-head CI states remain as listed in the task PRs: #468 Backend 44882746096 / Compose 44882746102; #469 Backend 44883656236 / Compose 44883656259; #470 Backend 44884940319 / Compose 44884940314; #471 Backend 44885516326 / Compose 44885516328; #473 Backend 44886279762 / Compose 44886279825; #474 Backend 44889771751 / Compose 44889771753; #475 Backend 44894234406 / Compose 44894234417. #472 is documentation-only and has no CI run.
 - No PR was merged, retargeted, force-pushed or deployed.
+
+
+## BUILD-00353 final exact-head recheck — 2026-11-21
+
+- Latest PR #475 head `676954eab191d4821aae418a8a52ec8bb6b8f0aa` passed Backend [44894747308](https://github.com/justinhblee-prog/shorts/actions/runs/44894747308): **962 tests**, repository validation, Korean font fallback and Playwright browser smoke.
+- Compose [44894747315](https://github.com/justinhblee-prog/shorts/actions/runs/44894747315) passed ClamAV readiness, isolated render worker, real FFmpeg render/adoption/review, authenticated upload-to-worker/private-preview E2E, encrypted backup and isolated restore.
+- The provider branch's Compose run still reports the previously identified cleanup profile warnings because its workflow copy predates PR #477. PR #477 exact-head Compose [44893900087](https://github.com/justinhblee-prog/shorts/actions/runs/44893900087) independently verifies the corrected teardown and clean removal of updater, volumes and network.
+- Latest PR #475 remains Draft/open/unmerged. No live provider credentials or external upload/publish actions were used.
