@@ -287,6 +287,33 @@
       ],
       "external_gates": [],
       "notes": "Use a globally unused task ID; BUILD-00363 is already referenced by legacy open PRs #345 and #346."
+    },
+    {
+      "id": "BUILD-00390",
+      "title": "Connect automatic backlog discovery to the active PowerShell supervisor",
+      "priority": 2,
+      "status": "ready",
+      "depends_on": [],
+      "base_branch": "fix/devflow-supervisor-poll-loop-2026-11-21",
+      "scope": [
+        "scripts/git-cli-multiflow-parallel.ps1",
+        "scripts/git-cli-multiflow.ps1",
+        "scripts/test-git-cli-multiflow-parallel.ps1",
+        "scripts/start-devflow-autopilot.ps1",
+        "docs/ENGINEERING_ORCHESTRATOR.md"
+      ],
+      "acceptance": [
+        "Make the active PowerShell multi-flow engine discover actionable local work from unfinished task acceptance criteria before selecting workers; do not require a manually added ready task for every follow-up",
+        "Generate stable, deterministic runtime task IDs and persist fingerprints, leases, retry counts and outcomes under the supervisor state directory without mutating protected .devflow/tasks.json",
+        "Exclude external-gate-only work, completed work, work represented by open PRs, work in active worktrees, and overlapping file scopes",
+        "Dispatch up to three independent discovered work items through the existing isolated worktree, Ollama, validation and Draft-PR pipeline",
+        "Use GITHUB_REF_NAME in detached GitHub Actions checkouts so the supervisor PR does not suppress its own queue; keep the current-PR exclusion covered by regression tests",
+        "When the queue is empty, record a specific idle reason and let the five-minute supervisor continue polling rather than exiting permanently",
+        "Add deterministic PowerShell integration tests for stable discovery, duplicate PR exclusion, scope conflicts, manifest immutability, lease recovery, retry behavior and repeated idle polling",
+        "Preserve no-merge, no-deploy, no-publish, no-credential-change and human-review safeguards"
+      ],
+      "external_gates": [],
+      "notes": "This is the active Windows/PowerShell execution path. It must integrate discovery into git-cli-multiflow-parallel.ps1, not only the separate Python planner."
     }
   ]
 }
