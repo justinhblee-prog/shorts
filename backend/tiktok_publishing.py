@@ -789,7 +789,7 @@ class TikTokPublisher:
             raise TikTokPublishError("TikTok upload size must be a positive integer")
         chunk_size = min(CHUNK_SIZE, size)
         # TikTok requires files larger than 64 MB to use multiple chunks.
-        # Near the 64 MB boundary, a 64 MiB chunk would floor-divide to one;
+        # Near the 64 MB boundary, a 64 MB chunk would floor-divide to one;
         # reduce the base chunk so the final chunk remains within TikTok's
         # documented 128 MB maximum (the final chunk may exceed chunk_size).
         if size > CHUNK_SIZE and size // chunk_size < 2:
