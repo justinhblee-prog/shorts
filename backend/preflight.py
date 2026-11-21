@@ -3,6 +3,7 @@ import base64
 import binascii
 import os
 import shutil
+import time
 from pathlib import Path
 
 
@@ -167,12 +168,27 @@ def build_preflight(env=None, youtube_refresh_token_configured=None):
     if media_scan_enabled:
         if not scanner_path or not shutil.which(scanner_path):
             scan_missing.append("ClamAV clamscan executable (NEXUS_CLAMSCAN_PATH)")
-        if not database_dir.is_dir() or not any(
-            list(database_dir.glob("*.cvd")) + list(database_dir.glob("*.cld"))
-        ):
-            scan_missing.append(
-                "ClamAV signature database (NEXUS_CLAMAV_DATABASE_DIR; start the media-scan profile)"
-            )
+        signature_age = source.get("NEXUS_CLAMAV_MAX_SIGNATURE_AGE_SECONDS", "604800")
+        try:
+            max_signature_age = int(signature_age)
+            signature_age_valid = max_signature_age >= 1
+        except (TypeError, ValueError):
+            max_signature_age = 0
+            signature_age_valid = False
+        if not signature_age_valid:
+            scan_missing.append("NEXUS_CLAMAV_MAX_SIGNATURE_AGE_SECONDS (must be a positive integer)")
+        for family in ("main", "daily"):
+            candidates = [database_dir / (family + suffix) for suffix in (".cld", ".cvd")]
+            existing = [candidate for candidate in candidates if candidate.is_file()]
+            if not existing:
+                scan_missing.append("ClamAV " + family + " signature database (start the media-scan profile)")
+                continue
+            newest_mtime = max(candidate.stat().st_mtime for candidate in existing)
+            age = time.time() - newest_mtime
+            if age < -300:
+                scan_missing.append("ClamAV " + family + " signature timestamp is in the future")
+            elif signature_age_valid and age > max_signature_age:
+                scan_missing.append("ClamAV " + family + " signatures are stale; refresh the media-scan database")
         if not scan_timeout_valid:
             scan_missing.append("NEXUS_MEDIA_SCAN_TIMEOUT_SECONDS (must be a positive integer)")
         try:
