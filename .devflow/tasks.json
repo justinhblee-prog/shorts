@@ -82,7 +82,8 @@
         "CI fault-injection coverage verifies process-generation lease loss cancels rendering, discards staged output, allows queue recovery/reclaim, and removes only expired generated staging files",
         "Timeline render worker is opt-in behind the Compose render profile; Compose CI asserts it is absent from the default profile and enabled explicitly for integration smoke",
         "Exact-head integration validation passed: Backend run 44882235365 (914 tests plus Playwright browser smoke) and Compose run 44882235333 (ClamAV database readiness/EICAR detection, worker isolation, real FFmpeg render/adoption/review, authenticated API upload-to-worker render/approval/private preview, encrypted backup and isolated restore). CI uses generated media and isolated Docker volumes; target-host/provider validation remains.",
-        "Optional EDL v1 project_duration_ms with whole-millisecond bounds, video coverage validation, audio bounds and FFmpeg black-tail padding; legacy snapshots without the field retain prior digest and render behavior."
+        "Optional EDL v1 project_duration_ms with whole-millisecond bounds, video coverage validation, audio bounds and FFmpeg black-tail padding; legacy snapshots without the field retain prior digest and render behavior.",
+        "Exact-head validation of optional project duration and trailing black render passed: 916 backend tests, Playwright desktop/mobile and keyboard smoke, plus real-media Compose FFmpeg/ffprobe trailing-gap render, authenticated API-to-worker review preview, ClamAV and encrypted backup/restore on commit 8be9f95c5a775c45fe7b7f888d0a78ec13b1d801."
       ],
       "remaining": [
         "Validate representative customer media on the target runtime, including uncommon codecs, variable frame rates and long-duration inputs",
@@ -185,7 +186,8 @@
         "Added a Playwright API-contract smoke for upload → validate → render → private preview → human review",
         "Exact-head validation passed on branch head abcfd823edefdc3d4044a45a99385577cc38053c: backend validation + authenticated timeline editor API-contract Playwright + responsive workbench smoke passed in run 44901290376; Compose real-media FFmpeg/ClamAV upload-render-review/private-preview integration passed in run 44901290337.",
         "Extended the media-shelf and visual multi-lane timeline UI to support up to eight independent audio tracks with timeline placement, source trim, gain, fade-in and fade-out; the audio lane visualizes track offsets.",
-        "Added optional project duration input to the timeline editor; sends project_duration_ms only when explicitly set, allows timed titles and audio tracks to extend into the trailing black section, and validates the duration against the full video timeline."
+        "Added optional project duration input to the timeline editor; sends project_duration_ms only when explicitly set, allows timed titles and audio tracks to extend into the trailing black section, and validates the duration against the full video timeline.",
+        "Exact-head backend validation (916 tests), authenticated timeline editor API-contract Playwright smoke, responsive workbench checks and Compose real-media render/API-to-worker/review/backup integration passed on 8be9f95c5a775c45fe7b7f888d0a78ec13b1d801."
       ],
       "remaining": [
         "Validate the Vercel preview against a live authenticated API deployed from the BUILD-00352 integration branch; browser UI contract tests currently use API mocks",
@@ -233,10 +235,10 @@
         "Extended browser and responsive smoke assertions for media shelf, visual timeline and inspector behavior",
         "Integrated multi-track audio controls into the media-shelf branch so the visual timeline displays independent audio segments at their configured offsets.",
         "Added 100–400% timeline zoom controls, fit reset and horizontal navigation buttons while preserving the scrollable visual timeline.",
-        "Visual timeline ruler and lane layout expand to the explicitly requested project duration so trailing black duration and overlays/audio extending beyond the video sequence remain visible."
+        "Visual timeline ruler and lane layout expand to the explicitly requested project duration so trailing black duration and overlays/audio extending beyond the video sequence remain visible.",
+        "Exact-head backend/browser/responsive checks and real FFmpeg/ffprobe Compose trailing-gap integration passed on 8be9f95c5a775c45fe7b7f888d0a78ec13b1d801."
       ],
       "remaining": [
-        "Run exact-head backend, Playwright and responsive CI; do not mark complete until all pass",
         "Validate thumbnail extraction with representative real customer codecs and large files"
       ]
     }
