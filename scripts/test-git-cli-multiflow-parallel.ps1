@@ -113,6 +113,8 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  foreach($id in @("BUILD-99001","BUILD-99002","BUILD-99006")){
   if([int]$stateAfterRerun.tasks.$id.attempt_count -ne 1){throw "Idempotent rerun incremented attempts for completed task ${id}."}
  }
+ if($stateAfterRerun.tasks."BUILD-99008".status -ne "retry_exhausted"){throw "Retry-exhausted task was re-queued on a later cycle."}
+ if($stateAfterRerun.tasks."BUILD-99009".status -ne "failed"){throw "Backoff task state changed before its retry window."}
  if($events.Count -lt 3 -or ($events|Where-Object kind -eq "credential-leak").Count -gt 0){throw "Supervisor GitHub credentials leaked into an Agent process."}
  $workerRoots=@(Get-ChildItem -LiteralPath (Join-Path (Split-Path $checkout -Parent) "checkout-worktrees") -Directory -ErrorAction SilentlyContinue)
  $validated=@($workerRoots|Where-Object{Test-Path (Join-Path $_.FullName ".validator-ran")})
