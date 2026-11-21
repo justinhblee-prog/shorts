@@ -167,6 +167,42 @@ class DevelopmentJobApiTests(unittest.TestCase):
             events = app_module.development_job_events(self.job["id"], limit=20, x_review_token="operator-token")
         self.assertTrue(all(events["events"][i]["timestamp"] <= events["events"][i+1]["timestamp"] for i in range(len(events["events"]) - 1)))
 
+    def test_pagination_limit_truncates_results(self):
+        claimed = self.store.claim_ready("runner-visible-id")
+        self.store.touch_worker(
+            "runner-visible-id", hostname="private-runner-host",
+            current_job_id=self.job["id"],
+        )
+        with mock.patch.object(app_module, "require_review_permission"):
+            jobs = app_module.development_jobs(status="leased", limit=1, x_review_token="operator-token")
+        self.assertEqual(len(jobs["items"]), 1)
+
+    def test_maximum_page_size_enforced(self):
+        claimed = self.store.claim_ready("runner-visible-id")
+        self.store.touch_worker(
+            "runner-visible-id", hostname="private-runner-host",
+            current_job_id=self.job["id"],
+        )
+        with mock.patch.object(app_module, "require_review_permission"):
+            with self.assertRaises(HTTPException) as limit_error:
+                app_module.development_jobs(status="leased", limit=201, x_review_token="operator-token")
+            self.assertEqual(limit_error.exception.status_code, 422)
+
+    def test_stable_chronological_ordering(self):
+        claimed = self.store.claim_ready("runner-visible-id")
+        self.store.touch_worker(
+            "runner-visible-id", hostname="private-runner-host",
+            current_job_id=self.job["id"],
+        )
+        events = self.store.create_events(self.job["id"], [
+            {"timestamp": "2023-04-01T00:00:00Z", "details": "Event 1"},
+            {"timestamp": "2023-04-02T00:00:00Z", "details": "Event 2"},
+            {"timestamp": "2023-04-03T00:00:00Z", "details": "Event 3"},
+        ])
+        with mock.patch.object(app_module, "require_review_permission"):
+            events_result = app_module.development_job_events(self.job["id"], limit=20, x_review_token="operator-token")
+        self.assertTrue(all(events_result["events"][i]["timestamp"] <= events_result["events"][i+1]["timestamp"] for i in range(len(events_result["events"]) - 1)))
+
 
 if __name__ == "__main__":
     unittest.main()
