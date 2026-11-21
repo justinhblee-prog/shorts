@@ -5,6 +5,7 @@ FFmpeg/ffprobe binaries have been configured on the target host.
 """
 from __future__ import annotations
 
+import logging
 import os
 import sqlite3
 import signal
@@ -51,6 +52,9 @@ FPS = _integer_env("NEXUS_RENDER_FPS", 30, 1, 60)
 MAX_INPUT_BYTES = _integer_env("NEXUS_RENDER_MAX_INPUT_BYTES", 2_000_000_000, 1, 10_000_000_000)
 MAX_OUTPUT_BYTES = _integer_env("NEXUS_RENDER_MAX_OUTPUT_BYTES", 2_000_000_000, 1, 10_000_000_000)
 TIMEOUT_SECONDS = _integer_env("NEXUS_RENDER_TIMEOUT_SECONDS", 900, 1, 3600)
+RECONCILE_INTERVAL_SECONDS = _integer_env(
+    "NEXUS_RENDER_RECONCILE_INTERVAL_SECONDS", 300, 60, 86_400
+)
 WORKER_ID = os.getenv("NEXUS_RENDER_WORKER_ID", "").strip() or (
     "nexus-render-" + socket.gethostname()
 )
@@ -72,6 +76,27 @@ def _resolve_snapshot_creator(workspace_id, payload):
     if row is None or row[1] != snapshot_sha256:
         raise RuntimeError("render job does not match a workspace-owned immutable snapshot")
     return row[0]
+
+
+def reconcile_artifacts(artifact_store, logger=None):
+    """Reconcile only crash-left staging and unindexed generated artifacts.
+
+    Indexed artifacts are intentionally never deleted: retention policy and
+    disk quotas require an explicit operator decision before that is safe.
+    """
+    log = logger or logging.getLogger("nexus.timeline_render_worker")
+    staging = artifact_store.reconcile_orphaned_staging(grace_seconds=7200)
+    artifacts = artifact_store.reconcile_orphaned_files(grace_seconds=7200)
+    removed = (
+        staging["removed_files"] + staging["removed_directories"] + artifacts["removed"]
+    )
+    log.info(
+        "render_artifact_reconciliation_completed removed_staging_files=%s "
+        "removed_staging_directories=%s removed_artifacts=%s removed_bytes=%s",
+        staging["removed_files"], staging["removed_directories"],
+        artifacts["removed"], staging["removed_bytes"] + artifacts["removed_bytes"],
+    )
+    return {"staging": staging, "artifacts": artifacts, "removed": removed}
 
 
 def build_worker():
@@ -104,6 +129,10 @@ def build_worker():
 
 
 def main():
+    logging.basicConfig(
+        level=os.getenv("NEXUS_LOG_LEVEL", "INFO").upper(),
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
     queue, worker, stopping, artifact_store = build_worker()
     generation = None
 
@@ -116,16 +145,23 @@ def main():
         registration = queue.register_worker(WORKER_ID, socket.gethostname())
         generation = registration["generation_token"]
         worker.generation_token = generation
-        print(
-            f"timeline_render_worker_started id={WORKER_ID} "
-            f"lease_seconds={LEASE_SECONDS} heartbeat_seconds={HEARTBEAT_SECONDS}"
+        logging.getLogger("nexus.timeline_render_worker").info(
+            "timeline_render_worker_started id=%s lease_seconds=%s "
+            "heartbeat_seconds=%s reconciliation_interval_seconds=%s",
+            WORKER_ID, LEASE_SECONDS, HEARTBEAT_SECONDS, RECONCILE_INTERVAL_SECONDS,
         )
-        last_cleanup = 0.0
+        next_reconciliation = 0.0
+        logger = logging.getLogger("nexus.timeline_render_worker")
         while not stopping.is_set():
-            if time.monotonic() - last_cleanup >= 300:
-                artifact_store.reconcile_orphaned_files(grace_seconds=7200)
-                artifact_store.reconcile_orphaned_staging(grace_seconds=7200)
-                last_cleanup = time.monotonic()
+            now = time.monotonic()
+            if now >= next_reconciliation:
+                try:
+                    reconcile_artifacts(artifact_store, logger)
+                except Exception:
+                    # Cleanup failure must be visible but must not take the render
+                    # worker offline; retry at the next bounded interval.
+                    logger.exception("render_artifact_reconciliation_failed")
+                next_reconciliation = time.monotonic() + RECONCILE_INTERVAL_SECONDS
             if queue.is_paused():
                 stopping.wait(IDLE_SECONDS)
                 continue
