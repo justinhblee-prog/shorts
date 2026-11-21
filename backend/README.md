@@ -603,3 +603,8 @@ Production jobs can be cancelled only before review handoff. A running productio
 ### BUILD-00138 — metrics collector lease ownership
 
 The YouTube Data API, YouTube Analytics and TikTok metrics collectors use renewable, token-fenced leases. Snapshot and collection-state writes verify the active owner/token in the same SQLite transaction, so results arriving after lease replacement or expiry are rejected. The heartbeat is checked before and after provider work. Configure `NEXUS_METRICS_LEASE_SECONDS` (default 300 seconds) for YouTube Data API/TikTok and `YOUTUBE_ANALYTICS_LEASE_SECONDS` (default 900 seconds) for Analytics. Restart the metrics-collector service after deploying the SQLite lease-token migration.
+
+
+### Automatic abandoned media staging cleanup
+
+The scheduler's active lease holder periodically removes only `.nexus-*.part` files in `NEXUS_MEDIA_DIR` older than `NEXUS_MEDIA_TEMP_RETENTION_SECONDS` (default 24 hours). The sweep runs every `NEXUS_MEDIA_TEMP_PRUNE_INTERVAL_SECONDS` (default 1 hour). Retention is clamped to at least one hour and sweep interval to at least five minutes. Completed MP4 files are never included; normal staged-media deletion still requires confirmed upload. If the scheduler is stopped or cannot acquire its lease, automatic cleanup does not run.
