@@ -292,3 +292,11 @@ Automated CI and Compose smoke do not prove:
 - Source/test commits include `b8dbac47775dc0778b1a4b552f209d35485dbf5d`, `8f6fa25cb87a52d81ca9912cc16aa12d180d7539`, `5072884e4844927a16a670e8ec8bcdaf538be19d`, `43b36deb6afcab3e32721bb2076f07f23e68c064`; latest PR head also includes docs/task-ledger updates.
 - Backend/Compose use fake provider responses and generated media; they do not establish live Google/YouTube/TikTok HTTPS compatibility, customer media behavior, production filesystem behavior or deployment readiness. Live credentials, spend ceiling, legal/provider review, authorized private test accounts and workspace-owned credentials remain external gates.
 - No provider credentials or scopes were changed; no live provider requests, external uploads, publishing, merges, deployments or indexed artifact deletions were performed.
+
+
+## 5.14. TikTok status/error envelope exact validation
+
+- BUILD-00353 source/test/docs/task-ledger head `2e47ec503441530093a3292ebb9068c9067210c6` passed Backend [44893080562](https://github.com/justinhblee-prog/shorts/actions/runs/44893080562) and Compose [44893080568](https://github.com/justinhblee-prog/shorts/actions/runs/44893080568). Compose completed generated-media render, authenticated API E2E, encrypted backup/isolated restore and cleanup.
+- This head includes TikTok strict status video-ID/failure-reason validation and strict error-envelope validation, with fake-transport regression tests.
+- A follow-up docs/task-ledger-only update now advances PR #475 to head `418041cb5aaada683dcdb07a704eb00db6605bc4`; Backend [44893237301](https://github.com/justinhblee-prog/shorts/actions/runs/44893237301) and Compose [44893237329](https://github.com/justinhblee-prog/shorts/actions/runs/44893237329) are queued. Do not mark this newer head validated until both conclude successfully.
+- All results are offline provider fakes and generated fixture media, not live provider HTTPS, customer media or target-host acceptance. No external credentials, uploads, publishes, merges, deployments or indexed artifact deletions.
