@@ -27,7 +27,8 @@ try{
    @{id="BUILD-99002";title="parallel fixture B";status="ready";priority=2;depends_on=@();scope=@("write an isolated marker");acceptance=@("marker exists")},
    @{id="BUILD-99003";title="parallel fixture C";status="ready";priority=3;depends_on=@();scope=@("write an isolated marker");acceptance=@("marker exists")},
    @{id="BUILD-99004";title="dependent fixture D";status="ready";priority=4;depends_on=@("BUILD-99001");scope=@("must remain gated");acceptance=@("must not run before dependency completion")},
-   @{id="BUILD-99005";title="open PR duplicate fixture E";status="ready";priority=5;depends_on=@();scope=@("must be skipped by open PR metadata");acceptance=@("must not be dispatched when an open PR body references this task ID")}
+   @{id="BUILD-99005";title="open PR duplicate fixture E";status="ready";priority=5;depends_on=@();scope=@("must be skipped by open PR metadata");acceptance=@("must not be dispatched when an open PR body references this task ID")},
+   @{id="BUILD-99006";title="automation self-reference fixture F";status="ready";priority=6;depends_on=@();scope=@("must run even when the supervisor PR body references this task ID");acceptance=@("must not be suppressed by the currently checked-out supervisor PR")}
   )
  }
  $manifest|ConvertTo-Json -Depth 20|Set-Content (Join-Path $seed ".devflow/tasks.json") -Encoding utf8
@@ -77,7 +78,7 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  $events=@(Get-Content $log|ForEach-Object{$p=$_.Split('|');[pscustomobject]@{kind=$p[0];ms=[long]$p[1];pid=$p[2]}})
  $starts=@($events|Where-Object kind -eq "start")
  $ends=@($events|Where-Object kind -eq "end")
- if($starts.Count -ne 3 -or $ends.Count -ne 3){throw "Expected three complete fake-agent runs; got starts=$($starts.Count), ends=$($ends.Count)."}
+ if($starts.Count -ne 4 -or $ends.Count -ne 4){throw "Expected four complete fake-agent runs, including the task mentioned by the supervisor PR; got starts=$($starts.Count), ends=$($ends.Count)."}
  $delta=[Math]::Abs($starts[0].ms-$starts[1].ms)
  if($delta -gt 2500){throw "Three workers did not overlap; start spread was $($delta)ms."}
  if($timer.Elapsed.TotalSeconds -gt 25){throw "Parallel run took too long ($($timer.Elapsed.TotalSeconds)s), expected overlapping workers; worker start-time overlap is asserted separately."}
@@ -93,13 +94,14 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
   if($LASTEXITCODE -ne 0){throw "Idempotent rerun exited with $LASTEXITCODE."}
  }finally{Pop-Location}
  $branchesAfterRerun=@(& git --git-dir=$origin branch --list "autopilot/*")
- if($branchesAfterRerun.Count -ne 3){throw "Completed Draft PR tasks were dispatched again on rerun."}
+ if($branchesAfterRerun.Count -ne 4){throw "Completed Draft PR tasks were dispatched again on rerun."}
  if($events.Count -lt 3 -or ($events|Where-Object kind -eq "credential-leak").Count -gt 0){throw "Supervisor GitHub credentials leaked into an Agent process."}
  $workerRoots=@(Get-ChildItem -LiteralPath (Join-Path (Split-Path $checkout -Parent) "checkout-worktrees") -Directory -ErrorAction SilentlyContinue)
  $validated=@($workerRoots|Where-Object{Test-Path (Join-Path $_.FullName ".validator-ran")})
  if($validated.Count -ne 3){throw "Expected task-worktree validators to execute in all three isolated worktrees; got $($validated.Count)."}
  $validationLeaks=@($workerRoots|Where-Object{Test-Path (Join-Path $_.FullName ".validator-token-leak")})
  if($validationLeaks.Count -gt 0){throw "Supervisor GitHub credentials leaked into task validation."}
+ if($stateData.tasks."BUILD-99006".status -ne "draft_pr_created"){throw "Supervisor PR self-reference incorrectly suppressed BUILD-99006."}
  if($stateData.tasks."BUILD-99004"){throw "Dependency-gated task unexpectedly entered worker state."}
  if($stateData.tasks."BUILD-99005"){throw "Task with an open PR body reference was unexpectedly dispatched."}
  Write-Host "PASS: three fake agents overlapped (start spread $($delta)ms), produced Draft PR states, and pushed isolated branches."
