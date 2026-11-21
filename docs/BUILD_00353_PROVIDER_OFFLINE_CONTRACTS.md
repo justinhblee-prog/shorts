@@ -115,3 +115,11 @@ The complete TikTok chunk-sizing source/test head `88d3bd07568cb2398f33eb42566a4
 - Compose [run 44893640194](https://github.com/justinhblee-prog/shorts/actions/runs/44893640194): ClamAV signature readiness, worker isolation, real FFmpeg render/adoption/review, authenticated upload-to-worker/private-preview E2E, encrypted backup and isolated restore.
 
 The Compose integration assertions passed. Its teardown did report the media-scan profile's ClamAV updater network/volume still in use because cleanup selected only the render profile; this separate CI cleanup defect is addressed in Draft PR #477 and is not represented as a clean teardown in this validation record.
+
+
+## YouTube resumable-upload no-progress handling
+
+- The resumable upload loop now rejects an impossible `next_chunk()` result of `(None, None)` instead of spinning indefinitely while the remote upload may already have started. The existing uncertainty path records `reconciliation_required`, preventing a duplicate retry.
+- Completion video IDs with surrounding or embedded whitespace are rejected before the local upload is finalized.
+- Added fake-service regressions proving the no-progress case is attempted only once, remains uncertain and blocks a second insert; malformed whitespace IDs also remain unconfirmed.
+- These tests do not call YouTube HTTPS or use account credentials.
