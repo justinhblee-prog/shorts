@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0b0b18">
+<title>NEXUS STUDIO PRO — Responsive Preview</title>
+<style>
+:root{color-scheme:dark;--bg:#090916;--panel:#17172c;--line:#383653;--text:#f5f2ff;--muted:#aaa6c7;--accent:#9278f4}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,"Noto Sans KR",system-ui,sans-serif;background:radial-gradient(900px 500px at 50% -180px,#55429b55,transparent 70%),var(--bg);color:var(--text)}
+body{min-height:100vh;display:flex;flex-direction:column}.toolbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:13px 18px;background:#101020ed;border-bottom:1px solid var(--line);backdrop-filter:blur(18px)}
+.brand{font-size:13px;font-weight:800;letter-spacing:.04em;white-space:nowrap}.brand span{color:#b6a2ff}.divider{height:28px;width:1px;background:var(--line)}
+.group{display:flex;align-items:center;gap:6px}.group-label{font-size:11px;color:var(--muted);margin-right:4px}
+button,a{font:inherit}button{border:1px solid #454166;border-radius:9px;background:#1b1a32;color:#dcd7f5;padding:8px 12px;font-size:12px;font-weight:650;cursor:pointer;transition:.16s}
+button:hover{border-color:#9c87ff;background:#292448}button[aria-pressed=true]{background:linear-gradient(110deg,#7655d6,#4e6fd0);border-color:#a694ff;color:white;box-shadow:0 5px 18px #6750c944}
+.toolbar .spacer{flex:1}.open-app{color:#c8bcff;text-decoration:none;font-size:12px;font-weight:700}.open-app:hover{text-decoration:underline}
+.stage{flex:1;min-height:0;padding:20px;display:flex;flex-direction:column;align-items:center;gap:12px}
+.stage-meta{width:min(100%,1440px);display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:11px}
+.device-wrap{flex:1;min-height:0;width:100%;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:4px 4px 24px;position:relative}
+.device{height:min(78vh,900px);min-height:560px;width:100%;border:1px solid #514a78;border-radius:14px;background:#070711;overflow:hidden;box-shadow:0 24px 80px #0009;transition:width .22s ease,border-radius .22s ease,transform .18s ease;flex:none;margin-inline:auto;transform-origin:top center}.device.auto{width:100%}
+.device.mobile{width:390px;height:min(820px,78vh);min-height:560px;border-radius:28px;border:5px solid #34304d;box-shadow:0 0 0 1px #8f7df455,0 24px 80px #000a}
+.device.tablet{width:820px;height:min(78vh,900px);border-radius:20px;border:4px solid #34304d}
+.device.desktop{width:1440px;height:min(82vh,1000px)}
+.device.landscape.mobile{width:844px;height:min(560px,70vh);min-height:420px}
+.device.landscape.tablet{width:1180px;height:min(680px,76vh)}
+iframe{display:block;width:100%;height:100%;border:0;background:#090916}
+.hint{color:#8581a4;font-size:10px;text-align:center;max-width:850px;line-height:1.6}
+@media(max-width:700px){.toolbar{padding:10px;gap:9px}.brand{width:100%}.divider{display:none}.group{gap:4px}.group-label{font-size:10px}button{padding:7px 9px;font-size:11px}.toolbar .spacer{display:none}.open-app{margin-left:auto}.stage{padding:12px 8px}.stage-meta{padding:0 4px}.device-wrap{min-height:0;padding-bottom:12px}.device{height:calc(100dvh - 210px);min-height:460px}.device.mobile{height:calc(100dvh - 210px);min-height:460px}.device.landscape.mobile{height:calc(100dvh - 210px);min-height:360px}}
+</style>
+</head>
+<body>
+<header class="toolbar">
+  <div class="brand">NEXUS <span>STUDIO PRO</span> · LIVE PREVIEW</div><div class="divider"></div>
+  <div class="group" role="group" aria-label="화면 크기 선택">
+    <span class="group-label">기기</span>
+    <button type="button" data-device="desktop" aria-pressed="true">PC</button>
+    <button type="button" data-device="tablet" aria-pressed="false">태블릿</button>
+    <button type="button" data-device="mobile" aria-pressed="false">모바일</button>
+    <button type="button" data-device="auto" aria-pressed="false">자동</button>
+  </div>
+  <div class="divider"></div>
+  <div class="group" role="group" aria-label="화면 방향">
+    <span class="group-label">방향</span>
+    <button type="button" id="portrait" aria-pressed="true">세로</button>
+    <button type="button" id="landscape" aria-pressed="false">가로</button>
+  </div>
+  <div class="group" role="group" aria-label="미리보기 배율"><span class="group-label">배율</span><button type="button" id="fit" aria-pressed="true">맞춤</button><button type="button" id="actual" aria-pressed="false">100%</button></div><div class="spacer"></div><a class="open-app" href="/" target="_blank" rel="noopener">실제 화면 새 탭에서 열기 ↗</a>
+</header>
+<main class="stage">
+  <div class="stage-meta"><span id="modeLabel">PC · 1440px</span><span>화면 크기를 바꾸면 실제 반응형 레이아웃으로 렌더링됩니다</span></div>
+  <div class="device-wrap"><div class="device desktop" id="device"><iframe title="NEXUS STUDIO PRO 실제 화면 미리보기" src="/?preview-embed=1"></iframe></div></div>
+  <p class="hint">PC·태블릿·모바일 버튼으로 실제 뷰포트 폭을 전환합니다. 자동 모드는 현재 창 너비를 그대로 사용하며, 맞춤 배율로 전체 화면을 한눈에 보고 100%로 세부 내용을 확인할 수 있습니다.</p>
+</main>
+<script>
+(()=>{const frame=document.getElementById('device'),label=document.getElementById('modeLabel'),wrap=document.querySelector('.device-wrap');let mode='desktop',orientation='portrait',fit=true;
+const widths={desktop:1440,tablet:820,mobile:390,auto:'100%'};
+function render(){frame.className='device '+(mode==='auto'?'desktop':mode)+(orientation==='landscape'&&mode!=='auto'?' landscape':'');
+const width=mode==='auto'?'자동 · 창 너비':(orientation==='landscape'?(mode==='mobile'?'844px':mode==='tablet'?'1180px':'1440px'):widths[mode]+'px');
+label.textContent=(mode==='auto'?'자동':mode==='desktop'?'PC':mode==='tablet'?'태블릿':'모바일')+' · '+width;
+const natural=mode==='auto'?wrap.clientWidth:(orientation==='landscape'?(mode==='mobile'?844:mode==='tablet'?1180:1440):(mode==='mobile'?390:mode==='tablet'?820:1440));
+const scale=fit?Math.min(1,Math.max(.1,(wrap.clientWidth-16)/natural)):1;frame.style.transform='scale('+scale+')';
+frame.style.marginBottom=Math.max(0,frame.offsetHeight*(scale-1))+'px';
+document.getElementById('fit').setAttribute('aria-pressed',String(fit));document.getElementById('actual').setAttribute('aria-pressed',String(!fit));
+document.querySelectorAll('[data-device]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.device===mode)));
+document.getElementById('portrait').setAttribute('aria-pressed',String(orientation==='portrait'));
+document.getElementById('landscape').setAttribute('aria-pressed',String(orientation==='landscape'));
+}
+document.querySelectorAll('[data-device]').forEach(b=>b.addEventListener('click',()=>{mode=b.dataset.device;render()}));
+document.getElementById('portrait').addEventListener('click',()=>{orientation='portrait';render()});
+document.getElementById('landscape').addEventListener('click',()=>{orientation='landscape';render()});
+document.getElementById('fit').addEventListener('click',()=>{fit=true;render()});document.getElementById('actual').addEventListener('click',()=>{fit=false;render()});
+new ResizeObserver(()=>render()).observe(wrap);window.addEventListener('orientationchange',render);
+render();
+})();
+</script>
+</body>
+</html>
