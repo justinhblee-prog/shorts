@@ -71,6 +71,37 @@ class TimelineEDLTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(EDLValidationError):
                 validate_edl({**self.valid, "project_duration_ms": value})
 
+    def test_validates_adjacent_bounded_crossfade_transitions(self):
+        payload = {
+            **self.valid,
+            "clips": [
+                {"id": "clip-a", "type": "video", "start_ms": 0, "end_ms": 5000,
+                 "asset_id": "asset_a", "source_in_ms": 0, "source_out_ms": 5000},
+                {"id": "clip-b", "type": "video", "start_ms": 3000, "end_ms": 8000,
+                 "asset_id": "asset_b", "source_in_ms": 0, "source_out_ms": 5000},
+            ],
+            "transitions": [{
+                "id": "xfade-ab", "type": "crossfade",
+                "from_clip_id": "clip-a", "to_clip_id": "clip-b",
+                "duration_ms": 2000,
+            }],
+        }
+        normalized = validate_edl(payload)
+        self.assertEqual(normalized["transitions"][0]["duration_ms"], 2000)
+        for mutation in (
+            {"duration_ms": 1999},
+            {"duration_ms": 5001},
+            {"type": "wipe"},
+            {"to_clip_id": "not-a-clip"},
+        ):
+            invalid = {**payload, "transitions": [{**payload["transitions"][0], **mutation}]}
+            with self.subTest(mutation=mutation), self.assertRaises(EDLValidationError):
+                validate_edl(invalid)
+        missing = {**payload}
+        missing.pop("transitions")
+        with self.assertRaisesRegex(EDLValidationError, "crossfade"):
+            validate_edl(missing)
+
     def test_does_not_mutate_input(self):
         import copy
         payload = copy.deepcopy(self.valid)
