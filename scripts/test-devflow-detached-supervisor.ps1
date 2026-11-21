@@ -103,7 +103,7 @@ exit 0
  if ($foregroundProcess.ExitCode -ne 0) { throw "Foreground scheduled-task mode failed with exit $($foregroundProcess.ExitCode)." }
  $foregroundRuns = @(Get-ChildItem -LiteralPath (Join-Path $parent "repo-multiflow-logs") -Filter "*.run.json" | ForEach-Object {
   $metadata = Get-Content -LiteralPath $_.FullName -Raw | ConvertFrom-Json
-  if ($metadata.mode -eq "foreground-supervisor") { $metadata }
+  if ($metadata.mode -eq "foreground-supervisor" -and $metadata.run_id -notin @("supervisor-loop-test", "supervisor-final-failure-test")) { $metadata }
  })
  if ($foregroundRuns.Count -ne 1) { throw "Expected one foreground supervisor run record, found $($foregroundRuns.Count)." }
  $foregroundRun = $foregroundRuns[0]
