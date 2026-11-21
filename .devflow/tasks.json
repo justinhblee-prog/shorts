@@ -91,7 +91,10 @@
         "Exact crossfade head f336a1c passed Backend CI 44884777926 (925 tests plus Playwright browser smoke) and Compose CI 44884777927 (real FFmpeg crossfade, authenticated API E2E, review/private preview and encrypted backup/isolated restore)",
         "EDL v1 video clips may opt in to embedded source audio; source audio reuses the same hash-verified staged media, is trimmed to the video source bounds and fails closed when no audio stream exists",
         "Video crossfade durations are applied as matching source-audio fade-out/fade-in intervals on the same timeline; source audio is mixed with explicit audio beds using the bounded existing mixer and a combined maximum of eight tracks",
-        "Exact source-audio crossfade head 4f216cb passed Backend CI 44885345510 (928 tests plus Playwright browser smoke) and Compose CI 44885345520 (real FFmpeg picture/source-audio crossfade, authenticated API E2E, review/private preview and encrypted backup/isolated restore)"
+        "Exact source-audio crossfade head 4f216cb passed Backend CI 44885345510 (928 tests plus Playwright browser smoke) and Compose CI 44885345520 (real FFmpeg picture/source-audio crossfade, authenticated API E2E, review/private preview and encrypted backup/isolated restore)",
+        "Added pure read-only retention eligibility evaluator requiring explicit versioned policy, per-class retention days and grace period; missing policy/state, active or immutable references, holds, unverified integrity, unknown storage/backup state, pending scans/reviews and malformed timestamps fail closed",
+        "Retention evaluator returns deterministic reason codes and UTC expiry/grace timestamps only; no database/filesystem/queue mutation, tombstone or deletion is performed",
+        "Exact evaluator head 50c7f20 passed Backend CI 44886115569 (939 tests plus Playwright browser smoke) and Compose CI 44886115567 (service isolation, real FFmpeg render/adoption/review, authenticated API E2E and encrypted backup/isolated restore)"
       ],
       "remaining": [
         "Validate representative customer media on the target runtime, including uncommon codecs, variable frame rates and long-duration inputs",
@@ -100,7 +103,7 @@
         "Validate five-minute orphan reconciliation and its logs on the target persistent filesystem; add durable metrics/alerts. Indexed artifact retention/deletion remains a separate policy gate.",
         "Run end-to-end authenticated API upload → current ClamAV signature scan → render queue → worker adoption → review preview using production-like persistent storage; CI now exercises real ClamAV scanning and EICAR rejection with generated media on isolated Docker volumes, but target storage remains unvalidated.",
         "Measure production workload resource usage and enforce disk quota/network egress policy on the target host",
-        "Define indexed artifact retention/deletion policy separately from the logical cap; existing indexed artifacts are immutable and never auto-deleted. Host/container hard quotas and monitoring still require target-host configuration."
+        "Obtain owner/legal approval for retention periods, grace windows, legal holds, export/review windows and backup/replica deletion semantics; only then design a separate tombstone/purge workflow. The current evaluator is read-only and no indexed artifacts or source media are deleted."
       ]
     },
     {
