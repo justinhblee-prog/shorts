@@ -81,7 +81,7 @@ def main():
             }],
             "audio_tracks": [{
                 "id": "music", "asset_id": asset["asset_id"],
-                "start_ms": 0, "source_in_ms": 0, "source_out_ms": 3000,
+                "start_ms": 1000, "source_in_ms": 0, "source_out_ms": 2000,
                 "gain": 0.3, "fade_in_ms": 100, "fade_out_ms": 100,
             }],
         }
