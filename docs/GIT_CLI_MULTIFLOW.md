@@ -59,17 +59,43 @@ You can select one task with `-Task BUILD-xxxxx` or override the base branch wit
 For runs that must continue if the interactive PowerShell window or remote desktop session closes, start the scheduler as a separate hidden PowerShell process:
 
 ```powershell
+# Continuous scheduler: poll every 5 minutes, retry failures with bounded backoff
 .\scripts\start-devflow-detached.ps1 -MaxTasks 20
+
+# Optional bounded run for verification: execute two scheduler cycles then exit
+.\scripts\start-devflow-detached.ps1 -MaxTasks 3 -PollIntervalSeconds 30 -MaxCycles 2
 ```
 
-The launcher returns immediately with a PID, run metadata, stdout/stderr log paths, and a status-file path. The detached supervisor holds an exclusive scheduler lock for the full run, invokes the normal launcher (including its existing preflight), and writes a terminal `completed` or `failed` status. Logs and metadata are written beside the checkout under `<repo>-multiflow-logs`; worker state and the scheduler lease remain under `<repo>-multiflow-state`. Inspect the status JSON and log files to resume diagnosis after reconnecting. Do not delete the scheduler lock file while a supervisor is running; the OS file handle is the lock.
+The launcher returns immediately with a PID, run metadata, stdout/stderr log paths, and a status-file path. By default, the detached supervisor stays alive and repeatedly invokes the normal launcher every 300 seconds, including its existing preflight, dependency checks, open-PR duplicate protection, worker leases, validation and Draft-PR-only creation. A failed cycle is retried with exponential backoff (5, 10, 20, then 30 minutes); a successful or empty-queue cycle uses the configured poll interval. The exclusive scheduler lock spans all cycles, preventing overlapping supervisors. `-MaxCycles 0` means continuous operation; a positive value bounds the number of cycles for tests or controlled sessions. Status JSON records the cycle count, last exit code, consecutive failures and next poll time. Logs and metadata are written beside the checkout under `<repo>-multiflow-logs`; worker state and the scheduler lease remain under `<repo>-multiflow-state`.
 
-This protects the local automation process from closure of the interactive PowerShell window. It does not restore a lost ChatGPT-to-Windows connector or prove that the coding-agent CLI/provider remains authenticated. A provider failure is recorded in the logs and worker state; rerun only after inspecting the failure and retained worktree. The normal dependency, open-PR, lease, validation, and Draft-PR safety gates remain in force.
+The supervisor re-reads the task manifest from its local checkout on each cycle. It does not silently pull or rewrite the shared automation branch; new task definitions must arrive through the normal reviewed branch update. This protects the local automation process from closure of the interactive PowerShell window but does not restore a lost ChatGPT-to-Windows connector, start an offline Windows PC, or prove that the coding-agent CLI/provider remains authenticated. The local runner must remain online, and the configured Agent must pass preflight. The normal dependency, open-PR, lease, validation, and Draft-PR safety gates remain in force.
+
+### Start automatically at Windows logon
+
+After the automation branch and Agent configuration are present in a persistent local checkout, a per-user Task Scheduler entry can start the detached supervisor at each Windows logon:
+
+```powershell
+# Validate the Task Scheduler definition without registering anything
+pwsh -File .\scripts\install-devflow-scheduled-task.ps1 -ValidateOnly
+
+# Register it for the current Windows user and start the supervisor now
+pwsh -File .\scripts\install-devflow-scheduled-task.ps1 -StartNow
+
+# Update an existing task definition
+pwsh -File .\scripts\install-devflow-scheduled-task.ps1 -Replace -StartNow
+
+# Remove the scheduled task
+pwsh -File .\scripts\install-devflow-scheduled-task.ps1 -Uninstall
+```
+
+The task runs the supervisor itself as a long-lived foreground Task Scheduler process (rather than spawning a child that could be terminated when the launcher task exits). It uses the current Windows user with an interactive logon token and limited privileges; it stores no password or API credential. It starts at user logon, uses the repository checkout as its working directory, and is configured to ignore overlapping Task Scheduler starts. Each polling cycle writes separate stdout/stderr logs and updates the run/status JSON under the sibling `<repo>-multiflow-logs` directory. Keep the checkout at a stable path, keep the user session and local Ollama service available, and maintain GitHub CLI/Agent authentication. Before registration, the installer runs the Agent CLI/GitHub preflight and refuses to create the task when it fails. It does not install or start Ollama, configure credentials, enable a GitHub Actions runner, or update the checkout. Run it only after reviewing the automation branch. `-ValidateOnly` is non-mutating; `-Uninstall` stops the running supervisor and removes only the named scheduled task.
+
+A deterministic regression harness runs the detached supervisor against a disposable local Git repository and a fake launcher. It forces the first scheduler cycle to fail, verifies a later cycle is retried and succeeds, checks the persisted terminal status, and confirms the scheduler lease is released. Run it with `pwsh -File scripts/test-devflow-detached-supervisor.ps1`; the Windows Agent workflow runs this regression before attempting any real Agent task.
 
 ## Flow and safety gates
 
 1. Select tasks in `ready` or `in_progress` whose dependencies are all `completed`.
-2. Skip tasks already represented by an open PR, preventing duplicate work.
+2. Skip tasks already represented by an open PR, scanning the PR title, body and head/base branch names for the task ID so PRs with descriptive titles are still recognized.
 3. Enforce the manifest's `max_parallel_worktrees` cap and require a clean primary checkout.
 4. Create a timestamped branch and isolated Git worktree from the configured base.
 5. Invoke the configured agent with the task scope and acceptance criteria.
@@ -80,7 +106,7 @@ The `-Run` path now dispatches independent eligible tasks to separate PowerShell
 
 ## Empty queue behavior
 
-If the planner reports `No eligible tasks without an existing open PR`, it found no task that simultaneously passes the dependency/status gates and the open-PR duplicate check. `blocked_external` tasks remain excluded until their external prerequisites are explicitly resolved; do not change their status merely to force execution.
+If the planner reports `No runnable tasks. Open-PR, dependency, and external gates remain enforced.`, it found no task that simultaneously passes the dependency/status gates and the open-PR duplicate check. The duplicate check searches task IDs across open PR titles, bodies and branch metadata, not only titles. `blocked_external` tasks remain excluded until their external prerequisites are explicitly resolved; do not change their status merely to force execution.
 
 ## Parallel worker state and recovery
 

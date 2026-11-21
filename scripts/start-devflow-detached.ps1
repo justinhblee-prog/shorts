@@ -4,7 +4,9 @@ param(
  [string]$RunId,
  [string]$Task,
  [string]$Base,
- [ValidateRange(1,20)][int]$MaxTasks=20
+ [ValidateRange(1,20)][int]$MaxTasks=20,
+ [ValidateRange(1,3600)][int]$PollIntervalSeconds=300,
+ [ValidateRange(0,10000)][int]$MaxCycles=0
 )
 $ErrorActionPreference="Stop"
 if($PSVersionTable.PSVersion.Major -lt 7){throw "PowerShell 7 or newer is required. Start this script with pwsh."}
@@ -43,34 +45,82 @@ if(-not(Test-Path -LiteralPath $launcher)){throw "Multi-flow launcher missing: $
 $preflight=Join-Path $PSScriptRoot "git-cli-agent-config.ps1"
 if(-not(Test-Path -LiteralPath $preflight)){throw "Agent CLI preflight missing: $preflight"}
 if($Supervisor){
- if(-not $RunId){throw "Supervisor RunId is required."}
+ if(-not $RunId){$RunId="supervisor-"+(Get-Date -Format "yyyyMMdd-HHmmss")+"-"+[guid]::NewGuid().ToString("N").Substring(0,8)}
+ $runFile=Join-Path $logRoot "$RunId.run.json"
  $lockPath=Join-Path $stateRoot "scheduler.lock"
  $lock=$null
  $statusPath=Join-Path $logRoot "$RunId.status.json"
- $exitCode=1
+ $cycle=0;$consecutiveFailures=0;$lastExit=0
+ if(-not(Test-Path -LiteralPath $runFile)){
+  Write-JsonAtomic $runFile @{
+   run_id=$RunId;pid=$PID;repository=$root;started_at=[DateTime]::UtcNow.ToString("o")
+   status_file=$statusPath;max_tasks=$MaxTasks;poll_interval_seconds=$PollIntervalSeconds
+   max_cycles=$MaxCycles;task=$Task;base=$Base;mode="foreground-supervisor"
+  }
+ }
+ Write-JsonAtomic $statusPath @{
+  run_id=$RunId;status="starting";cycle=0;max_cycles=$MaxCycles
+  poll_interval_seconds=$PollIntervalSeconds;updated_at=[DateTime]::UtcNow.ToString("o")
+ }
  try{
   try{$lock=[IO.File]::Open($lockPath,[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)}
   catch{throw "Another multi-flow supervisor already owns the scheduler lease. Check the active run logs before starting another."}
-  $psi=[Diagnostics.ProcessStartInfo]::new()
-  $psi.FileName=(Get-Command pwsh -ErrorAction Stop).Source
-  $psi.WorkingDirectory=$root
-  $psi.UseShellExecute=$false
-  foreach($arg in @("-NoProfile","-NoLogo","-NonInteractive","-File",$launcher,"-Run","-MaxTasks",[string]$MaxTasks)){[void]$psi.ArgumentList.Add($arg)}
-  if($Task){[void]$psi.ArgumentList.Add("-Task");[void]$psi.ArgumentList.Add($Task)}
-  if($Base){[void]$psi.ArgumentList.Add("-Base");[void]$psi.ArgumentList.Add($Base)}
-  $runner=[Diagnostics.Process]::new();$runner.StartInfo=$psi
-  if(-not $runner.Start()){throw "Could not start the multi-flow launcher process."}
-  $runner.WaitForExit()
-  $exitCode=$runner.ExitCode
-  if($exitCode -ne 0){throw "Multi-flow launcher failed with exit code $exitCode."}
+  while($MaxCycles -eq 0 -or $cycle -lt $MaxCycles){
+   $cycle++
+   $psi=[Diagnostics.ProcessStartInfo]::new()
+   $psi.FileName=(Get-Command pwsh -ErrorAction Stop).Source
+   $psi.WorkingDirectory=$root
+   $psi.UseShellExecute=$false
+   $psi.RedirectStandardOutput=$true
+   $psi.RedirectStandardError=$true
+   foreach($arg in @("-NoProfile","-NoLogo","-NonInteractive","-File",$launcher,"-Run","-MaxTasks",[string]$MaxTasks)){[void]$psi.ArgumentList.Add($arg)}
+   if($Task){[void]$psi.ArgumentList.Add("-Task");[void]$psi.ArgumentList.Add($Task)}
+   if($Base){[void]$psi.ArgumentList.Add("-Base");[void]$psi.ArgumentList.Add($Base)}
+   $runner=[Diagnostics.Process]::new();$runner.StartInfo=$psi
+   $cycleStdout=Join-Path $logRoot "$RunId.cycle-$cycle.stdout.log"
+   $cycleStderr=Join-Path $logRoot "$RunId.cycle-$cycle.stderr.log"
+   if(-not $runner.Start()){throw "Could not start multi-flow launcher cycle $cycle."}
+   $stdoutTask=$runner.StandardOutput.ReadToEndAsync()
+   $stderrTask=$runner.StandardError.ReadToEndAsync()
+   $runner.WaitForExit()
+   [IO.File]::WriteAllText($cycleStdout,$stdoutTask.Result,[Text.UTF8Encoding]::new($false))
+   [IO.File]::WriteAllText($cycleStderr,$stderrTask.Result,[Text.UTF8Encoding]::new($false))
+   $lastExit=$runner.ExitCode
+   if($lastExit -eq 0){$consecutiveFailures=0}else{$consecutiveFailures++}
+   if($MaxCycles -gt 0 -and $cycle -ge $MaxCycles){break}
+   # Back off after failures (5m, 10m, 20m, then 30m); successful/idle cycles
+   # use the configured poll interval. The same exclusive scheduler lease spans
+   # every cycle, preventing overlapping detached supervisors.
+   $delay=if($consecutiveFailures -gt 0){[Math]::Min(1800,$PollIntervalSeconds*[Math]::Pow(2,[Math]::Min(3,$consecutiveFailures-1)))}else{$PollIntervalSeconds}
+   $nextPoll=[DateTime]::UtcNow.AddSeconds($delay).ToString("o")
+   $state=if($consecutiveFailures -gt 0){"retrying"}else{"running"}
+   Write-JsonAtomic $statusPath @{
+    run_id=$RunId;status=$state;cycle=$cycle;max_cycles=$MaxCycles
+    last_exit_code=$lastExit;consecutive_failures=$consecutiveFailures
+    next_poll_at=$nextPoll;poll_interval_seconds=$PollIntervalSeconds
+    last_stdout_log=$cycleStdout;last_stderr_log=$cycleStderr
+    updated_at=[DateTime]::UtcNow.ToString("o")
+   }
+   Start-Sleep -Seconds ([int]$delay)
+  }
   $lock.Dispose();$lock=$null
-  Write-JsonAtomic $statusPath @{run_id=$RunId;status="completed";exit_code=0;finished_at=[DateTime]::UtcNow.ToString("o")}
+  $terminalStatus=if($lastExit -eq 0){"completed"}else{"failed"}
+  Write-JsonAtomic $statusPath @{
+   run_id=$RunId;status=$terminalStatus;cycle=$cycle;max_cycles=$MaxCycles
+   last_exit_code=$lastExit;consecutive_failures=$consecutiveFailures
+   last_stdout_log=$cycleStdout;last_stderr_log=$cycleStderr
+   finished_at=[DateTime]::UtcNow.ToString("o")
+  }
  }catch{
   Write-Error $_
-  Write-JsonAtomic $statusPath @{run_id=$RunId;status="failed";exit_code=1;error=$_.Exception.Message;finished_at=[DateTime]::UtcNow.ToString("o")}
+  Write-JsonAtomic $statusPath @{
+   run_id=$RunId;status="failed";cycle=$cycle;last_exit_code=$lastExit
+   error=$_.Exception.Message;finished_at=[DateTime]::UtcNow.ToString("o")
+  }
   exit 1
  }finally{if($lock){$lock.Dispose()}}
- exit $exitCode
+ $finalExit=if($lastExit -eq 0){0}else{1}
+ exit $finalExit
 }
 if(-not $Supervisor){
  $preflight=Join-Path $PSScriptRoot "git-cli-agent-config.ps1"
@@ -85,7 +135,7 @@ $stdout=Join-Path $logRoot "$runId.stdout.log"
 $stderr=Join-Path $logRoot "$runId.stderr.log"
 $runFile=Join-Path $logRoot "$runId.run.json"
 $statusFile=Join-Path $logRoot "$runId.status.json"
-$argsList=@("-NoProfile","-NoLogo","-NonInteractive","-File",$PSCommandPath,"-Supervisor","-RunId",$runId,"-MaxTasks",[string]$MaxTasks)
+$argsList=@("-NoProfile","-NoLogo","-NonInteractive","-File",$PSCommandPath,"-Supervisor","-RunId",$runId,"-MaxTasks",[string]$MaxTasks,"-PollIntervalSeconds",[string]$PollIntervalSeconds,"-MaxCycles",[string]$MaxCycles)
 if($Task){$argsList+=@("-Task",$Task)}
 if($Base){$argsList+=@("-Base",$Base)}
 $quoted=($argsList|ForEach-Object{Quote-WindowsArgument ([string]$_)}) -join " "
@@ -95,7 +145,8 @@ try{
  $process=Start-Process -FilePath $pwsh -ArgumentList $quoted -WorkingDirectory $root -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
  Write-JsonAtomic $runFile @{
   run_id=$runId;pid=$process.Id;repository=$root;started_at=$startedAt
-  stdout_log=$stdout;stderr_log=$stderr;status_file=$statusFile;max_tasks=$MaxTasks;task=$Task;base=$Base
+  stdout_log=$stdout;stderr_log=$stderr;status_file=$statusFile;max_tasks=$MaxTasks
+  poll_interval_seconds=$PollIntervalSeconds;max_cycles=$MaxCycles;task=$Task;base=$Base
  }
 }catch{
  Write-JsonAtomic $statusFile @{run_id=$runId;status="failed_to_start";error=$_.Exception.Message;finished_at=[DateTime]::UtcNow.ToString("o")}
@@ -105,4 +156,4 @@ Write-Host "Detached multi-flow supervisor started. PID=$($process.Id)"
 Write-Host "Run metadata: $runFile"
 Write-Host "Logs: $stdout ; $stderr"
 Write-Host "Status: $statusFile"
-Write-Host "The supervisor is independent of this PowerShell window. It keeps the scheduler lease until completion."
+Write-Host "The supervisor is independent of this PowerShell window. It keeps polling every $PollIntervalSeconds seconds (0 MaxCycles means continuous) and retries failures with bounded backoff."

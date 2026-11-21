@@ -2,7 +2,7 @@
   "schema_version": 1,
   "policy": {
     "max_parallel_worktrees": 3,
-    "default_base": "fix/devflow-detached-supervisor-2026-11-20",
+    "default_base": "fix/build-00352-heartbeat-loss-regression-2026-11-22",
     "pull_requests": "draft",
     "auto_merge": false,
     "auto_deploy": false,
@@ -34,19 +34,73 @@
         "Production filesystem isolation and resource limits"
       ],
       "implemented_increment": [
-        "Bounded argv-only FFmpeg subprocess execution with timeout and output-size checks",
-        "Process-group termination on timeout or output-limit breach",
-        "ffprobe profile validation, SHA-256 fingerprint and atomic private artifact adoption",
-        "Unit fixtures cover successful adoption, destination collision and unsafe output names"
+        "Workspace-scoped private asset staging with server-side SHA-256, size limits, quarantine state and hash verification on access",
+        "Immutable normalized EDL v1 snapshots with database update/delete guards and workspace authorization",
+        "Idempotent timeline_render queue handoff carrying snapshot ID, digest and normalized EDL",
+        "Atomic immutable EDL snapshot and timeline_render queue insertion in one caller-owned SQLite transaction with rollback-safe idempotency",
+        "Regression tests inject snapshot insertion failure and prove the queue row and enqueue event roll back together; idempotent replay returns the same snapshot and job",
+        "Latest integrated CI after atomic handoff: backend validation and Playwright browser smoke passed in run 44797035282; real FFmpeg/ffprobe Compose render, artifact adoption, review and backup/restore passed in run 44797035258",
+        "Lease-fenced timeline worker with heartbeat, generation-token checks and review_pending completion",
+        "Shell-free FFmpeg audio-mix argv builder with bounded tracks, trims, fades, gain and limiter",
+        "Regression tests for asset isolation, snapshot immutability, queue handoff, worker transitions and audio argv validation",
+        "Lease-fenced checksum-verified render artifact adoption with workspace-scoped immutable records and atomic review_pending handoff",
+        "Worker integration and regression coverage for stale generation rejection, snapshot binding, private staging boundaries, byte limits and artifact tamper detection",
+        "Grace-period reconciliation of orphaned private artifact files after process crashes, serialized against active adoption",
+        "Bounded shell-free ffprobe validation helper with timeout, file/stream/duration limits and optional artifact-adoption metadata persistence",
+        "Concrete shell-free FFmpeg EDL v1 video renderer for contiguous video clips with bounded dimensions, frame rate, threads and runtime",
+        "Optional trusted audio-bed mix and mux stage connected to the EDL render pipeline",
+        "Worker factory wiring queue-owned workspace identity, snapshot creator membership, verified clean asset path resolution and lease-fenced artifact adoption",
+        "Black timeline-gap segments and configured-font title-card rendering in the FFmpeg EDL graph",
+        "Optional source-clip audio discovery through bounded ffprobe, source trim and timeline offset mixing with trusted audio beds",
+        "Probe source video metadata and reject EDL source trims that exceed trusted media duration when ffprobe is configured",
+        "Authenticated workspace-scoped raw media upload API with bounded streaming and quarantine-only registration",
+        "Authenticated EDL render submission and idempotency API backed by immutable snapshots and durable queue",
+        "Workspace-scoped render status and integrity-checked private artifact preview/download API",
+        "Route-level tests for upload quarantine, upload byte limits, workspace-scoped submission and non-member denial",
+        "Optional fail-closed ClamAV scan gate for private workspace uploads; only trusted clean attestation promotes assets from pending",
+        "Workspace-scoped scan retry endpoint and audit event for successful ClamAV promotion",
+        "Compose opt-in NEXUS_MEDIA_SCAN_ENABLED wiring for API container",
+        "Dedicated timeline_render_worker_main process with worker generation registration, heartbeat and graceful SIGTERM cancellation/requeue",
+        "Compose timeline-render-worker service with read-only root filesystem, bounded tmpfs, dropped capabilities, no-new-privileges and CPU/memory/PID limits",
+        "DejaVu local font installed for deterministic title cards; render staging and artifacts remain under backup-covered nexus_data media tree",
+        "Append-only timeline render review queue and immutable per-snapshot decisions bound to adopted artifact SHA-256",
+        "Workspace-scoped review decision API requiring review.decide permission and authenticated reviewer identity",
+        "Timeline render pending items surfaced in the existing review queue and render status includes immutable review state",
+        "Real-media Compose smoke script generating a local source video and exercising title card, timeline gap, source audio mix, ffprobe verification, lease-fenced adoption and artifact-bound review",
+        "Compose integration workflow starts and health-checks the dedicated render worker, then runs the real-media render smoke inside its container",
+        "Latest Compose CI passed the real FFmpeg/ffprobe media render, artifact adoption, pending review and immutable approval smoke",
+        "Container image bakes SHA-256 manifest for FFmpeg and ffprobe; render worker verifies exact configured binary paths and hashes before worker registration",
+        "Unit tests cover correct binary hashes, tampering, unlisted binaries and unsafe manifest paths",
+        "Latest Compose CI built the image, verified FFmpeg/ffprobe manifest at worker startup, passed real-media render/review smoke and backup/restore checks",
+        "Authenticated private media, render submission/status, preview-session and artifact-bound review APIs are covered by route tests",
+        "Preview session cookie path and generated preview URL now use the actual artifact/workspace identifiers; native video preview accepts scoped cookie auth",
+        "Compose render-worker CPU quota smoke accepts either Docker CpuQuota or NanoCpus while preserving the two-CPU assertion",
+        "Authenticated Compose HTTP E2E creates isolated operator workspaces, uploads and quarantines a generated MP4, proves cross-workspace denial, submits an idempotent EDL render through the API, waits for the separate Compose worker to render/adopt, records artifact-bound approval and fetches the private preview through its short-lived cookie",
+        "Initial authenticated API-to-worker E2E verified in Compose run 44798390154 and backend run 44798390156 on commit e9f1c124dc545a348dd40c3bd08ae559927878a8. A follow-up CI revision starts freshclam and verifies real ClamAV clean-MP4 plus EICAR rejection; this scanner-backed run is pending.",
+        "Bounded timed title overlays rendered from per-job UTF-8 text files with expansion disabled and a trusted configured font; video gaps and overlaps are explicitly rejected",
+        "Real-media Compose smoke generates a fixture video and verifies title overlay, audio mix, ffprobe output, lease-fenced artifact adoption, pending review and immutable artifact-hash approval",
+        "CI fault-injection coverage verifies process-generation lease loss cancels rendering, discards staged output, allows queue recovery/reclaim, and removes only expired generated staging files",
+        "Timeline render worker is opt-in behind the Compose render profile; Compose CI asserts it is absent from the default profile and enabled explicitly for integration smoke",
+        "Exact-head integration validation passed: Backend run 44882235365 (914 tests plus Playwright browser smoke) and Compose run 44882235333 (ClamAV database readiness/EICAR detection, worker isolation, real FFmpeg render/adoption/review, authenticated API upload-to-worker render/approval/private preview, encrypted backup and isolated restore). CI uses generated media and isolated Docker volumes; target-host/provider validation remains.",
+        "Optional EDL v1 project_duration_ms with whole-millisecond bounds, video coverage validation, audio bounds and FFmpeg black-tail padding; legacy snapshots without the field retain prior digest and render behavior.",
+        "Exact-head validation of optional project duration and trailing black render passed: 916 backend tests, Playwright desktop/mobile and keyboard smoke, plus real-media Compose FFmpeg/ffprobe trailing-gap render, authenticated API-to-worker review preview, ClamAV and encrypted backup/restore on commit 8be9f95c5a775c45fe7b7f888d0a78ec13b1d801.",
+        "EDL v1 now accepts optional adjacent crossfade transition records with bounded 100–5000 ms duration, valid clip adjacency and overlap shorter than both source segments; legacy snapshots without transitions remain digest-compatible.",
+        "FFmpeg EDL renderer composes validated crossfade overlaps with shell-free xfade filters while preserving hard cuts, explicit trailing black duration, audio mix/mux and lease-fenced artifact adoption.",
+        "Real-media Compose smoke now renders two source segments with a 500 ms crossfade, a trailing black section, timed title and offset audio through the worker and verifies the adopted 3-second artifact.",
+        "Scheduled startup and configurable periodic reconciliation in the opt-in render worker; structured logs report removed stale staging files/directories, unindexed artifacts and bytes, while cleanup failures are logged and retried without taking the worker offline. Exact-head backend, browser/responsive and Compose real-media/ClamAV/upload-review/backup-restore CI passed on e8d7c4361e21b56a15fe75fbd5122636bd6b0597.",
+        "Deterministic heartbeat lease-loss regression proves active render cancellation, late staged-output deletion, no artifact adoption and no stale queue mutation",
+        "Crash-left staging reconciliation tests enforce the two-hour minimum grace, generated filename allowlist and preservation of recent or unrelated files",
+        "Configurable shared private artifact-volume quota (NEXUS_RENDER_MAX_STORAGE_BYTES; default 20 GB) enforced under the queue write lock; physical regular-file accounting includes unindexed leftovers and operator-retained files",
+        "Storage quota telemetry reports file count, used bytes, available bytes and configured capacity in periodic worker reconciliation logs; quota-exhaustion tests prove staged outputs remain untouched"
       ],
       "remaining": [
-        "Integrate with authenticated workspace-owned source asset registry and immutable EDL job snapshot",
-        "Integrate generic durable queue lease/heartbeat fencing and crash reconciliation",
-        "Use real pinned FFmpeg and ffprobe binaries in an isolated worker container",
-        "Enforce CPU, memory, disk, network and process-count quotas outside this Python module",
-        "Add actual audio-mix support and real-media integration tests"
-      ],
-      "notes": "Existing Draft PRs #435-#439 require integration review before any merge. #435 and #436 are individually clean against the shared base; #437 and #439 are divergent FFmpeg renderer implementations with GitHub mergeable_state=dirty and overlapping backend/timeline_ffmpeg_renderer.py; #438 is based on #437. Tests passed for #435-#438; #439 currently has no check runs. Do not merge automatically; consolidate duplicate renderer paths and validate before review."
+        "Validate representative customer media on the target runtime, including uncommon codecs, variable frame rates and long-duration inputs",
+        "Run crash/restart and lease-loss fault injection against the target persistent filesystem; CI regression tests now cover process-generation loss, staging cleanup and lease reclaim in isolated test storage",
+        "Validate ClamAV signature freshness and fail-closed scanning on the target runtime before enabling production uploads; CI verifies a current signature database and EICAR rejection.",
+        "Run end-to-end authenticated API upload → current ClamAV signature scan → render queue → worker adoption → review preview using production-like persistent storage; CI now exercises real ClamAV scanning and EICAR rejection with generated media on isolated Docker volumes, but target storage remains unvalidated.",
+        "Measure production workload resource usage and enforce disk quota/network egress policy on the target host",
+        "Define indexed artifact retention/deletion policy and validate the configured application quota against target-host disk capacity; shared artifact-volume quota now rejects new adoption before capacity is exceeded"
+      ]
     },
     {
       "id": "BUILD-00353",
@@ -99,135 +153,167 @@
       ]
     },
     {
-      "id": "BUILD-00355",
-      "title": "Add isolated safety and tool-contract tests for the local Ollama coding agent",
+      "id": "BUILD-00361",
+      "title": "Connect NEXUS timeline editor to secure EDL render pipeline",
       "priority": 4,
-      "status": "completed",
-      "depends_on": [],
-      "base_branch": "fix/devflow-detached-supervisor-2026-11-20",
+      "status": "in_progress",
+      "depends_on": [
+        "BUILD-00352"
+      ],
       "scope": [
-        "scripts/ollama-agent.py",
-        "scripts/test_ollama_agent.py"
+        "frontend timeline editor",
+        "workspace-scoped media upload",
+        "EDL v1 render and review UI",
+        "browser integration tests",
+        "docs"
       ],
       "acceptance": [
-        "Add standard-library unit tests for repository path traversal and protected-file write rejection",
-        "Verify blocked secret/config directories and file-size limits for reads and writes",
-        "Verify only the documented run_check allowlist executes and unknown tools are rejected",
-        "Mock subprocess and local Ollama HTTP calls so tests require no live model, network service, credentials, or paid API",
-        "Run the new tests and Python compilation successfully",
-        "Do not modify .devflow/tasks.json or unrelated project files"
+        "Preserve the fixed sidebar, active workspace selector and request-level workspace isolation",
+        "Keep local source preview, clip trim/reorder, title overlays and JSON export",
+        "Create operator-owned workspaces and upload private video/audio assets through authenticated workspace APIs",
+        "Do not allow unscanned or rejected media into render; preserve fail-closed ClamAV/ffprobe behavior",
+        "Build normalized sequential video clips, timed title overlays and up to eight independent audio tracks with per-track timeline/source bounds, gain and fades as EDL v1.",
+        "Validate EDL server-side before idempotent render submission; show actual job status",
+        "Preview only the integrity-checked private review artifact and record artifact-bound human decisions",
+        "Never auto-publish or expose public upload controls from this editor",
+        "Verify the editor workflow with browser automation and responsive layout checks",
+        "Allow an optional explicit project duration longer than the sequential video clips; render the trailing duration as black and keep titles/audio within the declared duration.",
+        "Support explicit internal black intervals between adjacent video clips, with server-validated EDL timing and actual FFmpeg black-frame rendering."
       ],
-      "external_gates": [],
-      "notes": "Implemented and submitted as Draft PR #441. Verified 16 standard-library safety/tool-contract tests and Python compilation in GitHub Actions. No merge or deployment."
+      "external_gates": [
+        "A reachable API host built from the BUILD-00352 integration branch, with CORS allowing the Vercel preview origin and an operator token with workspace.read and media.manage permissions",
+        "Target-host ClamAV signatures, ffprobe and isolated render worker configuration",
+        "Representative customer-media compatibility and persistent-storage validation"
+      ],
+      "implemented_increment": [
+        "Added a production-centered studio floor with API-derived queue/review counts and a real-review-video spotlight",
+        "Retained the existing fixed navigation, workspace selector, keyboard search and scoped X-Nexus-Workspace-Id API behavior",
+        "Added browser-local clip preview, source trim/reorder and timed title overlays with private server render submission controls",
+        "Connected workspace creation, binary media upload, fail-closed rescan, EDL v1 validation, idempotent render submission/status, private artifact download and artifact-bound review decisions",
+        "Added optional audio-bed upload with gain and fade controls",
+        "Added a Playwright API-contract smoke for upload → validate → render → private preview → human review",
+        "Exact-head validation passed on branch head abcfd823edefdc3d4044a45a99385577cc38053c: backend validation + authenticated timeline editor API-contract Playwright + responsive workbench smoke passed in run 44901290376; Compose real-media FFmpeg/ClamAV upload-render-review/private-preview integration passed in run 44901290337.",
+        "Extended the media-shelf and visual multi-lane timeline UI to support up to eight independent audio tracks with timeline placement, source trim, gain, fade-in and fade-out; the audio lane visualizes track offsets.",
+        "Added optional project duration input to the timeline editor; sends project_duration_ms only when explicitly set, allows timed titles and audio tracks to extend into the trailing black section, and validates the duration against the full video timeline.",
+        "Exact-head backend validation (916 tests), authenticated timeline editor API-contract Playwright smoke, responsive workbench checks and Compose real-media render/API-to-worker/review/backup integration passed on 8be9f95c5a775c45fe7b7f888d0a78ec13b1d801.",
+        "Added global clip transition controls (none/crossfade, 0.25–2 seconds) and visible overlap markers; sequential EDL clip positions subtract each overlap and emit explicit adjacent transition records.",
+        "Playwright API-contract smoke now creates two video clips, selects a 500 ms crossfade, checks the visual overlap marker, EDL transition identity and second-clip start offset.",
+        "EDL v1 accepts optional explicit black-gap records between adjacent video clips, bounded to whole-millisecond durations of 100–10000 ms; a join cannot carry both a crossfade and a black gap.",
+        "FFmpeg renderer inserts a generated black color segment between the referenced clips, then concatenates the following video while preserving audio mixing, timed title overlays and explicit trailing project duration.",
+        "Timeline editor adds a Black Screen clip-connection mode and duration control; visual VIDEO lane positions later clips after each black interval and marks the interval separately from crossfades.",
+        "Backend EDL tests, renderer filter-graph tests, authenticated Playwright API-contract smoke and real-media Compose worker smoke cover black-gap validation, rendering and review-pending artifact adoption."
+      ],
+      "remaining": [
+        "Validate the Vercel preview against a live authenticated API deployed from the BUILD-00352 integration branch; browser UI contract tests currently use API mocks",
+        "Run real customer-media clean/infected scan and FFmpeg render on the target host with its ClamAV signatures, ffprobe, worker and persistent storage"
+      ]
     },
     {
-      "id": "BUILD-00356",
-      "title": "Add offline regression tests for Ollama tool-call protocol",
+      "id": "BUILD-00362",
+      "title": "Build visual media shelf, clip inspector and multi-lane timeline",
       "priority": 5,
-      "status": "completed",
-      "depends_on": [],
-      "base_branch": "fix/devflow-detached-supervisor-2026-11-20",
+      "status": "in_progress",
+      "depends_on": [
+        "BUILD-00361"
+      ],
       "scope": [
-        "scripts/ollama-agent.py",
-        "scripts/test_ollama_agent_protocol.py"
+        "frontend timeline workspace",
+        "local media thumbnail shelf",
+        "selected clip detail inspector",
+        "video/title/audio visual timeline",
+        "Playwright responsive browser tests",
+        "handover documentation"
       ],
       "acceptance": [
-        "Add standard-library offline unit tests for fenced JSON tool-call parsing, raw JSON parsing, malformed responses, and unknown tool rejection",
-        "Mock urllib.request.urlopen and verify the local Ollama endpoint, model, tools payload, and absence of forced JSON response format",
-        "Tests must not require a live Ollama service, network access, credentials, or paid API",
-        "Run Python compilation and inspect the final diff; do not claim unit tests passed unless actually executed",
-        "Do not modify .devflow/tasks.json or unrelated project files"
+        "Show local video and title clips in a searchable visual media shelf with thumbnail/placeholder, duration, file size and server-scan state",
+        "Selecting a shelf item updates the local preview, selected clip state and detail inspector",
+        "Show selected clip type, source duration, trim range, file size and private server scan status",
+        "Render a time ruler and separate video sequence, timed title overlay and up to eight independent audio lanes with visible timeline offsets.",
+        "Selecting a video/title segment selects the corresponding clip in the editor",
+        "Preserve EDL v1 render submission, private artifact preview and human review actions",
+        "Keep the editor responsive across desktop, tablet and narrow mobile widths",
+        "Do not auto-publish or expose public media URLs",
+        "Provide timeline zoom controls with fit/reset and horizontal scrolling for longer projects.",
+        "Show each adjacent video crossfade overlap in the visual timeline with a bounded transition marker.",
+        "Show internal black-gap intervals distinctly on the visual VIDEO lane and align following clip positions."
       ],
-      "external_gates": [],
-      "notes": "Real Windows Runner/Ollama worker generated and committed the offline protocol regression suite in Draft PR #442. Completed suite and scoped-patch sandbox coverage verified in stacked Draft PR #443: 8 tests passed; Git CLI automation checks and backend/UI CI passed. No merge or deployment."
+      "external_gates": [
+        "Browser codec support for customer video thumbnail extraction and representative media sizes",
+        "Live authenticated API host and operator credentials for server scan status",
+        "Performance validation with larger media libraries and long timelines"
+      ],
+      "implemented_increment": [
+        "Added a searchable local media shelf for video and title clips with thumbnail previews, duration, size and scan status",
+        "Added a selected-clip detail inspector with source metadata and server scan state",
+        "Added a graphical timeline ruler with sequential video, timed title-overlay and optional audio-bed lanes",
+        "Bound shelf cards and timeline segments to the existing local clip selection and preview state",
+        "Extended browser and responsive smoke assertions for media shelf, visual timeline and inspector behavior",
+        "Integrated multi-track audio controls into the media-shelf branch so the visual timeline displays independent audio segments at their configured offsets.",
+        "Added 100–400% timeline zoom controls, fit reset and horizontal navigation buttons while preserving the scrollable visual timeline.",
+        "Visual timeline ruler and lane layout expand to the explicitly requested project duration so trailing black duration and overlays/audio extending beyond the video sequence remain visible.",
+        "Exact-head backend/browser/responsive checks and real FFmpeg/ffprobe Compose trailing-gap integration passed on 8be9f95c5a775c45fe7b7f888d0a78ec13b1d801.",
+        "Visual VIDEO lane now shortens total duration for crossfades, shifts subsequent clips left by the overlap duration and displays a labeled crossfade marker at each join.",
+        "Added a black-gap clip-connection mode alongside hard cut and crossfade; timeline shows a distinct BLACK marker and places following clips after the configured interval.",
+        "Video shelf thumbnails now use IntersectionObserver with a bounded prefetch margin and preload=none, so only visible or near-visible cards initiate media metadata/decode work; browsers without IntersectionObserver retain a safe eager fallback.",
+        "Exact corrected executable head e0eade2946006f3a47c86113cc614c3a46c6da2e passed scripts/validate.sh, authenticated timeline editor/EDL Playwright smoke and responsive workbench smoke in Actions run 44917087034; a documentation-only PR update follows.",
+        "Thumbnail lifecycle cleanup pauses and detaches loaded media sources from discarded shelf cards on rerender, releasing browser decoder/media resources; Playwright verifies old detached cards are paused and no longer retain src."
+      ],
+      "remaining": [
+        "Validate thumbnail extraction with representative real customer codecs and large files"
+      ]
     },
     {
-      "id": "BUILD-00357",
-      "title": "Add browser-level regression coverage for the read-only development monitor",
-      "priority": 6,
+      "id": "BUILD-00389",
+      "title": "Make DevFlow discover and replenish executable work from unfinished task criteria",
+      "priority": 1,
       "status": "ready",
       "depends_on": [],
-      "base_branch": "feat/dev-orch-008-readonly-dashboard-2026-11-21",
+      "base_branch": "fix/build-00352-heartbeat-loss-regression-2026-11-22",
       "scope": [
-        "scripts/ui_development_monitor_smoke.mjs",
-        "scripts/ui_development_monitor_smoke_server.py",
-        "docs"
+        "scripts/devflow_autopilot.py",
+        "scripts/devflow_parallel.py",
+        "scripts/devflow_discovery.py",
+        "backend/tests/test_devflow_autopilot.py",
+        "docs/ENGINEERING_ORCHESTRATOR.md"
       ],
       "acceptance": [
-        "Create a disposable fixture API server that exposes only the read-only development monitor endpoints and deterministic job, event and worker fixtures.",
-        "Use the repository's existing Chromium smoke conventions; do not add paid services, live credentials, production DB access or external network calls.",
-        "Verify authenticated dashboard loading, summary counts, status filtering, job selection and event-history switching.",
-        "Verify lease tokens, runner hostnames and private event details are never rendered in the browser.",
-        "Verify missing/invalid API authentication shows a safe error state and no write or mutation request is issued.",
-        "Run the smoke test and record the exact command and result; keep screenshots/artifacts where existing conventions support them."
+        "Discover actionable remaining acceptance criteria from ready/in_progress tasks and create deterministic, deduplicated runtime work items without mutating the protected .devflow/tasks.json manifest",
+        "Exclude work already represented by open Draft PRs by checking task IDs in PR title, body, head and base, and exclude scope conflicts with active worktrees or open PR changed files",
+        "Persist discovery fingerprints, generated task IDs, lease state, retry counts and outcomes under the supervisor state directory so each five-minute cycle does not recreate or lose queued work",
+        "Dispatch up to three independent discovered work items through the existing isolated worker, lease, validation and Draft-PR pipeline",
+        "When no runnable work exists, emit an explicit idle reason and continue polling instead of treating the cycle as a terminal failure",
+        "Add deterministic unit/integration tests for discovery, stable IDs, duplicate PR exclusion, scope conflicts, retry recovery, and manifest immutability",
+        "Keep dependency, external gate, no-merge, no-deploy, no-publish and human-review safeguards"
       ],
       "external_gates": [],
-      "notes": "Independent UI/QA lane stacked on Draft PR #445. Do not modify backend source or PR #445 files; tests and fixture only."
+      "notes": "Use a globally unused task ID; BUILD-00363 is already referenced by legacy open PRs #345 and #346."
     },
     {
-      "id": "BUILD-00358",
-      "title": "Expand read-only development monitor API contract and security regressions",
-      "priority": 7,
+      "id": "BUILD-00390",
+      "title": "Connect automatic backlog discovery to the active PowerShell supervisor",
+      "priority": 2,
       "status": "ready",
       "depends_on": [],
-      "base_branch": "feat/dev-orch-008-readonly-dashboard-2026-11-21",
+      "base_branch": "fix/devflow-supervisor-poll-loop-2026-11-21",
       "scope": [
-        "backend/tests/test_development_job_api.py"
+        "scripts/git-cli-multiflow-parallel.ps1",
+        "scripts/git-cli-multiflow.ps1",
+        "scripts/test-git-cli-multiflow-parallel.ps1",
+        "scripts/start-devflow-autopilot.ps1",
+        "docs/ENGINEERING_ORCHESTRATOR.md"
       ],
       "acceptance": [
-        "Add API-level tests for status filtering, bounded pagination/limits and deterministic event-history ordering.",
-        "Verify every monitor route remains GET-only and requires development.read authorization.",
-        "Verify response serialization excludes lease tokens, worker hostnames and private event details across summary, list, detail, events and worker endpoints.",
-        "Verify missing jobs return 404, invalid filters/limits return 422, and missing/unavailable/incomplete DB configuration fails closed without creating a database.",
-        "Verify read-only monitor requests do not mutate job, lease, worker or event state.",
-        "Run the focused test module and full scripts/validate.sh; do not claim unexecuted checks."
+        "Make the active PowerShell multi-flow engine discover actionable local work from unfinished task acceptance criteria before selecting workers; do not require a manually added ready task for every follow-up",
+        "Generate stable, deterministic runtime task IDs and persist fingerprints, leases, retry counts and outcomes under the supervisor state directory without mutating protected .devflow/tasks.json",
+        "Exclude external-gate-only work, completed work, work represented by open PRs, work in active worktrees, and overlapping file scopes",
+        "Dispatch up to three independent discovered work items through the existing isolated worktree, Ollama, validation and Draft-PR pipeline",
+        "Use GITHUB_REF_NAME in detached GitHub Actions checkouts so the supervisor PR does not suppress its own queue; keep the current-PR exclusion covered by regression tests",
+        "When the queue is empty, record a specific idle reason and let the five-minute supervisor continue polling rather than exiting permanently",
+        "Add deterministic PowerShell integration tests for stable discovery, duplicate PR exclusion, scope conflicts, manifest immutability, lease recovery, retry behavior and repeated idle polling",
+        "Preserve no-merge, no-deploy, no-publish, no-credential-change and human-review safeguards"
       ],
       "external_gates": [],
-      "notes": "Independent Core/QA lane stacked on Draft PR #445. Modify only this test file; do not change backend implementation or task manifest."
-    },
-    {
-      "id": "BUILD-00359",
-      "title": "Strengthen development monitor API pagination and multi-event ordering regressions",
-      "priority": 8,
-      "status": "ready",
-      "depends_on": [],
-      "base_branch": "autopilot/build-00358-20261121-123745786",
-      "scope": [
-        "backend/tests/test_development_job_api.py"
-      ],
-      "acceptance": [
-        "Create multiple ready jobs and prove the API limit truncates results rather than merely returning one item for limit=1.",
-        "Verify the maximum permitted page size is enforced and invalid limits return 422.",
-        "Create at least three events with deliberately distinct timestamps and verify stable chronological ordering across the returned event history.",
-        "Keep the tests isolated, deterministic, and read-only; do not change backend implementation or other test files.",
-        "Run the focused API test module and scripts/validate.sh; record exact results."
-      ],
-      "external_gates": [],
-      "notes": "Follow-up QA lane stacked on Draft PR #447. It closes concrete coverage gaps found during review. Do not merge or deploy."
-    },
-    {
-      "id": "BUILD-00360",
-      "title": "Improve live UI preview accessibility and mobile interaction quality",
-      "priority": 9,
-      "status": "ready",
-      "depends_on": [],
-      "base_branch": "ui/nexus-live-preview-2026-11-21",
-      "scope": [
-        "frontend/index.html",
-        "frontend/styles.css",
-        "frontend/preview-mode.js",
-        "scripts/ui_preview_accessibility_smoke.mjs",
-        "docs"
-      ],
-      "acceptance": [
-        "Audit the visual-only preview banner and floating screen-feedback panel for keyboard access, visible focus, accessible names and semantic status announcements.",
-        "Improve mobile layout and touch interaction at 390px and 320px without changing the existing visual design direction.",
-        "Add a deterministic browser smoke for keyboard navigation, feedback-panel open/close, copy-feedback fallback and mobile overflow.",
-        "Verify preview mode remains disconnected from operational APIs and does not enable publishing, scheduling, ledger submission or credential actions.",
-        "Run the new smoke and scripts/validate.sh; record exact commands and results."
-      ],
-      "external_gates": [],
-      "notes": "Independent UI lane stacked on Draft PR #451. Do not modify backend or Vercel deployment configuration; visual-only staging remains isolated."
+      "notes": "This is the active Windows/PowerShell execution path. It must integrate discovery into git-cli-multiflow-parallel.ps1, not only the separate Python planner."
     }
   ]
 }

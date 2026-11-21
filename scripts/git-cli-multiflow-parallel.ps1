@@ -6,7 +6,6 @@ param(
  [ValidateRange(1,20)][int]$MaxTasks=20
 )
 $ErrorActionPreference="Stop"
-$env:DEVFLOW_VALIDATOR_PATH=Join-Path $PSScriptRoot "devflow.py"
 if($PSVersionTable.PSVersion.Major -lt 7){throw "PowerShell 7 or newer is required."}
 . (Join-Path $PSScriptRoot "devflow-agent-process.ps1")
 function Read-State([string]$Path){
@@ -26,6 +25,13 @@ function Set-State([string]$Path,[string]$Id,[string]$Status,[string]$Detail){
   $s=Read-State $Path
   if(-not ($s.tasks.Keys -contains $Id)){$s.tasks[$Id]=@{}}
   $s.tasks[$Id].status=$Status;$s.tasks[$Id].detail=$Detail;$s.tasks[$Id].updated_at=[DateTime]::UtcNow.ToString("o")
+  if($Status -eq "running"){
+   if(-not $s.tasks[$Id].attempt_count){$s.tasks[$Id].attempt_count=0}
+   $s.tasks[$Id].attempt_count=[int]$s.tasks[$Id].attempt_count+1
+   $s.tasks[$Id].retry_after_utc=$null
+  }elseif($Status -in @("failed","timed_out")){
+   $s.tasks[$Id].retry_after_utc=[DateTime]::UtcNow.AddMinutes(5).ToString("o")
+  }
   $tmp="$Path.$([guid]::NewGuid().ToString('N')).tmp"
   [IO.File]::WriteAllText($tmp,($s|ConvertTo-Json -Depth 20),[Text.UTF8Encoding]::new($false))
   Move-Item -LiteralPath $tmp -Destination $Path -Force
@@ -67,6 +73,14 @@ if($Worker){
    $value.Replace("{task_id}",$id).Replace("{worktree}",$taskData.worktree)
   }
   $psi=New-DevflowAgentProcessStartInfo -Command $command -Arguments @($expanded) -WorkingDirectory $taskData.worktree
+  # The local model may execute repository tools, but it must never inherit the
+  # GitHub token or provider/cloud credentials used by the supervisor process.
+  foreach($name in @($psi.Environment.Keys)){
+   if($name -match '(?i)(TOKEN|API_KEY|SECRET|PASSWORD|CREDENTIAL|PRIVATE_KEY|ACCESS_KEY|AUTHORIZATION)' -or
+      $name -match '(?i)^(GH_|GITHUB_|AWS_|AZURE_|OPENAI_|ANTHROPIC_)'){
+    [void]$psi.Environment.Remove($name)
+   }
+  }
   $agent=[Diagnostics.Process]::new();$agent.StartInfo=$psi
   if(-not $agent.Start()){throw "Agent did not start."}
   $stdout=$agent.StandardOutput.ReadToEndAsync();$stderr=$agent.StandardError.ReadToEndAsync()
@@ -78,7 +92,25 @@ if($Worker){
   Remove-Item -LiteralPath $taskData.prompt -Force -ErrorAction SilentlyContinue
   if(& git -C $taskData.worktree status --porcelain -- .devflow/tasks.json){throw "Protected task manifest was modified."}
   if(-not(& git -C $taskData.worktree status --porcelain)){throw "Agent produced no changes."}
-  $validator=$env:DEVFLOW_VALIDATOR_PATH;if(-not $validator -or -not(Test-Path -LiteralPath $validator)){$validator=Join-Path $taskData.worktree "scripts/devflow.py"};if(-not(Test-Path -LiteralPath $validator)){throw "DevFlow validator is unavailable in runner checkout and task worktree."};& python $validator validate;if($LASTEXITCODE -ne 0){throw "Validation failed."}
+  $validator=Join-Path $taskData.worktree "scripts/devflow.py"
+  if(-not(Test-Path -LiteralPath $validator)){throw "Task-worktree DevFlow validator is missing: $validator"}
+  # Validation executes agent-authored code/tests, so strip supervisor credentials
+  # from that process tree too; restore them only for the later GitHub PR operation.
+  $validationSecrets=@{}
+  foreach($entry in @(Get-ChildItem Env:)){
+   if($entry.Name -match '(?i)(TOKEN|API_KEY|SECRET|PASSWORD|CREDENTIAL|PRIVATE_KEY|ACCESS_KEY|AUTHORIZATION)' -or
+      $entry.Name -match '(?i)^(GH_|GITHUB_|AWS_|AZURE_|OPENAI_|ANTHROPIC_)'){
+    $validationSecrets[$entry.Name]=$entry.Value
+    Remove-Item -LiteralPath ("Env:"+$entry.Name)
+   }
+  }
+  try{
+   & python $validator validate
+   $validationExit=$LASTEXITCODE
+  }finally{
+   foreach($name in $validationSecrets.Keys){Set-Item -LiteralPath ("Env:"+$name) -Value $validationSecrets[$name]}
+  }
+  if($validationExit -ne 0){throw "Task-worktree validation failed."}
   foreach($n in @(".env",".env.local","credentials.json","secrets.json")){
    $secret=Get-ChildItem $taskData.worktree -Force -Recurse -File -Filter $n -ErrorAction SilentlyContinue|Where-Object{$_.FullName -notmatch '[\\/](\.git|node_modules|\.venv)[\\/]'}
    if($secret){throw "Potential secret file: $n"}
@@ -105,26 +137,94 @@ if(& git -C $root status --porcelain){throw "Primary checkout must be clean."}
 & gh auth status *> $null;if($LASTEXITCODE -ne 0){throw "GitHub CLI authentication required."}
 if(-not $env:DEVFLOW_AGENT_COMMAND -or -not $env:DEVFLOW_AGENT_ARGS_JSON){throw "Configure DEVFLOW_AGENT_COMMAND and DEVFLOW_AGENT_ARGS_JSON."}
 $manifest=Get-Content (Join-Path $root ".devflow/tasks.json") -Raw -Encoding UTF8|ConvertFrom-Json
-$open=& gh pr list --state open --json title --limit 100;if($LASTEXITCODE -ne 0){throw "Cannot inspect open PRs; stopping safely."}
-$openIds=@($open|ConvertFrom-Json|ForEach-Object{$m=[regex]::Match([string]$_.title,'BUILD-[0-9]{5}');if($m.Success){$m.Value}})
-$eligible=@()
-foreach($t in @($manifest.tasks|Where-Object{$_.status -in @("ready","in_progress")}|Sort-Object priority)){
- if($TaskId -and $t.id -ne $TaskId){continue}
- if($openIds -contains [string]$t.id){continue}
- $ready=$true
- foreach($d in @($t.depends_on)){$dep=@($manifest.tasks|Where-Object{$_.id -eq $d})|Select-Object -First 1;if(-not $dep -or $dep.status -ne "completed"){$ready=$false;break}}
- if($ready){$eligible+=$t}
+$open=& gh pr list --state open --json number,title,body,headRefName,baseRefName --limit 1000;if($LASTEXITCODE -ne 0){throw "Cannot inspect open PRs; stopping safely."}
+$openPrs=@($open|ConvertFrom-Json)
+$supervisorBranch=[string]$env:GITHUB_REF_NAME
+if(-not $supervisorBranch){
+ $supervisorBranch=(& git -C $root branch --show-current 2>$null)
+ if($LASTEXITCODE -ne 0){$supervisorBranch=""}else{$supervisorBranch=$supervisorBranch.Trim()}
 }
-if(-not $eligible.Count){Write-Host "No runnable tasks. Open-PR, dependency, and external gates remain enforced.";exit 0}
+$openIds=@($open|ConvertFrom-Json|Where-Object{
+ # The automation PR may mention queued task IDs in its own description. It is
+ # not a task implementation PR, so do not let it suppress its own work queue.
+ -not ($supervisorBranch -and [string]$_.headRefName -eq $supervisorBranch)
+}|ForEach-Object{
+ $prText=@($_.title,$_.body,$_.headRefName,$_.baseRefName) -join "`n"
+ [regex]::Matches($prText,'BUILD-[0-9]{5}')|ForEach-Object{$_.Value}
+}|Sort-Object -Unique)
+function Get-TaskScopePaths($Task){
+ $paths=@()
+ foreach($entry in @($Task.scope)){
+  $value=([string]$entry).Trim().Replace("\\","/").TrimStart("./").ToLowerInvariant()
+  if($value -match "/" -or $value -match "\\.[a-z0-9]{1,8}$"){$paths+=($value.TrimEnd("/"))}
+ }
+ @($paths|Sort-Object -Unique)
+}
+function Test-ScopeOverlap([string[]]$Left,[string[]]$Right){
+ foreach($a in $Left){foreach($b in $Right){
+  if($a -eq $b -or $a.StartsWith($b+"/") -or $b.StartsWith($a+"/")){return $true}
+ }}
+ return $false
+}
 $stateDir=[IO.Path]::GetFullPath($StateRoot);New-Item -ItemType Directory -Force -Path $stateDir|Out-Null
 $statePath=Join-Path $stateDir "state.json";$state=Read-State $statePath
+$activeWorktreeText=& git -C $root worktree list --porcelain
+if($LASTEXITCODE -ne 0){throw "Cannot inspect active worktrees; refusing overlapping dispatch."}
+$worktreeTaskIds=@([regex]::Matches(($activeWorktreeText -join "`n"),'(?i)BUILD-[0-9]{5}')|ForEach-Object{$_.Value}|Sort-Object -Unique)
+$activeWorktreeIds=@($worktreeTaskIds|Where-Object{Test-LeaseHeld ([string]$_) $stateDir})
+$activeWorktreeScopes=@()
+foreach($activeTask in @($manifest.tasks|Where-Object{$activeWorktreeIds -contains [string]$_.id})){
+ $activeWorktreeScopes+=Get-TaskScopePaths $activeTask
+}
+$completedStateScopes=@()
+foreach($completedTask in @($manifest.tasks|Where-Object{$_.status -in @("ready","in_progress") -and $state.tasks[[string]$_.id] -and $state.tasks[[string]$_.id].status -eq "draft_pr_created"})){
+ $completedStateScopes+=Get-TaskScopePaths $completedTask
+}
+$openFiles=@()
+foreach($pr in $openPrs){
+ if($supervisorBranch -and [string]$pr.headRefName -eq $supervisorBranch){continue}
+ $prFilesJson=& gh pr view ([string]$pr.number) --json files
+ if($LASTEXITCODE -ne 0){throw "Cannot inspect changed files for open PR #$($pr.number); refusing overlapping dispatch."}
+ $prDetails=$prFilesJson|ConvertFrom-Json
+ foreach($file in @($prDetails.files)){
+  $path=[string]$file.path
+  if($path){$openFiles+=($path.Replace("\\","/").ToLowerInvariant())}
+ }
+}
+$eligible=@();$acceptedScopes=@()
+foreach($t in @($manifest.tasks|Where-Object{$_.status -in @("ready","in_progress")}|Sort-Object priority)){
+ if($TaskId -and $t.id -ne $TaskId){continue}
+ if($openIds -contains [string]$t.id -or $activeWorktreeIds -contains [string]$t.id){continue}
+ $ready=$true
+ foreach($d in @($t.depends_on)){$dep=@($manifest.tasks|Where-Object{$_.id -eq $d})|Select-Object -First 1;if(-not $dep -or $dep.status -ne "completed"){$ready=$false;break}}
+ if(-not $ready){continue}
+ $scopePaths=Get-TaskScopePaths $t
+ if(Test-ScopeOverlap $scopePaths $openFiles){Write-Host "[QUEUE] Deferred $($t.id): scope overlaps an open PR.";continue}
+ if(Test-ScopeOverlap $scopePaths $activeWorktreeScopes){Write-Host "[QUEUE] Deferred $($t.id): scope overlaps an active worktree.";continue}
+ if(Test-ScopeOverlap $scopePaths $completedStateScopes){Write-Host "[QUEUE] Deferred $($t.id): scope is reserved by a completed worker PR.";continue}
+ if(Test-ScopeOverlap $scopePaths $acceptedScopes){Write-Host "[QUEUE] Deferred $($t.id): scope overlaps another selected task.";continue}
+ $eligible+=$t;$acceptedScopes+= $scopePaths
+}
+if(-not $eligible.Count){Write-Host "No runnable tasks. Open-PR, dependency, and external gates remain enforced.";exit 0}
 $queue=[Collections.Generic.Queue[object]]::new()
 foreach($t in @($eligible|Select-Object -First $MaxTasks)){
  $prior=$state.tasks[[string]$t.id]
- if($prior -and $prior.status -eq "draft_pr_created"){continue}
+ if($prior -and $prior.status -in @("draft_pr_created","retry_exhausted")){continue}
+ if($prior -and $prior.status -in @("failed","timed_out") -and [int]$prior.attempt_count -ge 5){
+  Set-State $statePath ([string]$t.id) "retry_exhausted" "Stopped after five worker attempts; human review is required."
+  Write-Warning "[QUEUE] $($t.id) exhausted five worker attempts and requires human review."
+  continue
+ }
+ if($prior -and $prior.retry_after_utc){
+  $retryAt=[DateTime]::MinValue
+  if([DateTime]::TryParse([string]$prior.retry_after_utc,[ref]$retryAt) -and $retryAt -gt [DateTime]::UtcNow){
+   Write-Host "[QUEUE] Deferred $($t.id): retry backoff until $($retryAt.ToString('o')).";continue
+  }
+ }
  if($prior -and $prior.status -eq "running"){
   if(Test-LeaseHeld ([string]$t.id) $stateDir){continue}
   Set-State $statePath ([string]$t.id) "failed" "Recovered stale running state; previous worker lease is no longer held."
+  continue
  }
  if($prior -and $prior.status -eq "queued" -and (Test-LeaseHeld ([string]$t.id) $stateDir)){continue}
  $queue.Enqueue($t)
