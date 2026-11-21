@@ -52,6 +52,9 @@ async function waitForServer() {
     const analyticsStarted = new Promise(resolve => { resolveAnalyticsStarted = resolve; });
     const analyticsGate = new Promise(resolve => { releaseAnalytics = resolve; });
     let failQueueStats = false;
+    let capturedTimelineEdl = null;
+    let capturedTimelineDecision = null;
+    let uploadedTimelineAsset = false;
     await page.route("**/api/queue/stats", async route => {
       if (failQueueStats) {
         return route.fulfill({
@@ -98,18 +101,50 @@ async function waitForServer() {
       await analyticsGate;
       await route.continue();
     });
+    await page.route(url => url.pathname.startsWith("/api/operator/workspaces/") && url.pathname.endsWith("/assets"), async route => {
+      if (route.request().method() !== "POST") return route.continue();
+      uploadedTimelineAsset = true;
+      return route.fulfill({status:202,contentType:"application/json",body:JSON.stringify({
+        asset_id:"asset-smoke",workspace_id:"ws-smoke",original_name:"timeline-smoke.mp4",size_bytes:8,
+        scan_status:"clean",scanner_status:"clean",renderable:true,
+        media_metadata:{duration_ms:5000,byte_size:8,has_video:true,has_audio:false,video_streams:[{width:720,height:1280}],audio_streams:[]}
+      })});
+    });
+    await page.route(url => url.pathname === "/api/timeline/edl/validate", async route => {
+      capturedTimelineEdl = route.request().postDataJSON();
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({valid:true,rendered:false,workspace_id:"ws-smoke",edl:capturedTimelineEdl})});
+    });
+    await page.route(url => /\/api\/operator\/workspaces\/[^/]+\/renders$/.test(url.pathname), async route => {
+      if (route.request().method() !== "POST") return route.continue();
+      const payload=route.request().postDataJSON();
+      capturedTimelineEdl=payload.edl;
+      return route.fulfill({status:202,contentType:"application/json",body:JSON.stringify({snapshot_id:"snapshot-smoke",render_job_id:"job-smoke",status:"queued",idempotent_replay:false})});
+    });
+    await page.route(url => /\/api\/operator\/workspaces\/[^/]+\/renders\/snapshot-smoke$/.test(url.pathname), async route => {
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({snapshot_id:"snapshot-smoke",render_job_id:"job-smoke",status:"review_pending",attempt:1,max_attempts:3})});
+    });
+    await page.route(url => /\/api\/operator\/workspaces\/[^/]+\/render-artifacts$/.test(url.pathname), async route => {
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({items:[{artifact_id:"artifact-smoke",snapshot_id:"snapshot-smoke",duration_ms:5000,byte_size:8,status:"review_pending"}]})});
+    });
+    await page.route(url => /\/api\/operator\/workspaces\/[^/]+\/render-artifacts\/artifact-smoke\/download$/.test(url.pathname), async route => {
+      return route.fulfill({status:200,contentType:"video/mp4",body:Buffer.from("fake-mp4")});
+    });
+    await page.route(url => /\/api\/operator\/workspaces\/[^/]+\/renders\/snapshot-smoke\/decision$/.test(url.pathname), async route => {
+      capturedTimelineDecision=route.request().postDataJSON();
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({snapshot_id:"snapshot-smoke",decision:capturedTimelineDecision.decision})});
+    });
 
     await page.goto(baseUrl, { waitUntil: "networkidle" });
     fs.mkdirSync("artifacts", { recursive: true });
     assert.match(await page.title(), /NEXUS STUDIO PRO/);
-    assert.equal(await page.locator('link[href="/assets/nexus-premium.css"]').count(), 1);
+    assert.equal(await page.locator('link[href="/nexus-premium.css"]').count(), 1);
     const visualSystem = await page.evaluate(() => ({
       font: getComputedStyle(document.body).fontFamily,
       background: getComputedStyle(document.body).backgroundColor,
       heroColumns: getComputedStyle(document.querySelector(".hero")).gridTemplateColumns,
       koreanReplacementGlyphs: (document.body.innerText.match(/\uFFFD/g) || []).length,
-      premiumStylesheet: [...document.styleSheets].some(sheet => sheet.href?.endsWith("/assets/nexus-premium.css")),
-      approvedStylesheet: [...document.styleSheets].some(sheet => sheet.href?.endsWith("/assets/nexus-approved-design.css")),
+      premiumStylesheet: [...document.styleSheets].some(sheet => sheet.href?.endsWith("/nexus-premium.css")),
+      approvedStylesheet: [...document.styleSheets].some(sheet => sheet.href?.endsWith("/nexus-approved-design.css")),
       sidebarWidth: getComputedStyle(document.querySelector(".topbar")).width,
       mainOffset: getComputedStyle(document.querySelector("main")).marginLeft,
       violetAccent: getComputedStyle(document.body).getPropertyValue("--violet").trim(),
@@ -311,6 +346,32 @@ async function waitForServer() {
     await page.waitForFunction(() => document.querySelector("#analyticsHistoryStatus").textContent.includes("CSV 다운로드 요청 완료"));
     assert.match(await page.locator("#analyticsHistoryStatus").textContent(), /CSV 다운로드 요청 완료/);
     checkpoint("real analytics pagination and CSV download verified");
+
+    await workspaceSelector.selectOption(workspaceId);
+    await page.evaluate(() => {
+      const file = new File([new Uint8Array([0,1,2,3,4,5,6,7])], "timeline-smoke.mp4", {type:"video/mp4"});
+      const url = URL.createObjectURL(file);
+      const state = window.NexusLocalTimeline.state;
+      state.clips = [
+        {id:"clip-smoke",kind:"video",name:file.name,url,file,mimeType:file.type,sizeBytes:file.size,duration:5,inPoint:0,outPoint:5},
+        {id:"title-smoke",kind:"title",name:"Render smoke",duration:5,inPoint:1,outPoint:4,text:"Render smoke"},
+      ];
+      state.selected="clip-smoke";
+      window.NexusLocalTimeline.render();
+    });
+    await page.locator("#timelineSubmitRender").click();
+    await page.locator("#timelineRenderReview").waitFor({state:"visible",timeout:20000});
+    assert.equal(uploadedTimelineAsset,true,"source media was not privately uploaded to the workspace");
+    assert.equal(capturedTimelineEdl.schema,"nexus-edit-decision-list");
+    assert.equal(capturedTimelineEdl.clips.filter(clip=>clip.type==="video").length,1);
+    assert.equal(capturedTimelineEdl.clips.find(clip=>clip.type==="video").asset_id,"asset-smoke");
+    assert.equal(capturedTimelineEdl.clips.find(clip=>clip.type==="title").text,"Render smoke");
+    assert.equal(await page.locator("#timelineServerPreview").isVisible(),true,"rendered review artifact preview missing");
+    await page.locator("#timelineApproveRender").click();
+    await page.waitForFunction(()=>document.querySelector("#timelineRenderReview").hidden===true);
+    assert.equal(capturedTimelineDecision.decision,"approved");
+    checkpoint("authenticated workspace upload → EDL validation → render status → private artifact preview → human review decision verified (API contract mock)");
+
 
     failQueueStats = true;
     await page.locator("#refreshAll").click();
