@@ -98,3 +98,10 @@ The complete source, test, documentation and task-ledger head `2e47ec50344153009
 - Compose [run 44893080568](https://github.com/justinhblee-prog/shorts/actions/runs/44893080568): service startup/readiness, current ClamAV signature readiness, worker isolation/resource limits, real generated-media FFmpeg render/adoption/review, authenticated upload-to-worker/private-preview E2E, encrypted backup and isolated restore all passed; cleanup completed successfully.
 
 These remain offline fake-provider contract tests and generated-fixture media integration. No live provider HTTPS, customer-media, target-host or production deployment validation is implied.
+
+
+## TikTok chunk-size unit correction
+
+- The official [TikTok Media Transfer Guide](https://developers.tiktok.com/docs/en/content-posting-api-media-transfer-guide) specifies decimal chunk limits: non-final chunks are 5,000,000–64,000,000 bytes, while the final chunk may be up to 128,000,000 bytes; files below 5,000,000 bytes are sent as one whole chunk.
+- The adapter previously used (64 \times 1024^2) bytes as its 64 MB chunk size, which exceeded the documented decimal 64,000,000-byte ceiling. The base chunk constant now uses 64,000,000 bytes; the existing final-chunk calculation remains bounded by the documented 128,000,000-byte maximum.
+- Added offline boundary coverage for sub-5 MB, 5 MB, 64 MB, just-over-64 MB, just-over-128 MB and 4 GB plans. This is a source/spec alignment check using fake transport; no live TikTok request is made.
