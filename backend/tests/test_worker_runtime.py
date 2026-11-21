@@ -13,6 +13,7 @@ class WorkerRuntimeTests(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as root:
             original = os.environ.get("TMPDIR")
+            original_media_temp = os.environ.get("NEXUS_MEDIA_STAGING_TEMP_DIR")
             cached = tempfile.tempdir
             workspace = WorkerScratchWorkspace("job-1", "worker-1", "token-1", root=root)
             workspace.start()
@@ -24,6 +25,7 @@ class WorkerRuntimeTests(unittest.TestCase):
             finally:
                 self.assertTrue(workspace.close())
             self.assertEqual(os.environ.get("TMPDIR"), original)
+            self.assertEqual(os.environ.get("NEXUS_MEDIA_STAGING_TEMP_DIR"), original_media_temp)
             self.assertEqual(tempfile.tempdir, cached)
 
     def test_scratch_available_bytes_reports_filesystem_capacity(self):
