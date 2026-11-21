@@ -4,7 +4,10 @@
   // preview remains hostname-scoped and never changes local/production API behavior.
   const isPreviewHost = location.hostname.startsWith("nexus-studio-pro-ui-preview") &&
     location.hostname.endsWith(".vercel.app");
-  if (!isPreviewHost && window.__NEXUS_PREVIEW_TEST__ !== true) return;
+  // The query switch is used only by isolated CI and activates the same safe,
+  // read-only overlay; it cannot enable operational actions.
+  const isPreviewTest = new URLSearchParams(location.search).get("nexus-preview-test") === "1";
+  if (!isPreviewHost && !isPreviewTest) return;
 
   document.documentElement.classList.add("nexus-visual-preview");
   const banner = document.createElement("aside");
