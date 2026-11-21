@@ -83,11 +83,11 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  if($delta -gt 2500){throw "Three workers did not overlap; start spread was $($delta)ms."}
  if($timer.Elapsed.TotalSeconds -gt 25){throw "Parallel run took too long ($($timer.Elapsed.TotalSeconds)s), expected overlapping workers; worker start-time overlap is asserted separately."}
  $stateData=Get-Content (Join-Path $state "state.json") -Raw|ConvertFrom-Json
- foreach($id in @("BUILD-99001","BUILD-99002","BUILD-99003")){
+ foreach($id in @("BUILD-99001","BUILD-99002","BUILD-99003","BUILD-99006")){
   if($stateData.tasks.$id.status -ne "draft_pr_created"){throw "Unexpected final state for ${id}: $($stateData.tasks.$id.status)"}
  }
  $remoteBranches=@(& git --git-dir=$origin branch --list "autopilot/*")
- if($remoteBranches.Count -ne 3){throw "Expected exactly three independent worker branches; dependency-gated task must not run."}
+ if($remoteBranches.Count -ne 4){throw "Expected four worker branches; the current supervisor PR self-reference must not suppress its queued task."}
  Push-Location $checkout
  try{
   & pwsh -NoProfile -File (Join-Path $checkout "scripts/git-cli-multiflow-parallel.ps1") -StateRoot $state -MaxParallel 3 -MaxTasks 4 -TaskTimeoutSeconds 60
@@ -98,7 +98,7 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  if($events.Count -lt 3 -or ($events|Where-Object kind -eq "credential-leak").Count -gt 0){throw "Supervisor GitHub credentials leaked into an Agent process."}
  $workerRoots=@(Get-ChildItem -LiteralPath (Join-Path (Split-Path $checkout -Parent) "checkout-worktrees") -Directory -ErrorAction SilentlyContinue)
  $validated=@($workerRoots|Where-Object{Test-Path (Join-Path $_.FullName ".validator-ran")})
- if($validated.Count -ne 3){throw "Expected task-worktree validators to execute in all three isolated worktrees; got $($validated.Count)."}
+ if($validated.Count -ne 4){throw "Expected task-worktree validators to execute in all four isolated worktrees; got $($validated.Count)."}
  $validationLeaks=@($workerRoots|Where-Object{Test-Path (Join-Path $_.FullName ".validator-token-leak")})
  if($validationLeaks.Count -gt 0){throw "Supervisor GitHub credentials leaked into task validation."}
  if($stateData.tasks."BUILD-99006".status -ne "draft_pr_created"){throw "Supervisor PR self-reference incorrectly suppressed BUILD-99006."}
