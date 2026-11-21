@@ -178,6 +178,30 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
         with self.assertRaisesRegex(TimelineRenderError, "extends beyond"):
             self.renderer(past_end, stop_event=threading.Event(), workspace_id="ws_demo", principal_id="alice")
 
+    def test_renders_explicit_trailing_black_gap_and_audio_to_project_end(self):
+        extended = json.loads(json.dumps(self.payload))
+        extended["edl"]["project_duration_ms"] = 8000
+        self._rehash(extended)
+        probe = {
+            "duration_ms": 8000, "byte_size": 23,
+            "video_streams": [{"width": 720, "height": 1280, "codec": "h264"}],
+            "audio_streams": 1, "audio_codecs": ["aac"],
+        }
+        with patch("timeline_ffmpeg_renderer.probe_media", return_value=probe):
+            result = self.renderer(
+                extended, stop_event=threading.Event(),
+                workspace_id="ws_demo", principal_id="alice",
+            )
+        self.assertEqual(result["duration_ms"], 8000)
+        video_graph = self.commands[0][self.commands[0].index("-filter_complex") + 1]
+        self.assertIn("tpad=stop_mode=add:stop_duration=3.000:color=black", video_graph)
+        self.assertIn("-t", self.commands[0])
+        self.assertEqual(self.commands[0][self.commands[0].index("-t") + 1], "8.000")
+        audio_graph = self.commands[1][self.commands[1].index("-filter_complex") + 1]
+        self.assertIn("amix=inputs=1", audio_graph)
+        self.assertEqual(self.commands[1][self.commands[1].index("-t") + 1], "8.000")
+        self.assertEqual(self.commands[2][self.commands[2].index("-t") + 1], "8.000")
+
     def test_renders_title_overlay_from_bounded_utf8_text_file(self):
         titled = json.loads(json.dumps(self.payload))
         titled["edl"]["clips"].append({
