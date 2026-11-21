@@ -230,11 +230,14 @@ class TimelineFFmpegRenderer:
             if abs(float(clip["start_ms"]) - cursor) > 1.0:
                 raise TimelineRenderError("video clips must be sequential without gaps or overlaps")
             cursor = float(clip["end_ms"])
-        duration_ms = int(round(cursor))
+        video_duration_ms = int(round(cursor))
+        duration_ms = int(edl.get("project_duration_ms", video_duration_ms))
+        if duration_ms < video_duration_ms:
+            raise TimelineRenderError("project duration cannot be shorter than the video timeline")
         if duration_ms < 1 or duration_ms > 3_600_000:
             raise TimelineRenderError("timeline duration is outside configured limits")
         if any(float(clip["end_ms"]) > duration_ms for clip in title_clips):
-            raise TimelineRenderError("title overlay extends beyond the video timeline")
+            raise TimelineRenderError("title overlay extends beyond the project duration")
 
         job_dir = Path(tempfile.mkdtemp(prefix=".render-", dir=str(self.staging_root)))
         final_path = self.staging_root / ("render_" + uuid.uuid4().hex + ".mp4")
@@ -290,6 +293,13 @@ class TimelineFFmpegRenderer:
                 "".join(labels) + f"concat=n={len(labels)}:v=1:a=0[vout]"
             )
             output_label = "vout"
+            trailing_gap_ms = duration_ms - video_duration_ms
+            if trailing_gap_ms > 0:
+                padded_label = "vpad"
+                filters.append(
+                    f"[{output_label}]tpad=stop_mode=add:stop_duration={self._seconds(trailing_gap_ms)}:color=black[{padded_label}]"
+                )
+                output_label = padded_label
             if title_clips:
                 font_file = _filter_path(self.font_path)
                 for index, clip in enumerate(title_clips):
