@@ -29,7 +29,9 @@ try{
    @{id="BUILD-99004";title="dependent fixture D";status="ready";priority=4;depends_on=@("BUILD-99001");scope=@("must remain gated");acceptance=@("must not run before dependency completion")},
    @{id="BUILD-99005";title="open PR duplicate fixture E";status="ready";priority=5;depends_on=@();scope=@("must be skipped by open PR metadata");acceptance=@("must not be dispatched when an open PR body references this task ID")},
    @{id="BUILD-99006";title="automation self-reference fixture F";status="ready";priority=6;depends_on=@();scope=@("must run even when the supervisor PR body references this task ID");acceptance=@("must not be suppressed by the currently checked-out supervisor PR")},
-   @{id="BUILD-99007";title="open PR file conflict fixture G";status="ready";priority=7;depends_on=@();scope=@("scripts/open-pr-file.py");acceptance=@("must not run when an open PR already changes this path")}
+   @{id="BUILD-99007";title="open PR file conflict fixture G";status="ready";priority=7;depends_on=@();scope=@("scripts/open-pr-file.py");acceptance=@("must not run when an open PR already changes this path")},
+   @{id="BUILD-99008";title="retry exhaustion fixture H";status="ready";priority=8;depends_on=@();scope=@("scripts/retry-exhausted.py");acceptance=@("must stop after five attempts")},
+   @{id="BUILD-99009";title="retry backoff fixture I";status="ready";priority=9;depends_on=@();scope=@("scripts/retry-wait.py");acceptance=@("must wait for retry backoff")}
   )
  }
  $manifest|ConvertTo-Json -Depth 20|Set-Content (Join-Path $seed ".devflow/tasks.json") -Encoding utf8
@@ -66,6 +68,14 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
 '@
  Set-Content -LiteralPath $agent -Value $agentCode -Encoding utf8
  $log=Join-Path $temp "agent.log";$env:DEVFLOW_TEST_LOG=$log
+ New-Item -ItemType Directory -Force -Path $state|Out-Null
+ @{
+  schema_version=1
+  tasks=@{
+   "BUILD-99008"=@{status="failed";attempt_count=5;retry_after_utc=$null}
+   "BUILD-99009"=@{status="failed";attempt_count=2;retry_after_utc=[DateTime]::UtcNow.AddMinutes(10).ToString("o")}
+  }
+ }|ConvertTo-Json -Depth 10|Set-Content (Join-Path $state "state.json") -Encoding utf8
  $env:PATH="$bin;$env:PATH"
  $env:GH_TOKEN="fake-supervisor-token-must-not-reach-agent"
  $env:GITHUB_REF_NAME="main"
@@ -74,7 +84,7 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  Push-Location $checkout
  try{
   $timer=[Diagnostics.Stopwatch]::StartNew()
-  & pwsh -NoProfile -File (Join-Path $checkout "scripts/git-cli-multiflow-parallel.ps1") -StateRoot $state -MaxParallel 3 -MaxTasks 4 -TaskTimeoutSeconds 60
+  & pwsh -NoProfile -File (Join-Path $checkout "scripts/git-cli-multiflow-parallel.ps1") -StateRoot $state -MaxParallel 3 -MaxTasks 10 -TaskTimeoutSeconds 60
   if($LASTEXITCODE -ne 0){throw "Parallel engine exited with $LASTEXITCODE."}
   $timer.Stop()
  }finally{Pop-Location}
@@ -114,6 +124,8 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  if($stateData.tasks."BUILD-99005"){throw "Task with an open PR body reference was unexpectedly dispatched."}
  if($stateData.tasks."BUILD-99003"){throw "Task with an overlapping file scope was unexpectedly dispatched."}
  if($stateData.tasks."BUILD-99007"){throw "Task overlapping files from an open PR was unexpectedly dispatched."}
+ if($stateData.tasks."BUILD-99008".status -ne "retry_exhausted"){throw "Five-attempt failure budget was not enforced."}
+ if($stateData.tasks."BUILD-99009".status -ne "failed"){throw "Task inside retry backoff was dispatched prematurely."}
  Write-Host "PASS: three fake agents overlapped (start spread $($delta)ms); overlapping scopes were deferred and isolated Draft PR branches were pushed."
 }finally{
  $env:PATH=$originalPath
