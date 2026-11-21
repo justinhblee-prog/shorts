@@ -50,7 +50,7 @@ def validate_edl(payload: Any) -> dict:
         raise EDLValidationError("unsupported EDL schema or version")
     if payload.get("timebase") != "milliseconds":
         raise EDLValidationError("timebase must be milliseconds")
-    allowed_root = {"schema", "version", "timebase", "clips", "audio_tracks"}
+    allowed_root = {"schema", "version", "timebase", "clips", "audio_tracks", "project_duration_ms"}
     if set(payload) - allowed_root:
         raise EDLValidationError("EDL contains unsupported root fields")
     clips = payload.get("clips")
@@ -101,6 +101,17 @@ def validate_edl(payload: Any) -> dict:
     if max(item["end_ms"] for item in normalized) > MAX_DURATION_MS:
         raise EDLValidationError("timeline exceeds maximum duration")
 
+    project_duration = None
+    if "project_duration_ms" in payload:
+        project_duration = _number(payload["project_duration_ms"], "project_duration_ms")
+        video_end = max(
+            (item["end_ms"] for item in normalized if item["type"] == "video"),
+            default=0,
+        )
+        if (not float(project_duration).is_integer() or project_duration < video_end
+                or project_duration < 1 or project_duration > MAX_DURATION_MS):
+            raise EDLValidationError("project_duration_ms must be a whole-millisecond duration covering the video timeline")
+
     raw_audio = payload.get("audio_tracks", [])
     if not isinstance(raw_audio, list) or len(raw_audio) > 8:
         raise EDLValidationError("audio_tracks must contain 0 to 8 entries")
@@ -133,12 +144,17 @@ def validate_edl(payload: Any) -> dict:
                 or not 0 <= gain <= 4 or not 0 <= fade_in <= 60000
                 or not 0 <= fade_out <= 60000 or fade_in + fade_out > duration):
             raise EDLValidationError(f"{prefix} has invalid trim, gain or fade bounds")
+        if project_duration is not None and start + duration > project_duration:
+            raise EDLValidationError(f"{prefix} extends beyond project_duration_ms")
         audio_tracks.append({
             "id": track_id, "asset_id": asset_id, "start_ms": start,
             "source_in_ms": source_in, "source_out_ms": source_out,
             "gain": gain, "fade_in_ms": fade_in, "fade_out_ms": fade_out,
         })
-    return {
+    result = {
         "schema": SCHEMA, "version": VERSION, "timebase": "milliseconds",
         "clips": normalized, "audio_tracks": audio_tracks,
     }
+    if project_duration is not None:
+        result["project_duration_ms"] = int(project_duration)
+    return result
