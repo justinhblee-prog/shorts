@@ -122,6 +122,23 @@ class ArtifactRetentionEligibilityTests(unittest.TestCase):
         self.assertFalse(result["eligible_for_review"])
         self.assertIn("unsupported_data_class", result["reason_codes"])
 
+    def test_unhashable_candidate_fields_fail_closed_without_exceptions(self):
+        for mutation, reason in (
+            ({"data_class": []}, "unsupported_data_class"),
+            ({"scan_status": []}, "asset_scan_state_unknown"),
+        ):
+            candidate = {**self.asset, **mutation}
+            with self.subTest(mutation=mutation):
+                result = evaluate_retention_candidate(candidate, self.policy, now=self.now)
+                self.assertFalse(result["eligible_for_review"])
+                self.assertIn(reason, result["reason_codes"])
+        artifact = {
+            **self.asset, "data_class": "render_artifact",
+            "review_status": [],
+        }
+        result = evaluate_retention_candidate(artifact, self.policy, now=self.now)
+        self.assertIn("review_not_terminal", result["reason_codes"])
+
     def test_invalid_candidate_shape_fails_closed(self):
         result = evaluate_retention_candidate(None, self.policy, now=self.now)
         self.assertFalse(result["eligible_for_review"])
