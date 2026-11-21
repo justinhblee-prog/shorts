@@ -23,7 +23,7 @@ from media_inspection import MediaInspector, MediaInspectionError
 
 
 API_ROOT = "https://open.tiktokapis.com"
-CHUNK_SIZE = 64 * 1024 * 1024
+CHUNK_SIZE = 64_000_000  # TikTok documents decimal MB (64,000,000 bytes)
 MAX_VIDEO_BYTES = 4 * 1024 * 1024 * 1024
 
 
