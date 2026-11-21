@@ -116,7 +116,20 @@ async function waitForServer() {
       return Math.abs(parseFloat(getComputedStyle(el).width) - available) <= 2;
     });
     const autoWidthAt1280 = await device.evaluate(el => parseFloat(getComputedStyle(el).width));
-    assert.ok(autoWidthAt1280 < autoMeasurementsAt1600.deviceWidth, "Auto mode must follow browser resize");
+    const previewGeometryAt1280 = await page.evaluate(() =>
+      ["body", ".stage", ".device-wrap", "#device"].map(selector => {
+        const el = document.querySelector(selector);
+        const rect = el.getBoundingClientRect();
+        return { selector, width: rect.width, cssWidth: getComputedStyle(el).width, transform: getComputedStyle(el).transform, className: el.className };
+      })
+    );
+    console.log("Resized auto preview geometry:", JSON.stringify(previewGeometryAt1280));
+    assert.ok(
+      autoWidthAt1280 < autoMeasurementsAt1600.deviceWidth && autoWidthAt1280 > 1000,
+      "Auto mode must follow browser resize and remain full-width: " + JSON.stringify({ autoWidthAt1280, previewGeometryAt1280 })
+    );
+    const previewScale = await device.evaluate(el => new DOMMatrixReadOnly(getComputedStyle(el).transform).a);
+    assert.ok(previewScale > 0.8, "Auto fit scale should remain near 100%: " + previewScale);
 
     await page.screenshot({ path: "artifacts/nexus-responsive-preview.png", fullPage: true });
 
