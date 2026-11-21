@@ -1587,3 +1587,9 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Added up to eight independently configured audio tracks with timeline start, source in/out, gain, fade-in and fade-out controls. The visual AUDIO lane displays each track's actual start offset and clipped duration.
 - The browser API-contract smoke creates valid PCM WAV fixtures, sets distinct per-track gain/start values and asserts both tracks in the normalized EDL.
 - No live API, customer-media or target-host render claim is made; exact-head CI remains required.
+
+
+## Timeline zoom and navigation increment
+- Added 100–400% visual timeline zoom, fit reset, and left/right horizontal navigation controls.
+- The visual timeline canvas scales independently inside its existing horizontally scrollable panel; backend EDL duration semantics are unchanged.
+- Browser smoke covers zoom growth, slider state, fit reset, and navigation control visibility.
