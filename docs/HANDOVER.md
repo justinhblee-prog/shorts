@@ -1258,3 +1258,8 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Backend suite: **466 tests, OK**.
 - The full `scripts/validate.sh` command completed successfully.
 - This validates candidate capture, deduplication and exact attribution logic; it does not validate live account publishing or audience outcomes.
+
+
+## Studio workbench UI follow-up — 2026-11-21
+
+A new Draft UI increment is being developed on `feat/nexus-studio-workbench-ia-2026-11-21` from the exact previewed UI head `0a13441fcde8f6f5daf209d45cb15c68cc809014`. It introduces a production-centered studio floor, API-derived discover/create/review/measure stage counts, a real-review-video spotlight with an honest empty state, a live queue rail, and Ctrl/Cmd+K global search. The workbench is presentation/navigation only and preserves existing authenticated API and human-approval/private-publish controls. Exact-head CI and preview deployment evidence will be appended after they complete; until then this increment is not validated.

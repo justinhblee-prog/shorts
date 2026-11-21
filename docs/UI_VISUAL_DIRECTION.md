@@ -29,3 +29,16 @@ This is a preview-only visual change. No production deployment, merge, publishin
 The overview now exposes queue/review counts, worker count and pause state from the existing authenticated API refresh, saved market signals, and measured view-delta/Analytics coverage context. The review queue embeds a native video player only when a validated HTTPS video artifact URL is present; otherwise it clearly shows an empty preview state. The command-center safety sequence is explanatory and does not bypass or replace the existing policy, quality, human-approval, or private-upload gates.
 
 Validation is extended to assert the overview composition, four trust-gate steps, market signal container, and single-column mobile layout. Media preview playback still requires a real authenticated review item and supported browser codec; fixture/empty-state UI checks do not claim live media playback.
+
+
+## Studio workbench information architecture — 2026-11-21
+
+The dashboard now has a distinct studio-floor layer between the live command center and the production form. It makes the core content-production workflow the visual center rather than treating the page as a stack of generic operations cards:
+
+- A four-stage production timeline (discover, create, review, measure) derives counts from the existing page's authenticated API-backed queue, review, trend and approved-content views. Unknown values remain unavailable; the UI does not fabricate metrics.
+- A media spotlight mirrors the first available validated review video artifact. It remains an explicit empty state when no real review video exists.
+- A persistent work-queue rail repeats the live queued/running/review counts and surfaces the existing human-approval boundary.
+- A global keyboard-accessible search (Ctrl/Cmd+K) searches visible work items and navigates to the matching content without adding another API or changing backend permissions.
+- The new layout is responsive: three-column desktop, two-column tablet and single-column mobile.
+
+The new interaction layer is presentation/navigation only. Existing production, review, queue-control, OAuth, finance and private-upload endpoints and their authorization checks remain authoritative. Preview validation must cover the new workbench, search entry point, four timeline stages and responsive overflow. A video is not claimed to be playable unless a real artifact URL and browser-supported codec are present.

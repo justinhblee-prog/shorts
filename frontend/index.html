@@ -7,6 +7,7 @@
   <title>NEXUS STUDIO PRO — Shorts Operations</title>
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/cyber-magic.css">
+  <link rel="stylesheet" href="/studio-workbench.css">
 </head>
 <body>
   <header class="topbar">
@@ -14,6 +15,7 @@
     <nav class="main-nav">
       <a href="#studio">스튜디오</a><a href="#discovery">인텔리전스</a><a href="#review">검수 센터</a><a href="#operations">운영·수익</a>
     </nav>
+    <div class="global-command"><span aria-hidden="true">⌕</span><input id="globalSearch" type="search" placeholder="작업·브랜드·콘텐츠 검색" autocomplete="off" aria-label="전체 작업 검색"><kbd>Ctrl K</kbd><div id="globalSearchResults" class="global-search-results" hidden></div></div>
     <div class="top-actions"><span id="connection" class="status-pill"><i></i> 연결 확인 중</span><button class="button button-quiet" id="refreshAll">새로고침 ↻</button></div>
   </header>
 
@@ -55,6 +57,35 @@
         <article class="command-panel command-performance"><div class="command-panel-head"><div><span class="panel-kicker">MEASURED PERFORMANCE</span><h3>실측 성과 스냅샷</h3></div><span class="command-icon">⌗</span></div>
           <div class="performance-snapshot"><div><small>관측 조회수 변화 합계</small><b id="overviewViewDelta">—</b></div><div><small>측정 브랜드</small><b id="overviewMeasured">—</b></div></div><p id="overviewPerformanceNote">YouTube Analytics 실측 데이터 연결 후 표시됩니다. 예상치와 실제 성과는 분리합니다.</p><a class="command-link" href="#operations">성과 분석 및 수익 장부 ↗</a>
         </article>
+      </div>
+    </section>
+
+    <section class="studio-floor" id="workbench" aria-label="콘텐츠 제작 워크벤치">
+      <div class="studio-floor-head"><div><div class="eyebrow">STUDIO FLOOR / LIVE PRODUCTION</div><h2>콘텐츠 제작 워크벤치</h2><p>실제 작업 상태와 검수 가능한 미디어를 중심으로 제작 흐름을 관리합니다.</p></div><a class="button button-primary" href="#studio">새 콘텐츠 제작 <span>↗</span></a></div>
+      <div class="studio-floor-grid">
+        <article class="studio-canvas">
+          <div class="canvas-toolbar"><div><span class="panel-kicker">PRODUCTION TIMELINE</span><h3>제작 파이프라인</h3></div><span class="canvas-live"><i></i> LIVE STATUS</span></div>
+          <div class="stage-rail" id="studioStageRail">
+            <a class="stage-node" href="#discovery"><span class="stage-index">01</span><b>DISCOVER</b><small>시장·주제 발굴</small><strong id="stageDiscover">—</strong></a>
+            <a class="stage-node" href="#studio"><span class="stage-index">02</span><b>CREATE</b><small>제작 대기 / 실행</small><strong id="stageCreate">—</strong></a>
+            <a class="stage-node" href="#review"><span class="stage-index">03</span><b>REVIEW</b><small>사람의 검수 대기</small><strong id="stageReview">—</strong></a>
+            <a class="stage-node" href="#operations"><span class="stage-index">04</span><b>MEASURE</b><small>승인·성과 측정</small><strong id="stageMeasure">—</strong></a>
+          </div>
+          <div class="canvas-foot"><span id="studioStageNote">인증 후 실제 큐와 검수 데이터로 상태를 표시합니다.</span><a href="#operations">운영 세부 정보 <b>↗</b></a></div>
+        </article>
+        <article class="studio-media">
+          <div class="canvas-toolbar"><div><span class="panel-kicker">MEDIA SPOTLIGHT</span><h3>최근 검수 미디어</h3></div><a href="#review" class="media-open">검수 센터 ↗</a></div>
+          <div id="studioMediaSpotlight" class="studio-media-body"><div class="media-placeholder"><span>▶</span><b>검수 가능한 영상이 여기에 표시됩니다.</b><small>인증 후 실제 review artifact만 표시합니다.</small></div></div>
+        </article>
+        <aside class="studio-rail">
+          <div class="rail-heading"><span class="panel-kicker">LIVE WORK QUEUE</span><span class="rail-pulse"></span></div>
+          <div class="rail-stat"><span>대기 작업</span><b id="railQueued">—</b></div>
+          <div class="rail-stat"><span>실행 중</span><b id="railRunning">—</b></div>
+          <div class="rail-stat"><span>검수 대기</span><b id="railReview">—</b></div>
+          <div class="rail-divider"></div>
+          <div class="rail-safety"><span class="safety-shield">◇</span><div><b>Human approval gate</b><small>승인 전 공개 게시 차단</small></div></div>
+          <a class="rail-action" href="#review">검수 작업 확인 <span>→</span></a>
+        </aside>
       </div>
     </section>
 
@@ -156,5 +187,6 @@
   <button class="floating-settings" id="openSettings" aria-label="API 인증 설정">⚙</button>
   <div id="toast" class="toast" role="status"></div>
   <script src="/app.js" defer></script>
+  <script src="/studio-workbench.js" defer></script>
 </body>
 </html>
