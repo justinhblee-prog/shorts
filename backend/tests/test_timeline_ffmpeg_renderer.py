@@ -167,7 +167,7 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
             "source_in_ms": 0, "source_out_ms": 2000,
         })
         self._rehash(overlap)
-        with self.assertRaisesRegex(EDLValidationError, "crossfade"):
+        with self.assertRaisesRegex(TimelineRenderError, "overlap"):
             self.renderer(overlap, stop_event=threading.Event(), workspace_id="ws_demo", principal_id="alice")
 
         escaped = json.loads(json.dumps(self.payload))
