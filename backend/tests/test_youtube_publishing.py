@@ -125,6 +125,46 @@ class YouTubePublishingTests(unittest.TestCase):
 
     def tearDown(self): self.tmp.cleanup()
 
+    def test_malformed_upload_completion_response_requires_reconciliation(self):
+        class MalformedVideos:
+            def insert(self, **kwargs):
+                return FakeRequest(["unexpected", "array"])
+
+        class MalformedService:
+            def videos(self):
+                return MalformedVideos()
+
+        publisher = YouTubePublisher(self.uploads, MalformedService())
+        with self.assertRaisesRegex(YouTubeUploadError, "unexpected shape"):
+            publisher.upload_private_approved(
+                "job-1", self.media, self.review, "Approved title",
+                "Approved description", operator_id="operator-1",
+            )
+        record = self.uploads.get("job-1")
+        self.assertEqual(record["status"], "reconciliation_required")
+        self.assertIsNone(record["video_id"])
+        self.assertTrue(record["reconciliation_required"])
+
+    def test_malformed_upload_video_id_requires_reconciliation(self):
+        class MalformedVideos:
+            def insert(self, **kwargs):
+                return FakeRequest({"id": ["unexpected"]})
+
+        class MalformedService:
+            def videos(self):
+                return MalformedVideos()
+
+        publisher = YouTubePublisher(self.uploads, MalformedService())
+        with self.assertRaisesRegex(YouTubeUploadError, "valid video ID"):
+            publisher.upload_private_approved(
+                "job-1", self.media, self.review, "Approved title",
+                "Approved description", operator_id="operator-1",
+            )
+        record = self.uploads.get("job-1")
+        self.assertEqual(record["status"], "reconciliation_required")
+        self.assertIsNone(record["video_id"])
+        self.assertTrue(record["reconciliation_required"])
+
     def test_concurrent_upload_reservations_allow_only_one_attempt(self):
         gate=threading.Event()
         def reserve(title):
