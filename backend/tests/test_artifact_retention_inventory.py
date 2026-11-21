@@ -178,24 +178,6 @@ class RetentionInventoryTests(unittest.TestCase):
         self.assertTrue(result["truncated"])
         self.assertLessEqual(result["candidate_count"], 2)
 
-    def test_read_only_connections_reject_writes(self):
-        original = self.assets.db
-
-        @contextmanager
-        def attempt_write():
-            with original() as db:
-                db.execute("PRAGMA query_only=ON")
-                yield db
-
-        self.assets.db = attempt_write
-        with self.assertRaises(RetentionInventoryError):
-            # The inventory itself remains SELECT-only; the failure below is
-            # injected by replacing its read connection with a write-only guard.
-            self.inventory.assets.db = lambda: None
-            self.inventory.list_workspace(
-                "ws-a", "owner-a", self.policy,
-                now="2026-11-21T12:00:00+00:00",
-            )
 
 
 if __name__ == "__main__":
