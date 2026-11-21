@@ -305,6 +305,9 @@ def create_backup(db_path, media_dir, output_dir, retain_days=14,
     source_inventory = _media_inventory(media_dir)
     source_media_bytes = sum(item["size"] for item in source_inventory)
     source_database_bytes = db_path.stat().st_size
+    wal_path = Path(str(db_path) + "-wal")
+    if wal_path.is_file():
+        source_database_bytes += wal_path.stat().st_size
     if source_media_bytes > MAX_MEDIA_BYTES:
         raise BackupRestoreError("Media backup exceeds the supported size")
     if source_database_bytes > MAX_DATABASE_BYTES:
@@ -332,6 +335,14 @@ def create_backup(db_path, media_dir, output_dir, retain_days=14,
         if media_entry_count > MAX_ARCHIVE_MEMBERS - 2:
             raise BackupRestoreError("Media backup contains too many entries")
         media_bytes = sum(item["size"] for item in inventory)
+        # Recheck against the actual snapshot after copying: source files may
+        # grow between the initial inventory and the staging copy, and SQLite
+        # WAL content may enlarge the consistent snapshot.
+        actual_snapshot_bytes = media_bytes + db_snapshot.stat().st_size
+        _require_backup_staging_space(
+            output_dir,
+            (3 * actual_snapshot_bytes) + MAX_MANIFEST_BYTES + (16 * 1024 * 1024),
+        )
         if media_bytes > MAX_MEDIA_BYTES:
             raise BackupRestoreError("Media backup exceeds the supported size")
         if db_snapshot.stat().st_size > MAX_DATABASE_BYTES:
@@ -353,6 +364,11 @@ def create_backup(db_path, media_dir, output_dir, retain_days=14,
                 archive.add(db_snapshot, arcname=DATABASE_NAME)
                 archive.add(media_snapshot, arcname=MEDIA_ROOT)
             if encrypted:
+                # Recheck immediately before creating the second archive copy.
+                _require_backup_staging_space(
+                    output_dir,
+                    temporary_archive.stat().st_size + MAX_MANIFEST_BYTES,
+                )
                 _encrypt_file(temporary_archive, temporary_encrypted, encryption_key)
                 os.replace(temporary_encrypted, final_path)
             else:
