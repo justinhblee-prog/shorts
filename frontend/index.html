@@ -128,6 +128,7 @@
   <dialog id="settingsDialog" class="settings-dialog">
     <form method="dialog" class="dialog-close"><button class="icon-button" aria-label="닫기">×</button></form>
     <div class="eyebrow">SECURE API ACCESS</div><h2>운영 인증 설정</h2><p>서버의 <code>NEXUS_REVIEW_TOKEN</code>과 일치하는 토큰을 입력하세요. 토큰은 브라우저 메모리에만 보관하며 새로고침하면 초기화됩니다.</p>
+    <label>백엔드 API 주소<input id="apiOriginInput" type="url" inputmode="url" placeholder="https://api.example.com"><small>Vercel 화면을 실제 백엔드에 연결할 때 입력합니다. HTTPS 주소만 허용하며 주소만 브라우저에 저장됩니다.</small></label>
     <label>API 토큰<input id="tokenInput" type="password" autocomplete="off" placeholder="NEXUS_REVIEW_TOKEN"></label>
     <label>검수자 ID<input id="reviewerInput" value="operator" maxlength="128"></label>
     <div class="dialog-actions"><button type="button" class="button button-outline" id="clearToken">초기화</button><button type="button" class="button button-primary" id="saveToken">연결</button></div>
