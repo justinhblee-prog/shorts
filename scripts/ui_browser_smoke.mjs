@@ -380,6 +380,8 @@ async function waitForServer() {
     await page.locator("#timelineTransitionType").selectOption("crossfade");
     await page.locator("#timelineTransitionDuration").selectOption("500");
     assert.equal(await page.locator("#timelineVisualTrack .timeline-transition-marker").count(),1,"visual timeline should show the crossfade overlap");
+    await page.locator("#timelineTransitionType").selectOption("black-gap");
+    assert.equal(await page.locator("#timelineVisualTrack .timeline-transition-marker.is-black-gap").count(),1,"visual timeline should show the internal black-gap interval");
     await page.locator("#timelineProjectDuration").fill("7");
     assert.equal(await page.locator("#timelineVisualDuration").textContent(),"7.0s");
     await page.locator("#timelineSubmitRender").click();
@@ -394,8 +396,9 @@ async function waitForServer() {
     assert.equal(capturedTimelineEdl.audio_tracks[0].gain,0.7);
     assert.equal(capturedTimelineEdl.audio_tracks[1].start_ms,1500);
     assert.equal(capturedTimelineEdl.project_duration_ms,7000,"explicit project duration must be included in EDL");
-    assert.deepEqual(capturedTimelineEdl.transitions,[{from_clip_id:"clip-smoke",to_clip_id:"clip-smoke-2",type:"crossfade",duration_ms:500}],"crossfade must be represented as an explicit bounded EDL transition");
-    assert.equal(capturedTimelineEdl.clips.find(clip=>clip.id==="clip-smoke-2").start_ms,2000,"the second video must overlap the first by 500ms");
+    assert.equal(capturedTimelineEdl.transitions,undefined,"black gaps and crossfades are mutually exclusive at a clip join");
+    assert.deepEqual(capturedTimelineEdl.gaps,[{after_clip_id:"clip-smoke",before_clip_id:"clip-smoke-2",duration_ms:500}],"black gap must be represented as an explicit bounded EDL interval");
+    assert.equal(capturedTimelineEdl.clips.find(clip=>clip.id==="clip-smoke-2").start_ms,3000,"the second video must start after the 500ms black interval");
     assert.equal(capturedTimelineEdl.audio_tracks[1].start_ms+capturedTimelineEdl.audio_tracks[1].source_out_ms-capturedTimelineEdl.audio_tracks[1].source_in_ms,6500,"audio may extend into the declared trailing duration");
     assert.equal(await page.locator("#timelineMediaShelf .timeline-media-card").count(),3,"local media shelf should show both video clips and the title overlay");
     assert.equal(await page.locator("#timelineVisualTrack .timeline-visual-lane").count(),3,"visual timeline should render video, title and audio lanes");
