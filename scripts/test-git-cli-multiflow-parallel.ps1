@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param()
 $ErrorActionPreference="Stop"
-$originalPath=$env:PATH
+$originalPath=$env:PATH;$oldGhToken=$env:GH_TOKEN
 if($PSVersionTable.PSVersion.Major -lt 7){throw "PowerShell 7+ required."}
 $repoRoot=(git rev-parse --show-toplevel 2>$null)
 if($LASTEXITCODE -ne 0 -or -not $repoRoot){throw "Run from the repository checkout."}
@@ -64,6 +64,7 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  Set-Content -LiteralPath $agent -Value $agentCode -Encoding utf8
  $log=Join-Path $temp "agent.log";$env:DEVFLOW_TEST_LOG=$log
  $env:PATH="$bin;$env:PATH"
+ $env:GH_TOKEN="fake-supervisor-token-must-not-reach-agent"
  $env:DEVFLOW_AGENT_COMMAND=(Get-Command pwsh).Source
  $env:DEVFLOW_AGENT_ARGS_JSON=@(("-NoProfile","-File",$agent,"{prompt_file}")|ConvertTo-Json -Compress)
  Push-Location $checkout
