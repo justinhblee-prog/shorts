@@ -248,6 +248,14 @@ class TikTokOAuthManager:
             raise TikTokOAuthError("TikTok OAuth returned invalid JSON") from exc
         if not isinstance(data, dict):
             raise TikTokOAuthError("TikTok OAuth returned an invalid token response object")
+        scope = data.get("scope")
+        if not isinstance(scope, str) or not scope.strip():
+            raise TikTokOAuthError("TikTok OAuth returned invalid scope metadata")
+        token_type = data.get("token_type")
+        if token_type is not None and (
+            not isinstance(token_type, str) or token_type.strip().lower() != "bearer"
+        ):
+            raise TikTokOAuthError("TikTok OAuth returned an unsupported token type")
         if status < 200 or status >= 300 or data.get("error"):
             code = data.get("error") or "http_" + str(status)
             detail = data.get("error_description") or "token request rejected"
