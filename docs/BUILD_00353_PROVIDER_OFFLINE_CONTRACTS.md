@@ -73,3 +73,11 @@ The latest provider implementation and tests at `ee5e563330d9e4e1956f24b3ba710fc
 ## Provider documentation/task-ledger validation
 
 The documentation/task-ledger head `7575d24fd058b1a8b615e8ce4bee4268c77ee9cd` passed Backend [run 44890149253](https://github.com/justinhblee-prog/shorts/actions/runs/44890149253) and Compose [run 44890149269](https://github.com/justinhblee-prog/shorts/actions/runs/44890149269). Backend validation, font fallback and Playwright browser smoke passed; Compose service readiness, ClamAV, worker isolation, generated-media FFmpeg render/adoption/review, authenticated API E2E, encrypted backup and isolated restore passed. This is offline/generated-fixture validation, not live provider or customer-media verification.
+
+
+## TikTok status-response identity validation
+
+- Status polling now accepts an omitted or explicit null `publicaly_available_post_id` as no IDs, but rejects falsey non-list values such as an empty string, and rejects lists containing non-string or blank IDs.
+- Optional `fail_reason` must be a string or null. Malformed identity/failure fields are rejected before the publication state store is mutated.
+- Added offline fake-transport regressions for falsey non-list IDs, non-string IDs and non-string failure reasons. Each asserts the existing publication status, video ID and audit-event count remain unchanged.
+- No live provider calls, credentials, uploads or external publishing were used. Exact-head CI for this follow-up is pending.
