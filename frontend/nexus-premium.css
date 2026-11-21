@@ -5,7 +5,7 @@
   --bg:#090d17;--panel:#111827;--panel2:#151f31;--line:#273449;
   --text:#f4f6fb;--muted:#a3afc2;--cyan:#6ee7d8;--blue:#7c9cff;
   --violet:#9b8cff;--green:#59d6a2;--amber:#f3c879;--red:#ff8798;
-  --radius:18px;--sans:"Pretendard Variable",Pretendard,"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --radius:18px;--sans:"Pretendard Variable",Pretendard,"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic","Noto Sans CJK KR",system-ui,sans-serif;
   --mono:"DM Mono","SFMono-Regular",Consolas,monospace;
 }
 html{font-family:var(--sans);font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
