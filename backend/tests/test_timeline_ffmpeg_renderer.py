@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from timeline_edl import validate_edl
+from timeline_edl import EDLValidationError, validate_edl
 from timeline_ffmpeg_renderer import (
     RenderCancelled, TimelineFFmpegRenderer, TimelineRenderError,
     run_bounded_process,
@@ -116,7 +116,8 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
         self.assertEqual(len(self.commands), 3)
         video_graph = self.commands[0][self.commands[0].index("-filter_complex") + 1]
         audio_graph = self.commands[1][self.commands[1].index("-filter_complex") + 1]
-        self.assertIn("concat=n=1", video_graph)
+        self.assertNotIn("xfade=", video_graph)
+        self.assertIn("[0:v:0]", video_graph)
         self.assertIn("-filter_threads", self.commands[0])
         self.assertIn("-threads", self.commands[0])
         self.assertEqual(self.commands[0][self.commands[0].index("-fs") + 1], str(self.renderer.max_output_bytes))
@@ -166,7 +167,7 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
             "source_in_ms": 0, "source_out_ms": 2000,
         })
         self._rehash(overlap)
-        with self.assertRaisesRegex(TimelineRenderError, "overlap"):
+        with self.assertRaisesRegex(EDLValidationError, "crossfade"):
             self.renderer(overlap, stop_event=threading.Event(), workspace_id="ws_demo", principal_id="alice")
 
         escaped = json.loads(json.dumps(self.payload))
@@ -202,9 +203,39 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
             )
         graph = self.commands[0][self.commands[0].index("-filter_complex") + 1]
         self.assertEqual(graph.count("color=c=black"), 2)
-        self.assertIn("concat=n=4:v=1:a=0", graph)
+        self.assertIn("concat=n=3:v=1:a=0", graph)
+        self.assertIn("concat=n=2:v=1:a=0", graph)
         self.assertEqual(result["duration_ms"], 11000)
         self.assertIn("11.000", self.commands[0])
+
+    def test_renders_declared_crossfade_with_absolute_timeline_offset(self):
+        transitioned = json.loads(json.dumps(self.payload))
+        transitioned["edl"]["clips"].append({
+            "id": "clip2", "type": "video", "start_ms": 3000,
+            "end_ms": 8000, "asset_id": "asset_video",
+            "source_in_ms": 6000, "source_out_ms": 11000,
+        })
+        transitioned["edl"]["transitions"] = [{
+            "id": "xfade1", "type": "crossfade",
+            "from_clip_id": "clip1", "to_clip_id": "clip2",
+            "duration_ms": 2000,
+        }]
+        self._rehash(transitioned)
+        probe = {
+            "duration_ms": 8000, "byte_size": 23,
+            "video_streams": [{"width": 720, "height": 1280, "codec": "h264"}],
+            "audio_streams": 1, "audio_codecs": ["aac"],
+        }
+        with patch("timeline_ffmpeg_renderer.probe_media", return_value=probe):
+            result = self.renderer(
+                transitioned, stop_event=threading.Event(),
+                workspace_id="ws_demo", principal_id="alice",
+            )
+        graph = self.commands[0][self.commands[0].index("-filter_complex") + 1]
+        self.assertIn("xfade=transition=fade:duration=2.000:offset=3.000", graph)
+        self.assertEqual(result["duration_ms"], 8000)
+        self.assertIn("8.000", self.commands[0])
+        self.assertEqual(len(self.commands), 3)
 
     def test_renders_title_overlay_from_bounded_utf8_text_file(self):
         titled = json.loads(json.dumps(self.payload))
