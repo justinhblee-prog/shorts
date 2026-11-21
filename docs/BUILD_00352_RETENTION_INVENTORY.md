@@ -35,3 +35,8 @@ The result includes workspace ID, bounded candidate count, eligible/blocked coun
 ## Validation
 
 Unit tests use an isolated SQLite fixture to verify workspace isolation, reference counts, active-job blockers, malformed snapshot fail-closed behavior, result truncation and unchanged row counts. Backend/Compose CI for the exact implementation head is required before this inventory is treated as validated. It does not prove production database scale, persistent filesystem behavior or customer-media retention compliance.
+
+
+## Exact-head validation
+
+Latest inventory head `cb09e67ba4a24c8c10e581d0da368d04ae7d1c33` passed Backend [run 44886936983](https://github.com/justinhblee-prog/shorts/actions/runs/44886936983) (**943 tests plus Playwright browser smoke**) and Compose [run 44886936974](https://github.com/justinhblee-prog/shorts/actions/runs/44886936974) (service isolation, real FFmpeg render/adoption/review, authenticated API E2E, encrypted backup and isolated restore). This validates generated SQLite fixtures and the broader Compose pipeline, not production database scale or retention compliance.
