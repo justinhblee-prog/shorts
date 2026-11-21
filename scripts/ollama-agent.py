@@ -143,7 +143,7 @@ def parse_text_tool_call(content: str) -> list[dict[str, Any]]:
  return []
 
 def scoped_json_patch(root: Path, prompt: str, model: str) -> int:
- """One-shot fallback for local models that cannot sustain tool conversations."""
+ """Bounded, retrying one-shot patch fallback for models that loop on tool calls."""
  scope=[]
  in_scope=False
  for line in prompt.splitlines():
@@ -160,51 +160,75 @@ def scoped_json_patch(root: Path, prompt: str, model: str) -> int:
  for item in scope:
   target=safe_path(root,item)
   if target.is_file():
-   if target.stat().st_size<=MAX_FILE_BYTES:
-    context.append({"path":item,"content":target.read_text(encoding="utf-8")})
    allowed.append(item)
+   if target.stat().st_size<=MAX_FILE_BYTES:
+    context.append({"path":item,"content":clip(target.read_text(encoding="utf-8"))})
   elif target.is_dir():
    allowed.append(item.rstrip("/")+"/")
    for child in sorted(target.rglob("*")):
-    if child.is_file() and child.stat().st_size<=MAX_FILE_BYTES and child.suffix.lower() in {".py",".ps1",".yml",".yaml",".md",".json"}:
-     rel=child.relative_to(root).as_posix()
-     if set(Path(rel).parts)&BLOCKED_PARTS or child.name in BLOCKED_NAMES: continue
-     context.append({"path":rel,"content":child.read_text(encoding="utf-8")})
-     if len(context)>=20: break
+    if not child.is_file() or child.stat().st_size>MAX_FILE_BYTES: continue
+    rel=child.relative_to(root).as_posix()
+    if set(Path(rel).parts)&BLOCKED_PARTS or child.name in BLOCKED_NAMES: continue
+    if child.suffix.lower() not in {".py",".ps1",".yml",".yaml",".md",".json",".mjs"}: continue
+    context.append({"path":rel,"content":clip(child.read_text(encoding="utf-8"))})
+    if len(context)>=8: break
   else:
    allowed.append(item)
- user_payload={"task":prompt,"allowed_scope":allowed,"existing_files":context}
- messages=[
-  {"role":"system","content":"You are a coding agent. Return ONLY one valid JSON object with keys summary and files. files must be an array of objects with path and complete UTF-8 content. Include only files that need changes. Do not use Markdown fences. Every output path must be within allowed_scope. Never change secrets, task manifests, or files outside scope. Do not claim tests passed."},
-  {"role":"user","content":json.dumps(user_payload,ensure_ascii=False)}
- ]
- try:
-  response=chat(model,messages,with_tools=False,json_mode=True)
-  content=str((response.get("message") or {}).get("content",""))
-  decoder=json.JSONDecoder(); parsed=None
-  for index,char in enumerate(content):
-   if char=="{":
-    try: parsed,end=decoder.raw_decode(content[index:]); break
-    except json.JSONDecodeError: continue
-  if not isinstance(parsed,dict) or not isinstance(parsed.get("files"),list):
-   print("Scoped patch fallback returned no valid {summary, files} JSON object.",file=sys.stderr); return 7
-  changed=0; seen=set()
-  for entry in parsed["files"]:
-   if not isinstance(entry,dict) or not isinstance(entry.get("path"),str) or not isinstance(entry.get("content"),str):
-    raise ValueError("Patch entries require string path and content.")
-   relative=Path(entry["path"]).as_posix()
-   if relative in seen: raise ValueError(f"Duplicate patch path: {relative}")
-   seen.add(relative)
-   if not any(relative==item or item.endswith("/") and relative.startswith(item) for item in allowed):
-    raise ValueError(f"Patch path is outside assigned scope: {relative}")
-   write_file(root,relative,entry["content"]); changed+=1
-  if changed==0:
-   print("Scoped patch fallback produced no file changes.",file=sys.stderr); return 8
-  print(f"[ollama-agent] scoped_patch_files={changed} summary={str(parsed.get('summary',''))[:240]}")
-  return 0
- except Exception as exc:
-  print(f"Scoped patch fallback failed: {type(exc).__name__}: {exc}",file=sys.stderr)
-  return 9
+ user_payload={"task":prompt,"allowed_scope":allowed,"existing_files":context,
+  "output_contract":{"summary":"string","files":[{"path":"repository-relative path inside allowed_scope","content":"complete UTF-8 file content"}]},
+  "instructions":"Implement the acceptance criteria, not a summary. Return only changed files. Never return unchanged file contents. If an in-scope file does not exist, create it. Do not invent test results."}
+ system=("You are a repository coding agent. Return exactly one JSON object with keys summary and files. "
+  "files must be an array of objects with string path and complete string content. "
+  "Make the requested code changes now; do not merely describe them. "
+  "Do not use Markdown fences, prose, or extra keys. "
+  "Every path must be repository-relative and inside allowed_scope. "
+  "Never modify secrets, task manifests, or files outside scope. "
+  "Do not claim tests passed.")
+ previous=""
+ for attempt in range(1,4):
+  messages=[{"role":"system","content":system},
+   {"role":"user","content":json.dumps(user_payload,ensure_ascii=False)}]
+  if previous:
+   messages.append({"role":"assistant","content":previous})
+   messages.append({"role":"user","content":"The previous response did not produce a valid changed-file patch. Correct it now. Return one JSON object only, with at least one genuinely changed file if implementation is possible. Do not repeat unchanged content."})
+  try:
+   response=chat(model,messages,with_tools=False,json_mode=True)
+   content=str((response.get("message") or {}).get("content",""))
+   decoder=json.JSONDecoder(); parsed=None
+   for index,char in enumerate(content):
+    if char=="{":
+     try: parsed,end=decoder.raw_decode(content[index:]); break
+     except json.JSONDecodeError: continue
+   if not isinstance(parsed,dict) or not isinstance(parsed.get("files"),list):
+    previous=content[:6000]
+    print(f"Scoped patch attempt {attempt}: invalid JSON patch envelope.",file=sys.stderr)
+    continue
+   prepared=[]; seen=set()
+   for entry in parsed["files"]:
+    if not isinstance(entry,dict) or not isinstance(entry.get("path"),str) or not isinstance(entry.get("content"),str):
+     raise ValueError("Patch entries require string path and content.")
+    relative=Path(entry["path"]).as_posix()
+    if relative in seen: raise ValueError(f"Duplicate patch path: {relative}")
+    seen.add(relative)
+    if not any(relative==item or item.endswith("/") and relative.startswith(item) for item in allowed):
+     raise ValueError(f"Patch path is outside assigned scope: {relative}")
+    target=safe_path(root,relative,True)
+    prepared.append((relative,target,entry["content"]))
+   changed=0
+   for relative,target,content_value in prepared:
+    if target.is_file() and target.read_text(encoding="utf-8")==content_value:
+     continue
+    write_file(root,relative,content_value); changed+=1
+   if changed:
+    print(f"[ollama-agent] scoped_patch_files={changed} summary={str(parsed.get('summary',''))[:240]}")
+    return 0
+   previous=content[:6000]
+   print(f"Scoped patch attempt {attempt}: model returned no actual file changes.",file=sys.stderr)
+  except Exception as exc:
+   print(f"Scoped patch attempt {attempt} rejected: {type(exc).__name__}: {exc}",file=sys.stderr)
+   previous=""
+ print("Scoped patch fallback exhausted three attempts without a valid changed-file patch.",file=sys.stderr)
+ return 10
 
 
 def main() -> int:
