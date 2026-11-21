@@ -1567,3 +1567,12 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Compose CI independently verifies real generated-media FFmpeg/ffprobe rendering, private artifact adoption/review and authenticated API-to-worker flow on isolated test storage.
 - BUILD-00361 remains in progress: validate against a reachable live API, target-host ClamAV/ffprobe/worker/persistent storage and representative customer media. Multiple audio tracks and explicit project-duration controls remain future editor work.
 - PR #480 remains Draft/open/unmerged. Vercel deployment is being created for this exact head; no production deploy or public publishing.
+
+
+## BUILD-00361 — multi-track audio editor follow-up — 2026-11-21
+
+- Added up to eight independent audio tracks to the existing timeline UI, matching the renderer's supported EDL v1 audio-track capacity.
+- Each track has independent timeline start, source in/out, gain, fade-in and fade-out settings; media upload continues to require workspace-scoped clean scan attestation.
+- Browser smoke now uploads two audio fixtures and checks the normalized EDL preserves independent gain and start offsets.
+- This is a UI/API-contract regression. Real audio mixing remains covered by the Compose renderer smoke and still needs representative customer-media/target-host validation.
+- Follow-up PR is based on PR #480 exact head `b91db13d3c71c5f0ae28583da471b9ffbe5874b8`; remains Draft/open/unmerged.
