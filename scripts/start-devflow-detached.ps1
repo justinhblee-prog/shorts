@@ -5,7 +5,7 @@ param(
  [string]$Task,
  [string]$Base,
  [ValidateRange(1,20)][int]$MaxTasks=20,
- [ValidateRange(30,3600)][int]$PollIntervalSeconds=300,
+ [ValidateRange(1,3600)][int]$PollIntervalSeconds=300,
  [ValidateRange(0,10000)][int]$MaxCycles=0
 )
 $ErrorActionPreference="Stop"
@@ -96,7 +96,8 @@ if($Supervisor){
   }
   exit 1
  }finally{if($lock){$lock.Dispose()}}
- exit $(if($lastExit -eq 0){0}else{1})
+ $finalExit=if($lastExit -eq 0){0}else{1}
+ exit $finalExit
 }
 if(-not $Supervisor){
  $preflight=Join-Path $PSScriptRoot "git-cli-agent-config.ps1"
