@@ -68,6 +68,12 @@ def heartbeat_loop(job_id, token, lost_lease, heartbeat_stop, interval=None, scr
 
 
 def run_once():
+    minimum_scratch_free = max(0, int(os.getenv("NEXUS_WORKER_SCRATCH_MIN_FREE_BYTES", str(1024 * 1024 * 1024))))
+    if minimum_scratch_free:
+        available_scratch = WorkerScratchWorkspace.available_bytes()
+        if available_scratch < minimum_scratch_free:
+            print(f"worker_waiting_for_scratch_space free_bytes={available_scratch} minimum_bytes={minimum_scratch_free}")
+            return False
     WorkerScratchWorkspace.prune_expired(
         grace_seconds=int(os.getenv("NEXUS_WORKER_SCRATCH_GRACE_SECONDS", "3600"))
     )
