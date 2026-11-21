@@ -84,7 +84,37 @@ exit 0
   $probe = [IO.File]::Open($lockPath, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
   $probe.Dispose()
  } catch { throw "Scheduler lease remained locked after failed bounded run." }
- Write-Host "PASS: detached supervisor retried a failed cycle, completed a later success, marks a final failed cycle as failed, persists status, and releases its scheduler lease."
+ # Exercise the foreground mode used by Windows Task Scheduler, including automatic run-ID generation and per-cycle logs.
+ Set-Content -LiteralPath (Join-Path $scripts "start-devflow-autopilot.ps1") -Value '[CmdletBinding()] param([switch]$Run,[int]$MaxTasks=1) Write-Output "foreground-cycle-ok"; exit 0'
+ $foregroundPsi = [Diagnostics.ProcessStartInfo]::new()
+ $foregroundPsi.FileName = (Get-Command pwsh -ErrorAction Stop).Source
+ $foregroundPsi.WorkingDirectory = $repo
+ $foregroundPsi.UseShellExecute = $false
+ foreach ($arg in @("-NoProfile", "-File", (Join-Path $scripts "start-devflow-detached.ps1"), "-Supervisor", "-MaxTasks", "1", "-PollIntervalSeconds", "1", "-MaxCycles", "1")) {
+  [void]$foregroundPsi.ArgumentList.Add($arg)
+ }
+ $foregroundProcess = [Diagnostics.Process]::new()
+ $foregroundProcess.StartInfo = $foregroundPsi
+ if (-not $foregroundProcess.Start()) { throw "Could not start foreground scheduled-task mode test process." }
+ if (-not $foregroundProcess.WaitForExit(120000)) {
+  try { $foregroundProcess.Kill($true) } catch {}
+  throw "Foreground scheduled-task mode regression timed out."
+ }
+ if ($foregroundProcess.ExitCode -ne 0) { throw "Foreground scheduled-task mode failed with exit $($foregroundProcess.ExitCode)." }
+ $foregroundRuns = @(Get-ChildItem -LiteralPath (Join-Path $parent "repo-multiflow-logs") -Filter "*.run.json" | ForEach-Object {
+  $metadata = Get-Content -LiteralPath $_.FullName -Raw | ConvertFrom-Json
+  if ($metadata.mode -eq "foreground-supervisor") { $metadata }
+ })
+ if ($foregroundRuns.Count -ne 1) { throw "Expected one foreground supervisor run record, found $($foregroundRuns.Count)." }
+ $foregroundRun = $foregroundRuns[0]
+ $foregroundStatus = Get-Content -LiteralPath $foregroundRun.status_file -Raw | ConvertFrom-Json
+ if ($foregroundStatus.status -ne "completed" -or $foregroundStatus.last_exit_code -ne 0) {
+  throw "Foreground supervisor did not persist successful completion: $($foregroundStatus | ConvertTo-Json -Compress)"
+ }
+ if (-not (Test-Path -LiteralPath $foregroundStatus.last_stdout_log) -or -not (Test-Path -LiteralPath $foregroundStatus.last_stderr_log)) {
+  throw "Foreground supervisor did not persist per-cycle stdout/stderr logs."
+ }
+ Write-Host "PASS: retry/backoff, terminal success/failure state, lease release, and foreground Task Scheduler mode with generated run ID and cycle logs."
 } finally {
  Set-Location $oldLocation
  Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
