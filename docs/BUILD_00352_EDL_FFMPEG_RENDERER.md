@@ -2,9 +2,12 @@
 
 ## Supported EDL v1 render subset
 
-The worker accepts sequential video clips, bounded text overlays and up to eight optional audio tracks.
+The worker accepts ordered non-overlapping video clips, black timeline gaps, bounded text overlays, optional explicit project duration and up to eight optional audio tracks.
 
-- Video clips must begin at timeline zero and be contiguous, without gaps or overlaps.
+- Video clips are ordered by timeline start; gaps (including an initial gap) render as black. An overlap is accepted only when an explicit adjacent `crossfade` transition declares the exact overlap duration; undeclared overlaps remain invalid.
+- EDL v1 `transitions[]` is optional for backward compatibility. Each entry has a unique ID, `type: "crossfade"`, adjacent `from_clip_id` / `to_clip_id`, and a whole-millisecond duration from 100 to 5000 ms. Transition durations on either side of a clip may not exceed that clip's available duration.
+- Crossfades are rendered by FFmpeg's video `xfade=transition=fade` filter with a deterministic offset derived from the previous clip's timeline end. Clip streams are normalized to the same dimensions, frame rate, pixel format and timebase before composition. Existing audio-bed tracks remain independently positioned on the same project timebase and are mixed/muxed to the exact final project duration; optional audio-track fades remain explicit. This does not yet crossfade embedded source audio between video clips.
+- `project_duration_ms` is optional, whole milliseconds, and must cover every clip and audio track. When supplied it controls the final output length, including a trailing black segment; when omitted the last video clip end determines the duration.
 - Video source trims are applied with FFmpeg `trim`, then normalized to the configured output canvas, frame rate and pixel format before concat.
 - Title clips are rendered as timed `drawtext` overlays. Title content is written to per-job UTF-8 text files and passed with `textfile` plus `expansion=none`; it is never interpolated into an FFmpeg command string. The font must be an absolute, regular, non-symlink file supplied by trusted worker configuration.
 - Audio tracks carry an opaque workspace asset ID, timeline start, source in/out, linear gain and optional fade-in/fade-out durations. Audio is trimmed, timestamp-reset, gained, delayed, faded, mixed with `amix` and protected by `alimiter`.
@@ -12,7 +15,7 @@ The worker accepts sequential video clips, bounded text overlays and up to eight
 - Before FFmpeg runs, the renderer copies each clean asset into a private per-job work directory, verifies its SHA-256, runs a bounded source-media ffprobe check, and enforces source-trim bounds.
 - The renderer recomputes the canonical normalized EDL SHA-256 and rejects queue payloads that do not match the immutable snapshot digest.
 
-Transitions, subtitles, arbitrary filters, URL inputs, arbitrary file paths, timeline gaps and overlaps remain unsupported. Video clips must be contiguous; gaps and overlaps are rejected rather than silently rendered.
+Subtitles, arbitrary filters, URL inputs and arbitrary file paths remain unsupported. Only the bounded adjacent video crossfade is supported; all other overlap patterns are rejected. Gaps are explicit black video segments, and an explicit project duration can preserve trailing black time.
 
 ## Worker and API integration
 
@@ -27,9 +30,22 @@ Transitions, subtitles, arbitrary filters, URL inputs, arbitrary file paths, tim
 ## Validation evidence
 
 GitHub Actions on the integrated Draft PR #467:
-- Exact code head `6b81e697c3537d81aa5051eb6208f8db2ce2defb): **914 backend tests passed**; UI browser smoke passed, including authenticated Korean rendering, desktop/mobile, keyboard search, workspace isolation, review approval/audit, analytics pagination/CSV and partial API failure handling.
+- Earlier integrated code head `6b81e697c3537d81aa5051eb6208f8db2ce2defb`: **914 backend tests passed**; UI browser smoke passed, including authenticated Korean rendering, desktop/mobile, keyboard search, workspace isolation, review approval/audit, analytics pagination/CSV and partial API failure handling.
+- EDL black-gap/project-duration and explicit crossfade changes are tracked in Draft PR #470. The exact-head backend and Compose runs must both pass before this increment is considered CI-validated.
 - Compose integration smoke passed: current ClamAV database readiness and EICAR rejection, service readiness, render-worker isolation/resource limits, real FFmpeg/ffprobe fixture render and artifact adoption/review, authenticated API upload → separate worker render → approval → private preview, and scheduled encrypted backup plus isolated restore.
 - The authenticated E2E uses generated MP4 media and isolated Docker volumes. It proves the Compose integration path, not arbitrary customer-media compatibility, physical-device QA, target-host persistence/quotas, or live YouTube/TikTok provider validation.
+
+## EDL gap and crossfade validation increment
+
+Draft PR #470 adds optional whole-millisecond `project_duration_ms`, black initial/internal/trailing timeline gaps and bounded adjacent video crossfades.
+
+- Crossfades use EDL v1 `transitions[]` entries with unique IDs, exact adjacent clip references and whole-millisecond durations from 100 to 5000 ms.
+- A declared transition must exactly match the overlap; undeclared overlaps are still rejected by the timeline renderer. Incoming plus outgoing transition durations cannot exceed the clip's available timeline duration.
+- The FFmpeg graph normalizes clip streams and uses `xfade=transition=fade` with a deterministic absolute timeline offset.
+- Audio-bed tracks remain positioned on the same timeline and are muxed to the final project duration. Embedded source-audio crossfades are not implemented by this increment.
+- The Compose real-media smoke now renders two overlapping clips through the actual FFmpeg worker, lease-fenced artifact adoption and review handoff.
+
+Exact crossfade code head `f336a1c2019c8732d5f0e196d970174f0fa24039` passed Backend [run 44884777926](https://github.com/justinhblee-prog/shorts/actions/runs/44884777926) (**925 tests plus Playwright browser smoke**) and Compose [run 44884777927](https://github.com/justinhblee-prog/shorts/actions/runs/44884777927) (real FFmpeg crossfade render, worker isolation, authenticated API E2E, review/private preview and encrypted backup/isolated restore). This is generated-fixture CI evidence, not representative customer-media or target-host validation.
 
 ## Render artifact storage guard
 

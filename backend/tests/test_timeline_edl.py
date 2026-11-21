@@ -63,6 +63,76 @@ class TimelineEDLTests(unittest.TestCase):
         with self.assertRaises(EDLValidationError):
             validate_edl({**self.valid, "clips": too_many})
 
+    def test_normalizes_explicit_project_duration_and_rejects_short_or_fractional_duration(self):
+        payload = {**self.valid, "project_duration_ms": 8000}
+        normalized = validate_edl(payload)
+        self.assertEqual(normalized["project_duration_ms"], 8000)
+        for value in (4999, 8000.5, True, 3_600_001):
+            with self.subTest(value=value), self.assertRaises(EDLValidationError):
+                validate_edl({**self.valid, "project_duration_ms": value})
+
+    def test_validates_adjacent_bounded_crossfade_transitions(self):
+        payload = {
+            **self.valid,
+            "clips": [
+                {"id": "clip-a", "type": "video", "start_ms": 0, "end_ms": 5000,
+                 "asset_id": "asset_a", "source_in_ms": 0, "source_out_ms": 5000},
+                {"id": "clip-b", "type": "video", "start_ms": 3000, "end_ms": 8000,
+                 "asset_id": "asset_b", "source_in_ms": 0, "source_out_ms": 5000},
+            ],
+            "transitions": [{
+                "id": "xfade-ab", "type": "crossfade",
+                "from_clip_id": "clip-a", "to_clip_id": "clip-b",
+                "duration_ms": 2000,
+            }],
+        }
+        normalized = validate_edl(payload)
+        self.assertEqual(normalized["transitions"][0]["duration_ms"], 2000)
+        for mutation in (
+            {"duration_ms": 1999},
+            {"duration_ms": 5001},
+            {"type": "wipe"},
+            {"to_clip_id": "not-a-clip"},
+        ):
+            invalid = {**payload, "transitions": [{**payload["transitions"][0], **mutation}]}
+            with self.subTest(mutation=mutation), self.assertRaises(EDLValidationError):
+                validate_edl(invalid)
+        missing = {**payload}
+        missing.pop("transitions")
+        self.assertNotIn("transitions", validate_edl(missing))
+
+    def test_validates_multiple_consecutive_crossfades_and_clip_overlap_budget(self):
+        clips = [
+            {"id": "a", "type": "video", "start_ms": 0, "end_ms": 5000,
+             "asset_id": "asset_a", "source_in_ms": 0, "source_out_ms": 5000},
+            {"id": "b", "type": "video", "start_ms": 4000, "end_ms": 9000,
+             "asset_id": "asset_b", "source_in_ms": 0, "source_out_ms": 5000},
+            {"id": "c", "type": "video", "start_ms": 8000, "end_ms": 13000,
+             "asset_id": "asset_c", "source_in_ms": 0, "source_out_ms": 5000},
+        ]
+        transitions = [
+            {"id": "ab", "type": "crossfade", "from_clip_id": "a",
+             "to_clip_id": "b", "duration_ms": 1000},
+            {"id": "bc", "type": "crossfade", "from_clip_id": "b",
+             "to_clip_id": "c", "duration_ms": 1000},
+        ]
+        payload = {**self.valid, "clips": clips, "transitions": transitions}
+        self.assertEqual(len(validate_edl(payload)["transitions"]), 2)
+        too_long = {
+            **payload,
+            "clips": [
+                clips[0],
+                {**clips[1], "start_ms": 2000, "end_ms": 7000},
+                {**clips[2], "start_ms": 4000, "end_ms": 9000},
+            ],
+            "transitions": [
+                {**transitions[0], "duration_ms": 3000},
+                {**transitions[1], "duration_ms": 3000},
+            ],
+        }
+        with self.assertRaisesRegex(EDLValidationError, "available timeline duration"):
+            validate_edl(too_long)
+
     def test_does_not_mutate_input(self):
         import copy
         payload = copy.deepcopy(self.valid)

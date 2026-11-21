@@ -83,7 +83,12 @@
         "Timeline render worker is opt-in behind the Compose render profile; Compose CI asserts it is absent from the default profile and enabled explicitly for integration smoke",
         "Exact-head integration validation passed: Backend run 44882235365 (914 tests plus Playwright browser smoke) and Compose run 44882235333 (ClamAV database readiness/EICAR detection, worker isolation, real FFmpeg render/adoption/review, authenticated API upload-to-worker render/approval/private preview, encrypted backup and isolated restore). CI uses generated media and isolated Docker volumes; target-host/provider validation remains.",
         "Render worker performs orphaned staging and unindexed artifact reconciliation every 300 seconds with a 7200-second grace period. PR #468 adds structured removal-count and failure-type log events; target persistent filesystem/alert validation and indexed artifact retention remain open.",
-        "PR #469 adds an installation-wide 20 GiB default logical cap for indexed render artifacts and a 1 GiB default artifact-volume free-space preflight; the aggregate is checked under the SQLite adoption write lock and fails closed. No indexed artifacts are auto-deleted."
+        "PR #469 adds an installation-wide 20 GiB default logical cap for indexed render artifacts and a 1 GiB default artifact-volume free-space preflight; the aggregate is checked under the SQLite adoption write lock and fails closed. No indexed artifacts are auto-deleted.",
+        "EDL v1 now accepts an optional whole-millisecond project_duration_ms that must cover all clips/audio; the FFmpeg graph emits black segments for initial/internal/trailing gaps and still rejects overlapping video clips.",
+        "Optional EDL v1 transitions with bounded adjacent 100–5000 ms video crossfades; exact overlap validation, unique transition IDs and per-clip combined transition-duration bounds",
+        "FFmpeg xfade graph composes normalized clip streams at deterministic absolute timeline offsets; independent audio-bed tracks retain their timeline placement and final project duration, with explicit audio-track fades",
+        "Real-media Compose smoke now generates two overlapping source clips and verifies the FFmpeg xfade render through the lease-fenced worker, artifact adoption and review handoff",
+        "Exact crossfade head f336a1c passed Backend CI 44884777926 (925 tests plus Playwright browser smoke) and Compose CI 44884777927 (real FFmpeg crossfade, authenticated API E2E, review/private preview and encrypted backup/isolated restore)"
       ],
       "remaining": [
         "Validate representative customer media on the target runtime, including uncommon codecs, variable frame rates and long-duration inputs",
@@ -92,7 +97,6 @@
         "Validate five-minute orphan reconciliation and its logs on the target persistent filesystem; add durable metrics/alerts. Indexed artifact retention/deletion remains a separate policy gate.",
         "Run end-to-end authenticated API upload → current ClamAV signature scan → render queue → worker adoption → review preview using production-like persistent storage; CI now exercises real ClamAV scanning and EICAR rejection with generated media on isolated Docker volumes, but target storage remains unvalidated.",
         "Measure production workload resource usage and enforce disk quota/network egress policy on the target host",
-        "Implement EDL overlap transitions and explicit project-duration/trailing-gap semantics",
         "Define indexed artifact retention/deletion policy separately from the logical cap; existing indexed artifacts are immutable and never auto-deleted. Host/container hard quotas and monitoring still require target-host configuration."
       ]
     },

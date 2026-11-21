@@ -1,10 +1,10 @@
 """Lease-cancellable, argv-only EDL v1 renderer for private local media assets.
 
-The renderer supports contiguous video clips, bounded timed title overlays,
-and optional bounded audio tracks. Transitions, gaps and overlaps are rejected.
-Title text is staged as UTF-8 text files and rendered with a trusted configured
-font. All source media is resolved by a trusted workspace asset callback;
-arbitrary paths and URLs never come from the EDL.
+The renderer supports ordered non-overlapping video clips, black timeline gaps,
+bounded timed title overlays, explicit project duration and optional audio tracks.
+Overlaps/transitions remain unsupported. Title text is staged as UTF-8 text files
+and rendered with a trusted configured font. All source media is resolved by a
+trusted workspace asset callback; arbitrary paths and URLs never come from the EDL.
 """
 from __future__ import annotations
 
@@ -209,9 +209,12 @@ class TimelineFFmpegRenderer:
         # Preserve the original EDL v1 digest for queued jobs created before
         # optional audio_tracks became part of the normalized snapshot payload.
         digest_payload = edl
-        if "audio_tracks" not in payload["edl"]:
+        if "audio_tracks" not in payload["edl"] or "transitions" not in payload["edl"]:
             digest_payload = dict(edl)
-            digest_payload.pop("audio_tracks", None)
+            if "audio_tracks" not in payload["edl"]:
+                digest_payload.pop("audio_tracks", None)
+            if "transitions" not in payload["edl"]:
+                digest_payload.pop("transitions", None)
         canonical = json.dumps(
             digest_payload, ensure_ascii=False, sort_keys=True,
             separators=(",", ":"), allow_nan=False,
@@ -225,16 +228,42 @@ class TimelineFFmpegRenderer:
             raise TimelineRenderError("timeline must contain at least one video clip")
         if title_clips and self.font_path is None:
             raise TimelineRenderError("a configured font file is required for title overlays")
+        transitions = {
+            (item["from_clip_id"], item["to_clip_id"]): item
+            for item in edl.get("transitions", [])
+        }
         cursor = 0.0
-        for clip in video_clips:
-            if abs(float(clip["start_ms"]) - cursor) > 1.0:
-                raise TimelineRenderError("video clips must be sequential without gaps or overlaps")
+        timeline_ops = []
+        for index, clip in enumerate(video_clips):
+            start = float(clip["start_ms"])
+            if index == 0:
+                if start > 1.0:
+                    timeline_ops.append(("gap", start))
+                timeline_ops.append(("append", index))
+            else:
+                previous = video_clips[index - 1]
+                transition = transitions.get((previous["id"], clip["id"]))
+                if transition is not None:
+                    overlap = float(previous["end_ms"]) - start
+                    if not 1.0 < overlap <= 5000 or not abs(overlap - transition["duration_ms"]) <= 0.001:
+                        raise TimelineRenderError("crossfade overlap does not match its declared duration")
+                    if float(clip["end_ms"]) <= float(previous["end_ms"]):
+                        raise TimelineRenderError("crossfade destination clip must extend the timeline")
+                    timeline_ops.append(("crossfade", index, int(transition["duration_ms"])))
+                else:
+                    if start < cursor - 1.0:
+                        raise TimelineRenderError("video clips overlap without an explicit crossfade")
+                    if start > cursor + 1.0:
+                        timeline_ops.append(("gap", start - cursor))
+                    timeline_ops.append(("append", index))
             cursor = float(clip["end_ms"])
-        duration_ms = int(round(cursor))
+        duration_ms = int(round(edl.get("project_duration_ms", cursor)))
         if duration_ms < 1 or duration_ms > 3_600_000:
             raise TimelineRenderError("timeline duration is outside configured limits")
+        if duration_ms > cursor + 1.0:
+            timeline_ops.append(("gap", duration_ms - cursor))
         if any(float(clip["end_ms"]) > duration_ms for clip in title_clips):
-            raise TimelineRenderError("title overlay extends beyond the video timeline")
+            raise TimelineRenderError("title overlay extends beyond the project duration")
 
         job_dir = Path(tempfile.mkdtemp(prefix=".render-", dir=str(self.staging_root)))
         final_path = self.staging_root / ("render_" + uuid.uuid4().hex + ".mp4")
@@ -274,22 +303,74 @@ class TimelineFFmpegRenderer:
                 argv.extend(["-protocol_whitelist", "file,pipe", "-i", str(staged)])
 
             filters = []
-            labels = []
             for index, clip in enumerate(video_clips):
                 label = f"v{index}"
                 filters.append(
                     f"[{index}:v:0]trim=start={self._seconds(clip['source_in_ms'])}:"
                     f"end={self._seconds(clip['source_out_ms'])},"
-                    "setpts=PTS-STARTPTS,"
+                    "setpts=PTS-STARTPTS,settb=AVTB,"
                     f"scale={self.width}:{self.height}:force_original_aspect_ratio=decrease,"
                     f"pad={self.width}:{self.height}:(ow-iw)/2:(oh-ih)/2,"
                     f"setsar=1,fps={self.fps},format=yuv420p[{label}]"
                 )
-                labels.append(f"[{label}]")
-            filters.append(
-                "".join(labels) + f"concat=n={len(labels)}:v=1:a=0[vout]"
-            )
-            output_label = "vout"
+
+            composite = None
+            pending_gap = None
+            gap_index = 0
+            for op in timeline_ops:
+                if op[0] == "gap":
+                    gap_label = f"gap{gap_index}"
+                    gap_index += 1
+                    filters.append(
+                        f"color=c=black:s={self.width}x{self.height}:r={self.fps}:"
+                        f"d={self._seconds(op[1])},format=yuv420p,settb=AVTB,"
+                        f"setpts=PTS-STARTPTS[{gap_label}]"
+                    )
+                    pending_gap = gap_label
+                    continue
+                if op[0] == "crossfade":
+                    index, transition_ms = op[1], op[2]
+                    next_label = f"xfade{index}"
+                    offset_ms = cursor_before = float(video_clips[index - 1]["end_ms"])
+                    offset_ms -= transition_ms
+                    filters.append(
+                        f"[{composite}][v{index}]xfade=transition=fade:"
+                        f"duration={self._seconds(transition_ms)}:"
+                        f"offset={self._seconds(offset_ms)},format=yuv420p[{next_label}]"
+                    )
+                    composite = next_label
+                    pending_gap = None
+                    continue
+                index = op[1]
+                if composite is None:
+                    if pending_gap is None:
+                        composite = f"v{index}"
+                    else:
+                        composite = f"joined{index}"
+                        filters.append(
+                            f"[{pending_gap}][v{index}]concat=n=2:v=1:a=0[{composite}]"
+                        )
+                else:
+                    next_label = f"joined{index}"
+                    if pending_gap is None:
+                        filters.append(
+                            f"[{composite}][v{index}]concat=n=2:v=1:a=0[{next_label}]"
+                        )
+                    else:
+                        filters.append(
+                            f"[{composite}][{pending_gap}][v{index}]concat=n=3:v=1:a=0[{next_label}]"
+                        )
+                    composite = next_label
+                pending_gap = None
+            if pending_gap is not None:
+                final_label = "vout"
+                filters.append(
+                    f"[{composite}][{pending_gap}]concat=n=2:v=1:a=0[{final_label}]"
+                )
+                composite = final_label
+            if composite is None:
+                raise TimelineRenderError("timeline has no composable video segments")
+            output_label = composite
             if title_clips:
                 font_file = _filter_path(self.font_path)
                 for index, clip in enumerate(title_clips):
