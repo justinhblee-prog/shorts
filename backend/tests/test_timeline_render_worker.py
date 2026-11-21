@@ -258,8 +258,11 @@ class TimelineRenderWorkerTests(unittest.TestCase):
         staged = staging / "late-output.mp4"
 
         class LeaseLossQueue:
+            def __init__(self, delegate):
+                self.delegate = delegate
+
             def __getattr__(self, name):
-                return getattr(self.queue, name)
+                return getattr(self.delegate, name)
 
             def heartbeat(self, *args, **kwargs):
                 heartbeat_failed.set()
@@ -279,7 +282,7 @@ class TimelineRenderWorkerTests(unittest.TestCase):
             workspace_id="ws_fixture",
         )
         worker = TimelineRenderWorker(
-            LeaseLossQueue(), render, "timeline-worker", self.generation,
+            LeaseLossQueue(self.queue), render, "timeline-worker", self.generation,
             heartbeat_seconds=0.01, artifact_store=store,
         )
 
