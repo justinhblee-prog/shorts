@@ -1,8 +1,8 @@
 # NEXUS STUDIO PRO — Parallel Workstreams
 
-**Coordination baseline:** `813dfb74fc7c5243dc35f1c3dbdb67c58d9a066b`  
-**Core workstream:** `build/build-00315-harden-tiktok-aigc-disclosure` (existing Draft PR #323)  
-**UI workstream:** `ui/nexus-dashboard-workspace` (this branch)
+**Coordination baseline:** `851b414262cc6bef8ec374ed0e7a25921521b295` (main snapshot, 2026-11-19)  
+**Core delivery:** stacked BUILD / POLICY Draft PR chains #381, #383–#386, #388–#390  
+**UI delivery:** UI Draft PRs #382 and #387; UI base chain remains separate
 
 ## Goal
 
@@ -18,7 +18,7 @@ Develop the product interface and its runtime independently so both can make pro
 
 ## Working rules
 
-1. Keep Core work on PR #323 and UI work on this branch and its own Draft PR. Do not merge either PR without explicit approval.
+1. Keep Core and UI changes in their own Draft PR branches and preserve documented dependencies. Do not merge any PR without explicit approval.
 2. One owner per file at a time. Cross-boundary changes are split into separate commits or coordinated through a documented contract first.
 3. UI consumes existing documented API shapes. If a required field or endpoint is missing, record the contract gap and request a Core-side implementation rather than inventing mock success.
 4. Core changes preserve stable API semantics or document compatible changes before UI adoption.
@@ -35,7 +35,7 @@ Develop the product interface and its runtime independently so both can make pro
 
 - The repository already contains a single-page dashboard with Studio, Discovery, Review, and Operations sections.
 - Analytics history filters, charts, and CSV export are implemented in the frontend; live browser behavior and real provider account behavior are not established by source tests alone.
-- PR #323 remains Open / Draft / Unmerged and is the current Core delivery line.
+- PR #323 is no longer the sole Core delivery line; current work is split across the active BUILD and POLICY stacks listed below.
 - This document establishes ownership and branch boundaries; it does not claim that two independent agents are executing simultaneously.
 
 
@@ -65,3 +65,44 @@ Develop the product interface and its runtime independently so both can make pro
 - Make the main skip-link destination programmatically focusable.
 - Preserve minimum 48px navigation targets and 44px refresh action targets in the icon-only compact layout.
 - Add source-level regression coverage. Actual touch-device and screen-reader verification remain outstanding.
+
+
+## Active FLOW snapshot — 2026-11-20
+
+This snapshot is a repository coordination record, not a claim that independent agents are continuously executing. Work advances through bounded jobs, with each lane verified independently and integration performed only after dependency gates pass.
+
+### UI lane
+- PR #382 — UI-00011 browser-history navigation synchronization; Draft, unmerged; exact-head browser smoke and Compose checks passed in hosted CI.
+- PR #387 — UI-00012 audited quarantine-recovery control; Draft, unmerged; depends on PR #384. Exact-head validation passed; live authenticated browser/API interaction remains unverified.
+
+### Core worker / orchestration lane
+- PR #381 BUILD-00384 → #383 BUILD-00385 → #384 BUILD-00386 form the worker-safety chain: durable scope semantics, worktree-diff verification, then audited operator recovery.
+- PR #385 BUILD-00387 adds approved YouTube synthetic-media disclosure mapping on the #383 base.
+- PR #388 BUILD-00388 is a sibling follow-up on #384, constraining GitHub intake pagination to the original HTTPS API host and collection path and rejecting non-canonical or hostile imported issue links.
+
+### Policy lane
+- PR #386 POLICY-00001 → #389 POLICY-00002 → #390 POLICY-00003 form the policy-validation chain: declaration object validation, source URL/rights-key validation, then fail-closed review approval for script-bearing production artifacts.
+- PR #390 exact head `a89dd228f924bf6f7cb8bd7d441c6733851c1acf` passed hosted repository validation and frontend syntax checks in runs [44554183308](https://github.com/justinhblee-prog/shorts/actions/runs/44554183308) and [44554192636](https://github.com/justinhblee-prog/shorts/actions/runs/44554192636).
+
+### Integration / release gates
+- All PRs #381–#390 remain Draft and unmerged at this snapshot; their base/head relationships must be preserved when reviewing or promoting stacks.
+- No production deployment, live OAuth/provider upload, live Windows self-hosted runner execution, or real quarantined-job recovery is claimed.
+- Hosted CI success validates the tested source revision only. It does not imply the scheduled local worker is active on main or that independent worker processes are running.
+- Integration must verify API contract compatibility, database migration ordering, permission grants, browser behavior, and release-readiness evidence before any merge or deployment.
+
+
+## Active UI design continuation — 2026-11-20 01:24 KST
+
+- PR #392 — UI-00013 cinematic dashboard presentation layer; Draft, unmerged. Exact head `454698508fbe652a511d2ad1235c274aea3bcd53` has successful hosted CI run [44563818798](https://github.com/justinhblee-prog/shorts/actions/runs/44563818798).
+- PR #394 — UI-00014 professional workspace design system; Draft, unmerged, stacked directly on PR #392. Its six-commit delta is limited to `frontend/cyber-magic.css` and `frontend/index.html`; it preserves the existing app JavaScript/API behavior. Exact head `b098826455150fefe4a8def6377bf77630a1ad7f` has one successful full validation + Chromium browser smoke run [44565614418](https://github.com/justinhblee-prog/shorts/actions/runs/44565614418), including screenshot artifact `nexus-dashboard-browser-screenshots`; a second duplicate run [44565685710](https://github.com/justinhblee-prog/shorts/actions/runs/44565685710) is still in progress at the Korean font setup step as of this snapshot.
+- Do not merge or deploy either UI PR. The next UI action is to inspect the captured desktop/mobile screenshots and finish the second exact-head CI run; then review visual hierarchy, responsive behavior, and preservation of existing controls before integration.
+- The UI stack must be integrated only after the current Core/Policy dependency stack is reviewed and the cross-lane API/browser regression plan is satisfied.
+
+## UI-00015 — analytics history table pagination
+
+- PR #395 — Draft, unmerged, stacked on UI-00014 / PR #394. Head currently `6afe85c0e31cb0a478fe1159c10d303f75800535`.
+- Browser screenshot review of UI-00014 exposed a long analytics history table: the view displayed up to 200 records in one continuous table, making the overall workspace excessively tall.
+- UI-00015 changes only the analytics history presentation: 25 rows per page, previous/next controls, and a live page/count indicator. Chart summaries and full cursor-paginated CSV export remain independent of the visible page.
+- Added browser smoke assertions for 25-row rendering, page 1 → 2 → 1 navigation, disabled previous control on the first page, and preservation of the complete 502-row CSV export.
+- Latest-head hosted repository validation is passing through `scripts/validate.sh` in [run 44567584068](https://github.com/justinhblee-prog/shorts/actions/runs/44567584068); full Compose image build, service startup/readiness, scheduled backup and isolated restore passed in [run 44567584065](https://github.com/justinhblee-prog/shorts/actions/runs/44567584065). A follow-up browser run initially exposed that the API returns 501 snapshots while the legacy table intentionally caps visible rows at 200; the current head restores that 200-row cap and paginates those rows. The browser smoke now also reloads the analytics history and verifies 25-row pagination controls fit and navigate at a 320px viewport. The latest exact-head repository and Chromium browser checks are running. An earlier validation failure from a stale source assertion was corrected and is not the current head.
+- Do not merge PR #395 independently. Keep the UI-00013 → UI-00014 → UI-00015 stack intact until browser validation and cross-lane integration review pass.
