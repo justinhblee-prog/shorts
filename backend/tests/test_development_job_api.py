@@ -108,6 +108,16 @@ class DevelopmentJobApiTests(unittest.TestCase):
                 app_module.development_job_events("not-a-job", limit=10, x_review_token="token")
             self.assertEqual(events_error.exception.status_code, 404)
 
+    def test_existing_database_is_opened_and_cached(self):
+        app_module._development_job_store_instance = None
+        app_module._development_job_store_path = None
+        with mock.patch.dict(os.environ, {"NEXUS_DEVELOPMENT_DB": str(self.database)}, clear=False):
+            first = app_module._get_development_job_store()
+            second = app_module._get_development_job_store()
+        self.assertEqual(first.db_path, str(self.database.resolve()))
+        self.assertIs(first, second)
+        self.assertTrue(self.database.is_file())
+
     def test_missing_database_configuration_fails_closed(self):
         app_module._development_job_store_instance = None
         app_module._development_job_store_path = None
