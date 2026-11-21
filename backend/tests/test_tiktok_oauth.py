@@ -150,6 +150,33 @@ class TikTokOAuthTests(unittest.TestCase):
         self.assertEqual(self.manager.get_access_token(), "access-secret-1")
         self.assertEqual(self.manager.get_access_token(required_scope="video.list"), "access-secret-1")
 
+    def test_non_object_token_response_fails_closed_without_storing_credentials(self):
+        transport = OAuthTransport([(200, ["unexpected", "array"])])
+        manager = TikTokOAuthManager(
+            self.store, "client-key", "client-secret",
+            "https://example.test/api/tiktok/oauth/callback",
+            self.key, transport,
+        )
+        auth = manager.start_authorization()
+        state = parse_qs(urlparse(auth["authorization_url"]).query)["state"][0]
+        with self.assertRaisesRegex(TikTokOAuthError, "invalid token response object"):
+            manager.exchange_code("code", state)
+        self.assertIsNone(self.store.token_record())
+
+    def test_non_positive_or_boolean_expiry_values_are_rejected(self):
+        base = {
+            "access_token": "access", "refresh_token": "refresh",
+            "open_id": "creator", "scope": "user.info.basic,video.publish",
+            "token_type": "Bearer", "expires_in": 3600, "refresh_expires_in": 86400,
+        }
+        for field, value in (("expires_in", 0), ("expires_in", True),
+                             ("refresh_expires_in", -1), ("refresh_expires_in", False)):
+            with self.subTest(field=field, value=value):
+                payload = {**base, field: value}
+                with self.assertRaisesRegex(TikTokOAuthError, "invalid expiry values"):
+                    self.manager._save_token_response(payload)
+                self.assertIsNone(self.store.token_record())
+
     def test_refresh_rotates_and_persists_the_new_refresh_token(self):
         self.manager._save_token_response({
             "access_token": "access-old",
