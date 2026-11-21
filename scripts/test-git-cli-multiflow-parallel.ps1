@@ -84,28 +84,29 @@ Add-Content -LiteralPath $log -Value "end|$end|$PID"
  if($delta -gt 2500){throw "Three workers did not overlap; start spread was $($delta)ms."}
  if($timer.Elapsed.TotalSeconds -gt 25){throw "Parallel run took too long ($($timer.Elapsed.TotalSeconds)s), expected overlapping workers; worker start-time overlap is asserted separately."}
  $stateData=Get-Content (Join-Path $state "state.json") -Raw|ConvertFrom-Json
- foreach($id in @("BUILD-99001","BUILD-99002","BUILD-99003","BUILD-99006")){
+ foreach($id in @("BUILD-99001","BUILD-99002","BUILD-99006")){
   if($stateData.tasks.$id.status -ne "draft_pr_created"){throw "Unexpected final state for ${id}: $($stateData.tasks.$id.status)"}
  }
  $remoteBranches=@(& git --git-dir=$origin branch --list "autopilot/*")
- if($remoteBranches.Count -ne 4){throw "Expected four worker branches; the current supervisor PR self-reference must not suppress its queued task."}
+ if($remoteBranches.Count -ne 3){throw "Expected three worker branches; overlapping task scope or supervisor self-reference was mishandled."}
  Push-Location $checkout
  try{
   & pwsh -NoProfile -File (Join-Path $checkout "scripts/git-cli-multiflow-parallel.ps1") -StateRoot $state -MaxParallel 3 -MaxTasks 4 -TaskTimeoutSeconds 60
   if($LASTEXITCODE -ne 0){throw "Idempotent rerun exited with $LASTEXITCODE."}
  }finally{Pop-Location}
  $branchesAfterRerun=@(& git --git-dir=$origin branch --list "autopilot/*")
- if($branchesAfterRerun.Count -ne 4){throw "Completed Draft PR tasks were dispatched again on rerun."}
+ if($branchesAfterRerun.Count -ne 3){throw "Completed Draft PR tasks were dispatched again on rerun."}
  if($events.Count -lt 3 -or ($events|Where-Object kind -eq "credential-leak").Count -gt 0){throw "Supervisor GitHub credentials leaked into an Agent process."}
  $workerRoots=@(Get-ChildItem -LiteralPath (Join-Path (Split-Path $checkout -Parent) "checkout-worktrees") -Directory -ErrorAction SilentlyContinue)
  $validated=@($workerRoots|Where-Object{Test-Path (Join-Path $_.FullName ".validator-ran")})
- if($validated.Count -ne 4){throw "Expected task-worktree validators to execute in all four isolated worktrees; got $($validated.Count)."}
+ if($validated.Count -ne 3){throw "Expected task-worktree validators to execute in all four isolated worktrees; got $($validated.Count)."}
  $validationLeaks=@($workerRoots|Where-Object{Test-Path (Join-Path $_.FullName ".validator-token-leak")})
  if($validationLeaks.Count -gt 0){throw "Supervisor GitHub credentials leaked into task validation."}
  if($stateData.tasks."BUILD-99006".status -ne "draft_pr_created"){throw "Supervisor PR self-reference incorrectly suppressed BUILD-99006."}
  if($stateData.tasks."BUILD-99004"){throw "Dependency-gated task unexpectedly entered worker state."}
  if($stateData.tasks."BUILD-99005"){throw "Task with an open PR body reference was unexpectedly dispatched."}
- Write-Host "PASS: three fake agents overlapped (start spread $($delta)ms), produced Draft PR states, and pushed isolated branches."
+ if($stateData.tasks."BUILD-99003"){throw "Task with an overlapping file scope was unexpectedly dispatched."}
+ Write-Host "PASS: three fake agents overlapped (start spread $($delta)ms); overlapping scopes were deferred and isolated Draft PR branches were pushed."
 }finally{
  $env:PATH=$originalPath
  if($null -eq $oldGhToken){Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue}else{$env:GH_TOKEN=$oldGhToken}
