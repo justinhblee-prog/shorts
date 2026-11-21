@@ -88,11 +88,11 @@ The media/render work is not one flat set of independently mergeable PRs. The ve
 ```
 
 Important reconciliation finding:
-- PR #444 currently reports `mergeable=false`. GitHub compare reports 59 commits ahead and 19 behind its declared base branch `feat/build-00352-lease-fenced-artifact-adoption-2026-11-20`; it has diverged from that base and requires reconciliation before review/merge.
-- A checkpoint comment was added to #444. It remains Draft/open/unmerged. Do not merge #444, #448, #449, #450, #452, #453 or #456 out of order.
+- PR #444 currently reports `mergeable=false`. Its integration head `ba9c511` has 59 commits on top of ancestor `da945b4`, while the declared base branch now points at PR #436 head `23a55ed`, which is 19 commits ahead of that ancestor. Compare `da945b4...23a55ed` identifies seven base-side changed paths; five also changed in #444: `.devflow/tasks.json`, `.github/workflows/compose-smoke.yml`, `backend/queue_store.py`, `backend/tests/test_timeline_render_store.py`, and `backend/timeline_render_store.py`. This overlap is the concrete reconciliation area; do not change the PR base or overwrite either side blindly.
+- The #444 branch is not merely behind: comparing current #436 head `23a55ed` to #444 head `ba9c511` shows 59 ahead / 19 behind. Keep #444 Draft/open/unmerged while preparing a reviewed integration of the five overlapping paths plus the three base-only paths (`backend/timeline_render_api_e2e_smoke.py`, `docs/BUILD_00352_RENDER_ARTIFACT_ADOPTION.md`, and related task/workflow changes).
 - PR #452 is correctly based on the #450 workspace-quota branch; it is 4 commits ahead of that base with no behind commits. Its later descendants inherit the upstream #449→#448→#444 dependency.
 - PR #458 now checks restore workspace capacity before encrypted decryption and before archive extraction, then checks final database/media target capacity; latest head `2e29fdc` passed 476 backend tests. PRs #458, #459 and #462 are separate main-based storage/worker improvements, but they do not replace the BUILD-00352 integration stack.
-- The #444 compare shows changes across queue, asset store, render worker, API, Compose and tests; resolving this requires reconciling the complete branch, not simply changing the PR base to main.
+- The #444 compare shows changes across queue, asset store, render worker, API, Compose and tests. The next safe step is a conflict-aware reconciliation branch from the current #436 head, preserving both sides and validating the full Compose render/review smoke before retargeting any PR.
 
 ## 4. Validation evidence and limits
 
