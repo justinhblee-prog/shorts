@@ -144,7 +144,10 @@ class DevelopmentJobApiTests(unittest.TestCase):
             "runner-visible-id", hostname="private-runner-host",
             current_job_id=self.job["id"],
         )
-        with mock.patch.object(app_module, "require_review_permission"):
+        with (
+            mock.patch.object(app_module, "_get_development_job_store", return_value=self.store),
+            mock.patch.object(app_module, "require_review_permission"),
+        ):
             jobs = app_module.development_jobs(status="leased", limit=20, x_review_token="operator-token")
         self.assertEqual(len(jobs["items"]), 1)
         self.assertEqual(jobs["items"][0]["status"], "leased")
@@ -165,13 +168,16 @@ class DevelopmentJobApiTests(unittest.TestCase):
             "runner-visible-id", hostname="private-runner-host",
             current_job_id=self.job["id"],
         )
-        with mock.patch.object(app_module, "require_review_permission"):
+        with (
+            mock.patch.object(app_module, "_get_development_job_store", return_value=self.store),
+            mock.patch.object(app_module, "require_review_permission"),
+        ):
             events = app_module.development_job_events(self.job["id"], limit=20, x_review_token="operator-token")
         self.assertTrue(all(events["events"][i]["timestamp"] <= events["events"][i+1]["timestamp"] for i in range(len(events["events"]) - 1)))
 
     def test_pagination_limit_truncates_results(self):
-        second = self.store.create(title="Second pagination fixture", priority=101)
-        third = self.store.create(title="Third pagination fixture", priority=102)
+        second = self.store.create(title="Second pagination fixture", priority=101, scope=["backend/second.py"])
+        third = self.store.create(title="Third pagination fixture", priority=102, scope=["backend/third.py"])
         claimed_ids = {
             self.store.claim_ready("runner-visible-id-1")["id"],
             self.store.claim_ready("runner-visible-id-2")["id"],
@@ -208,8 +214,9 @@ class DevelopmentJobApiTests(unittest.TestCase):
             datetime(2023, 4, 3, tzinfo=timezone.utc),
         ])
         with mock.patch.object(development_jobs_module, "_now", side_effect=lambda: next(timestamps)):
-            event_job = self.store.create(title="Chronological event fixture")
+            event_job = self.store.create(title="Chronological event fixture", scope=["backend/chronological.py"])
             claimed = self.store.claim_ready("runner-visible-id")
+            self.assertEqual(claimed["id"], event_job["id"])
             self.store.heartbeat(event_job["id"], "runner-visible-id", claimed["lease_token"])
         events = self.store.events(event_job["id"], limit=20)
         self.assertEqual([event["event_type"] for event in events], ["created", "claimed", "heartbeat"])
