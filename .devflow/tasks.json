@@ -86,13 +86,13 @@
         "Exact-head validation of optional project duration and trailing black render passed: 916 backend tests, Playwright desktop/mobile and keyboard smoke, plus real-media Compose FFmpeg/ffprobe trailing-gap render, authenticated API-to-worker review preview, ClamAV and encrypted backup/restore on commit 8be9f95c5a775c45fe7b7f888d0a78ec13b1d801.",
         "EDL v1 now accepts optional adjacent crossfade transition records with bounded 100–5000 ms duration, valid clip adjacency and overlap shorter than both source segments; legacy snapshots without transitions remain digest-compatible.",
         "FFmpeg EDL renderer composes validated crossfade overlaps with shell-free xfade filters while preserving hard cuts, explicit trailing black duration, audio mix/mux and lease-fenced artifact adoption.",
-        "Real-media Compose smoke now renders two source segments with a 500 ms crossfade, a trailing black section, timed title and offset audio through the worker and verifies the adopted 3-second artifact."
+        "Real-media Compose smoke now renders two source segments with a 500 ms crossfade, a trailing black section, timed title and offset audio through the worker and verifies the adopted 3-second artifact.",
+        "Scheduled startup and configurable periodic reconciliation in the opt-in render worker; structured logs report removed stale staging files/directories, unindexed artifacts and bytes, while cleanup failures are logged and retried without taking the worker offline. Exact-head backend, browser/responsive and Compose real-media/ClamAV/upload-review/backup-restore CI passed on e8d7c4361e21b56a15fe75fbd5122636bd6b0597."
       ],
       "remaining": [
         "Validate representative customer media on the target runtime, including uncommon codecs, variable frame rates and long-duration inputs",
         "Run crash/restart and lease-loss fault injection against the target persistent filesystem; CI regression tests now cover process-generation loss, staging cleanup and lease reclaim in isolated test storage",
         "Validate ClamAV signature freshness and fail-closed scanning on the target runtime before enabling production uploads; CI verifies a current signature database and EICAR rejection.",
-        "Schedule and monitor artifact orphan reconciliation and retention cleanup in the production worker service",
         "Run end-to-end authenticated API upload → current ClamAV signature scan → render queue → worker adoption → review preview using production-like persistent storage; CI now exercises real ClamAV scanning and EICAR rejection with generated media on isolated Docker volumes, but target storage remains unvalidated.",
         "Measure production workload resource usage and enforce disk quota/network egress policy on the target host",
         "Define indexed artifact retention/deletion policy and disk quotas; current worker reconciliation removes orphaned staging and unindexed artifact files only"
