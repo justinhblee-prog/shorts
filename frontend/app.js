@@ -74,6 +74,9 @@
     $("metricRunning").textContent="실행 중 "+Number(q.running||0).toLocaleString();
     $("metricReview").textContent=(r.items||[]).length.toLocaleString();
     $("reviewCount").textContent=(r.items||[]).length+" ITEMS";
+    $("overviewQueued").textContent=queued.toLocaleString();
+    $("overviewRunning").textContent=Number(q.running||0).toLocaleString();
+    $("overviewReview").textContent=(r.items||[]).length.toLocaleString();
     const revenue=Number(f.revenue||0),cost=Number(f.costs||f.cost||0),net=Number(f.net_profit??(revenue-cost));
     $("metricRevenue").textContent=money(revenue);
     setConnection(true,"API 연결됨");
@@ -158,7 +161,7 @@
       const guidance=profile.risk_level
         ? '<section class="review-guidance"><div><strong>브랜드 검수 기준</strong><span class="risk-level risk-'+esc(profile.risk_level)+'">위험도 '+esc(profile.risk_level)+'</span></div>'+(profile.positioning?'<p>'+esc(profile.positioning)+'</p>':'')+(rules.length?'<ul>'+rules.map(rule=>'<li>'+esc(rule)+'</li>').join('')+'</ul>':'')+'</section>'
         : '';
-      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status)+'</p><div class="review-meta">JOB '+esc(item.job_id)+' · '+esc(item.updated_at||"")+'</div>'+guidance+policySummary+qualitySummary+scriptPreview+audioPreview+(videoUrl?'<p><a target="_blank" rel="noopener noreferrer" href="'+esc(videoUrl)+'">렌더링 영상 열기 ↗</a></p>':'')+'<div class="inline-message" id="stage-'+esc(item.job_id)+'"></div></div><div class="review-actions"><button class="button button-quiet" data-action="stage" data-id="'+esc(item.job_id)+'">미디어 스테이징</button><button class="button button-primary" data-action="approve" data-id="'+esc(item.job_id)+'" data-policy-status="'+esc(policy.status||"missing")+'" data-policy-required="'+esc(policyItems.join(", "))+'" data-policy-blockers="'+esc(policyApprovalBlocks.join(", "))+'" data-quality-status="'+esc(quality.status||"missing")+'" data-quality-warnings="'+esc(qualityWarnings.join(", "))+'" '+((policyApprovalBlocks.length||qualityBlocks.length)?'disabled title="필수 정책 또는 품질 차단 항목 해결 전 승인할 수 없습니다"':'')+'>승인</button><button class="button button-outline" data-action="revision" data-id="'+esc(item.job_id)+'">수정 요청</button><button class="button button-quiet" data-action="reject" data-id="'+esc(item.job_id)+'">반려</button></div></article>';
+      return '<article class="review-card"><div><h4>'+esc(item.brand)+' · '+esc(item.topic)+'</h4><p>'+esc(item.region)+' / '+esc(item.language)+' · '+esc(item.current_stage||item.status)+'</p><div class="review-meta">JOB '+esc(item.job_id)+' · '+esc(item.updated_at||"")+'</div>'+guidance+policySummary+qualitySummary+scriptPreview+audioPreview+(videoUrl?'<div class="review-media-preview"><video controls preload="metadata" playsinline src="'+esc(videoUrl)+'">브라우저에서 영상을 재생할 수 없습니다.</video><a target="_blank" rel="noopener noreferrer" href="'+esc(videoUrl)+'">별도 창에서 영상 열기 ↗</a></div>':'<div class="review-media-empty">실제 렌더링 영상이 연결되면 이곳에서 미리 볼 수 있습니다.</div>')+'<div class="inline-message" id="stage-'+esc(item.job_id)+'"></div></div><div class="review-actions"><button class="button button-quiet" data-action="stage" data-id="'+esc(item.job_id)+'">미디어 스테이징</button><button class="button button-primary" data-action="approve" data-id="'+esc(item.job_id)+'" data-policy-status="'+esc(policy.status||"missing")+'" data-policy-required="'+esc(policyItems.join(", "))+'" data-policy-blockers="'+esc(policyApprovalBlocks.join(", "))+'" data-quality-status="'+esc(quality.status||"missing")+'" data-quality-warnings="'+esc(qualityWarnings.join(", "))+'" '+((policyApprovalBlocks.length||qualityBlocks.length)?'disabled title="필수 정책 또는 품질 차단 항목 해결 전 승인할 수 없습니다"':'')+'>승인</button><button class="button button-outline" data-action="revision" data-id="'+esc(item.job_id)+'">수정 요청</button><button class="button button-quiet" data-action="reject" data-id="'+esc(item.job_id)+'">반려</button></div></article>';
     }).join(""):'<div class="empty-state">현재 검수 대기 콘텐츠가 없습니다.</div>';
   }
 
@@ -280,6 +283,8 @@
         : '<small class="trend-unavailable">해당 지역을 지원하는 활성 브랜드가 없어 바로 제작할 수 없습니다.</small>';
       return '<div class="data-item trend-item"><b>'+esc(x.title||x.query||"Untitled signal")+'</b><small>'+esc(region)+' · '+esc(x.source||"")+' · '+esc(x.published_at||x.collected_at||"")+'</small>'+controls+'</div>';
     }).join("")||'<div class="empty-state">저장된 트렌드 신호가 없습니다.</div>';
+    const overviewItems=(data.items||[]).slice(0,3);
+    $("overviewTrends").innerHTML=overviewItems.length?overviewItems.map(x=>'<div class="overview-trend"><b>'+esc(x.title||x.query||"Untitled signal")+'</b><small>'+esc(x.region||"GLOBAL")+' · '+esc(x.source||"Source pending")+'</small></div>').join(""):'<div class="empty-state">저장된 트렌드 신호가 없습니다.</div>';
   }
 
   async function loadTrendRecommendations(){
@@ -365,6 +370,14 @@
     }).join("");
     const finance=(data.financial||[]).map(x=>'<div class="data-item"><b>'+esc(x.brand)+' · '+esc(x.currency)+' · net '+money(x.net,x.currency)+'</b><small>매출 '+money(x.revenue,x.currency)+' · 비용 '+money(x.costs,x.currency)+' · '+x.entries+'건</small></div>').join("");
     const evalStatus=evaluation.status==="holdout_available"?"시계열 홀드아웃 진단 가능":evaluation.status==="holdout_inconclusive"?"홀드아웃 결과 불충분":"검증 표본 수집 중";
+    const observedBrands=data.brands||[];
+    const observedDelta=observedBrands.reduce((sum,item)=>sum+Number(item.view_delta||0),0);
+    const measuredVideos=observedBrands.reduce((sum,item)=>sum+Number(item.measured_videos||0),0);
+    $("overviewViewDelta").textContent=observedDelta.toLocaleString();
+    $("overviewMeasured").textContent=measuredVideos.toLocaleString();
+    $("overviewPerformanceNote").textContent=observedBrands.length
+      ? "브랜드별 스냅샷 변화 합계 · Analytics 측정 영상 "+measuredVideos.toLocaleString()+"개. 누적 전체 조회수가 아닌 관측 구간의 변화량입니다."
+      : "현재 측정 가능한 브랜드 성과가 없습니다. 인증 및 Analytics 수집 상태를 확인하세요.";
     const within=evaluation.within_run_validation||{};
     const withinStatus=within.status==="holdout_available"?"동일 추천 세트 기준 홀드아웃 가능":"동일 추천 세트 표본 부족";
     const withinRho=within.holdout_median_score_views_spearman;
@@ -392,6 +405,9 @@
       api("/api/queue/stats"),api("/api/workers"),api("/api/queue/control")
     ]);
     const state=control.control||{};
+    $("overviewQueueStatus").textContent=state.paused?"운영 상태 · 일시 중지":"운영 상태 · 정상";
+    $("overviewQueueStatus").classList.toggle("is-paused",!!state.paused);
+    $("overviewWorkers").textContent="Worker "+Number((w.workers||[]).length).toLocaleString();
     $("pauseQueue").disabled=!!state.paused;
     $("resumeQueue").disabled=!state.paused;
     const status=state.paused
