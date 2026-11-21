@@ -179,6 +179,15 @@ Automated CI and Compose smoke do not prove:
 - The inventory requires all stores to share one SQLite DB and performs the bounded SELECTs in one `query_only` read transaction. Malformed/truncated/unknown snapshot or job state still blocks reference completeness. Legal-hold, integrity/storage and backup/replica state remain unknown, so all candidates remain ineligible.
 - Latest docs/task-ledger head `49d5e6c9ceeb3ed4baa58bed736277c50efd290c` is awaiting exact-head CI.
 
+
+## 5.4. Retention inventory API follow-up
+
+- Draft PR [#474](https://github.com/justinhblee-prog/shorts/pull/474) adds a workspace-scoped read-only inventory API: `GET /api/operator/workspaces/{workspace_id}/retention-inventory?limit=100`.
+- The endpoint requires `operations.read` and authenticated workspace membership. It reads an explicit versioned policy from `NEXUS_RETENTION_POLICY_JSON`; missing policy blocks candidates and malformed JSON fails closed with a sanitized error.
+- The inventory uses bounded workspace-filtered SELECT queries in a single SQLite `query_only` read transaction. It exposes safe metadata and reason codes only; no storage paths, keys, bytes or secrets.
+- It never writes, tombstones, schedules cleanup or deletes. Legal hold, per-object integrity/storage and backup/replica state remain unknown and continue to block all candidates.
+- Latest known API head `4cdc96286cc6468760c8339c0ebe7dfc34aea47c`; Backend [run 44887993545](https://github.com/justinhblee-prog/shorts/actions/runs/44887993545) and Compose [run 44887993469](https://github.com/justinhblee-prog/shorts/actions/runs/44887993469) are running. Do not mark the endpoint validated until both exact-head checks pass.
+
 ## 6. Immediate next actions
 
 1. Keep all Draft PRs open and unmerged; preserve dependency ordering (#452 before #456/#453).
