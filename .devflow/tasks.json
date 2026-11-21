@@ -184,6 +184,50 @@
       ],
       "external_gates": [],
       "notes": "Independent Core/QA lane stacked on Draft PR #445. Modify only this test file; do not change backend implementation or task manifest."
+    },
+    {
+      "id": "BUILD-00359",
+      "title": "Strengthen development monitor API pagination and multi-event ordering regressions",
+      "priority": 8,
+      "status": "ready",
+      "depends_on": [],
+      "base_branch": "autopilot/build-00358-20261121-123745786",
+      "scope": [
+        "backend/tests/test_development_job_api.py"
+      ],
+      "acceptance": [
+        "Create multiple ready jobs and prove the API limit truncates results rather than merely returning one item for limit=1.",
+        "Verify the maximum permitted page size is enforced and invalid limits return 422.",
+        "Create at least three events with deliberately distinct timestamps and verify stable chronological ordering across the returned event history.",
+        "Keep the tests isolated, deterministic, and read-only; do not change backend implementation or other test files.",
+        "Run the focused API test module and scripts/validate.sh; record exact results."
+      ],
+      "external_gates": [],
+      "notes": "Follow-up QA lane stacked on Draft PR #447. It closes concrete coverage gaps found during review. Do not merge or deploy."
+    },
+    {
+      "id": "BUILD-00360",
+      "title": "Improve live UI preview accessibility and mobile interaction quality",
+      "priority": 9,
+      "status": "ready",
+      "depends_on": [],
+      "base_branch": "ui/nexus-live-preview-2026-11-21",
+      "scope": [
+        "frontend/index.html",
+        "frontend/styles.css",
+        "frontend/preview-mode.js",
+        "scripts/ui_preview_accessibility_smoke.mjs",
+        "docs"
+      ],
+      "acceptance": [
+        "Audit the visual-only preview banner and floating screen-feedback panel for keyboard access, visible focus, accessible names and semantic status announcements.",
+        "Improve mobile layout and touch interaction at 390px and 320px without changing the existing visual design direction.",
+        "Add a deterministic browser smoke for keyboard navigation, feedback-panel open/close, copy-feedback fallback and mobile overflow.",
+        "Verify preview mode remains disconnected from operational APIs and does not enable publishing, scheduling, ledger submission or credential actions.",
+        "Run the new smoke and scripts/validate.sh; record exact commands and results."
+      ],
+      "external_gates": [],
+      "notes": "Independent UI lane stacked on Draft PR #451. Do not modify backend or Vercel deployment configuration; visual-only staging remains isolated."
     }
   ]
 }
