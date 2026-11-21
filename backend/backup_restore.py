@@ -277,6 +277,28 @@ def _require_backup_staging_space(output_dir, required_bytes):
             f"(need {required_bytes + minimum_free} bytes including reserve; have {free_bytes})"
         )
 
+
+def _require_restore_staging_space(path, required_bytes):
+    """Check target-volume capacity before copying verified restore files into place."""
+    try:
+        minimum_free = int(os.getenv(
+            "NEXUS_RESTORE_MIN_FREE_BYTES", str(DEFAULT_BACKUP_MIN_FREE_BYTES)
+        ))
+    except (TypeError, ValueError) as exc:
+        raise BackupRestoreError("NEXUS_RESTORE_MIN_FREE_BYTES must be a non-negative integer") from exc
+    if minimum_free < 0:
+        raise BackupRestoreError("NEXUS_RESTORE_MIN_FREE_BYTES must be a non-negative integer")
+    try:
+        free_bytes = shutil.disk_usage(path).free
+    except OSError as exc:
+        raise BackupRestoreError("Restore target volume free space could not be checked") from exc
+    if free_bytes < required_bytes + minimum_free:
+        raise BackupRestoreError(
+            "Insufficient free disk space for restore staging "
+            f"(need {required_bytes + minimum_free} bytes including reserve; have {free_bytes})"
+        )
+
+
 def create_backup(db_path, media_dir, output_dir, retain_days=14,
                   encryption_key=_USE_ENV_KEY):
     encryption_key = _effective_encryption_key(encryption_key)
@@ -577,6 +599,12 @@ def restore_backup(archive_path, db_path, media_dir, backup_dir,
         manifest = _extract_and_verify(source_archive, extracted)
         staged_db = extracted / DATABASE_NAME
         staged_media = extracted / MEDIA_ROOT
+        # The extraction has been authenticated and checksum-verified. Before
+        # duplicating staged data into the live target volumes, ensure each
+        # destination can hold its copy while retaining the configured reserve.
+        restore_media_bytes = sum(item["size"] for item in manifest.get("media_files", []))
+        _require_restore_staging_space(db_path.parent, staged_db.stat().st_size)
+        _require_restore_staging_space(media_dir.parent, restore_media_bytes)
         new_db = db_path.parent / (db_path.name + ".restore-" + _stamp())
         new_media = media_dir.parent / (media_dir.name + ".restore-" + _stamp())
         old_db = db_path.parent / (db_path.name + ".pre-restore-" + _stamp())
