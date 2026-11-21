@@ -72,12 +72,20 @@ def main():
             "timebase": "milliseconds",
             "project_duration_ms": 3000,
             "clips": [{
-                "id": "video", "type": "video", "start_ms": 0,
-                "end_ms": 2000, "asset_id": asset["asset_id"],
-                "source_in_ms": 0, "source_out_ms": 2000,
+                "id": "video-a", "type": "video", "start_ms": 0,
+                "end_ms": 1500, "asset_id": asset["asset_id"],
+                "source_in_ms": 0, "source_out_ms": 1500,
+            }, {
+                "id": "video-b", "type": "video", "start_ms": 1000,
+                "end_ms": 2500, "asset_id": asset["asset_id"],
+                "source_in_ms": 1000, "source_out_ms": 2500,
             }, {
                 "id": "title", "type": "title", "start_ms": 2500,
                 "end_ms": 2800, "text": "Trailing black-gap title",
+            }],
+            "transitions": [{
+                "from_clip_id": "video-a", "to_clip_id": "video-b",
+                "type": "crossfade", "duration_ms": 500,
             }],
             "audio_tracks": [{
                 "id": "music", "asset_id": asset["asset_id"],
@@ -148,7 +156,7 @@ def main():
 
         decision = store.review_decide(
             "ws_render_smoke", "smoke-reviewer", submitted["snapshot_id"],
-            "approved", "Integrated real FFmpeg/ffprobe trailing-gap render smoke passed",
+            "approved", "Integrated real FFmpeg/ffprobe crossfade and trailing-gap render smoke passed",
         )
         if decision["artifact_sha256"] != artifact["artifact_sha256"]:
             raise RuntimeError("review decision was not bound to the adopted artifact hash")
