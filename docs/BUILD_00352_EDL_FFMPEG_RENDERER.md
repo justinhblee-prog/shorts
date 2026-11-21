@@ -17,6 +17,7 @@ Transitions, subtitles, arbitrary filters, URL inputs, arbitrary file paths, tim
 ## Worker and API integration
 
 - `workspace_asset_resolver(asset_store)` requires clean workspace assets and returns a trusted SHA-256.
+- Upload streams reserve workspace quota incrementally before each chunk is written to private staging; concurrent in-flight uploads therefore count against the same serialized quota, not only after staging completes. Reservations are renewed while chunks arrive and expire fail-closed.
 - `TimelineRenderWorker` passes workspace and immutable snapshot-owner context, cancels active FFmpeg work on lease loss or graceful shutdown, and discards unadopted staged output.
 - `RenderArtifactStore` rechecks the live lease, worker generation and snapshot binding before adopting output and handing it to the review queue. This is not publishing.
 - The authenticated operator API supports bounded private uploads, quarantine/rescan, render submission/status, pending artifact listing, download and review decisions.
