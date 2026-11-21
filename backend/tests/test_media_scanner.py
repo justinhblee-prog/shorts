@@ -28,7 +28,7 @@ class ClamAVScannerTests(unittest.TestCase):
         def runner(args, **kwargs):
             calls.append((args, kwargs))
             return type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})()
-        result = ClamAVScanner(
+        result = ClamAVScanner(database_dir=self.database, 
             executable="/usr/bin/clamscan", timeout=7, max_bytes=12345, runner=runner
         ).scan(self.path)
         self.assertEqual(result, {"status": "clean", "engine": "clamav"})
@@ -49,7 +49,7 @@ class ClamAVScannerTests(unittest.TestCase):
             scanner.scan(self.path)
 
     def test_scanner_error_is_fail_closed(self):
-        scanner = ClamAVScanner(runner=lambda *args, **kwargs:
+        scanner = ClamAVScanner(database_dir=self.database, runner=lambda *args, **kwargs:
             type("Result", (), {"returncode": 2, "stdout": "", "stderr": "database unavailable"})())
         with self.assertRaisesRegex(MediaScanError, "failed"):
             scanner.scan(self.path)
@@ -59,25 +59,25 @@ class ClamAVScannerTests(unittest.TestCase):
         def timeout(*args, **kwargs):
             raise subprocess.TimeoutExpired(args[0], kwargs["timeout"])
         with self.assertRaisesRegex(MediaScanError, "timed out"):
-            ClamAVScanner(runner=timeout).scan(self.path)
+            ClamAVScanner(database_dir=self.database, runner=timeout).scan(self.path)
         def missing(*args, **kwargs):
             raise FileNotFoundError("clamscan")
         with self.assertRaisesRegex(MediaScanError, "could not be started"):
-            ClamAVScanner(runner=missing).scan(self.path)
+            ClamAVScanner(database_dir=self.database, runner=missing).scan(self.path)
 
     def test_scanner_limits_exceeded_is_not_treated_as_clean(self):
         def runner(*args, **kwargs):
             return SimpleNamespace(
                 returncode=1, stdout="Heuristics.Limits.Exceeded FOUND", stderr=""
             )
-        scanner = ClamAVScanner(runner=runner)
+        scanner = ClamAVScanner(database_dir=self.database, runner=runner)
         with tempfile.NamedTemporaryFile() as handle:
             with self.assertRaisesRegex(MediaScanError, "incomplete"):
                 scanner.scan(handle.name)
 
     def test_media_limit_above_clamav_supported_max_is_rejected(self):
         with self.assertRaises(ValueError):
-            ClamAVScanner(max_bytes=2 * 1024 * 1024 * 1024 + 1)
+            ClamAVScanner(database_dir=self.database, max_bytes=2 * 1024 * 1024 * 1024 + 1)
 
     def test_stale_signatures_fail_closed_before_scanner_runs(self):
         import time
@@ -111,12 +111,12 @@ class ClamAVScannerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ClamAVScanner(database_dir=self.database, timeout=0)
         with self.assertRaises(ValueError):
-            ClamAVScanner(timeout="invalid")
+            ClamAVScanner(database_dir=self.database, timeout="invalid")
 
     def test_symlink_and_missing_targets_are_rejected(self):
         link = os.path.join(self.tmp.name, "link.mp4")
         os.symlink(self.path, link)
-        scanner = ClamAVScanner(runner=lambda *args, **kwargs: None)
+        scanner = ClamAVScanner(database_dir=self.database, runner=lambda *args, **kwargs: None)
         with self.assertRaises(MediaScanError):
             scanner.scan(link)
         with self.assertRaises(MediaScanError):
