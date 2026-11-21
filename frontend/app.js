@@ -1398,7 +1398,7 @@
       state.clips.filter(c=>c.kind==="title").forEach(c=>{c.duration=Math.max(0.1,videoDuration||60);if(c.outPoint>c.duration)c.outPoint=c.duration;});
       const displayDuration=videoDuration>0?videoDuration:state.clips.reduce((sum,c)=>sum+Math.max(0,c.outPoint-c.inPoint),0);
       $id("timelineTotalDuration").textContent=displayDuration.toFixed(1)+"s";
-      if(!state.clips.length){list.innerHTML='<div class="empty-state">영상 파일 또는 타이틀을 추가하세요.</div>';inspector.hidden=true;setPreview(null);return;}
+      if(!state.clips.length){list.innerHTML='<div class="empty-state">영상 파일 또는 타이틀을 추가하세요.</div>';inspector.hidden=true;setPreview(null);window.dispatchEvent(new Event("nexus:timeline-updated"));return;}
       list.replaceChildren();
       state.clips.forEach((clip,index)=>{
         const item=document.createElement("div");item.className="timeline-clip"+(clip.id===state.selected?" is-selected":"");item.dataset.clipId=clip.id;
@@ -1408,6 +1408,13 @@
       });
       const clip=selected();inspector.hidden=!clip;
       if(clip){$id("timelineSelectedName").textContent=clip.name;$id("timelineIn").value=clip.inPoint;$id("timelineOut").value=clip.outPoint;$id("timelineIn").max=clip.duration;$id("timelineOut").max=clip.duration;}
+      window.dispatchEvent(new Event("nexus:timeline-updated"));
+    }
+    function selectClip(id){
+      const clip=state.clips.find(item=>item.id===id);if(!clip)return;
+      state.selected=id;render();
+      if(clip.kind==="video"){setPreview(clip);say(clip.name+" 선택 · "+clip.inPoint.toFixed(1)+"–"+clip.outPoint.toFixed(1)+"초");}
+      else{overlay.textContent=clip.text;overlay.hidden=false;say("타이틀 미리보기 · "+clip.text);}
     }
     input.addEventListener("change",()=>{
       for(const file of Array.from(input.files||[])){
@@ -1448,7 +1455,7 @@
     preview.addEventListener("loadedmetadata",()=>{empty.hidden=true;});
     window.addEventListener("beforeunload",()=>{for(const clip of state.clips){if(clip.url)URL.revokeObjectURL(clip.url);}});
     render();
-    window.NexusLocalTimeline={state,render,say,selected};
+    window.NexusLocalTimeline={state,render,say,selected,selectClip};
   })();
   if($("apiOriginInput"))$("apiOriginInput").value=apiOrigin;
   loadBrands().then(()=>{setConnection(false,"API 인증 필요");}).catch(e=>setConnection(false,"API 연결 실패: "+e.message));
