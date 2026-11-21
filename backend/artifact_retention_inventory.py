@@ -32,12 +32,14 @@ class RetentionInventory:
 
     @staticmethod
     def _job_reference_state(job_status, review_status):
+        if not isinstance(job_status, str):
+            return False, None
         if job_status in _ACTIVE_JOB_STATUSES:
             return True, True
         if job_status == "review_pending":
             if review_status is None:
                 return True, True
-            if review_status in _TERMINAL_REVIEW_STATUSES:
+            if isinstance(review_status, str) and review_status in _TERMINAL_REVIEW_STATUSES:
                 return True, False
             return False, None
         if job_status in _TERMINAL_JOB_STATUSES:
@@ -74,12 +76,13 @@ class RetentionInventory:
                       ON r.snapshot_id=s.id AND r.workspace_id=s.workspace_id
                     WHERE s.workspace_id=?
                     ORDER BY s.created_at ASC,s.id ASC LIMIT ?
-                """, (workspace_id, limit * 10)).fetchall()
+                """, (workspace_id, limit * 10 + 1)).fetchall()
         except Exception as exc:
             raise RetentionInventoryError("snapshot reference inventory failed") from exc
 
         asset_references = {}
-        snapshot_inventory_complete = True
+        snapshot_inventory_complete = len(snapshot_rows) <= limit * 10
+        snapshot_rows = snapshot_rows[:limit * 10]
         for row in snapshot_rows:
             job_known, job_active = self._job_reference_state(
                 row["job_status"], row["review_status"]
@@ -88,6 +91,8 @@ class RetentionInventory:
                 snapshot_inventory_complete = False
             try:
                 payload = json.loads(row["payload_json"])
+                if not isinstance(payload, dict):
+                    raise ValueError("invalid snapshot payload")
                 clips = payload.get("clips")
                 audio_tracks = payload.get("audio_tracks", [])
                 if not isinstance(clips, list) or not isinstance(audio_tracks, list):
@@ -96,11 +101,14 @@ class RetentionInventory:
                 for clip in clips:
                     if not isinstance(clip, dict):
                         raise ValueError("invalid clip record")
-                    if clip.get("type") == "video":
+                    clip_type = clip.get("type")
+                    if clip_type == "video":
                         asset_id = clip.get("asset_id")
                         if not isinstance(asset_id, str) or not asset_id:
                             raise ValueError("invalid video asset reference")
                         referenced.append(asset_id)
+                    elif clip_type != "title":
+                        raise ValueError("invalid clip type")
                 for track in audio_tracks:
                     if not isinstance(track, dict):
                         raise ValueError("invalid audio track record")
@@ -126,7 +134,9 @@ class RetentionInventory:
                     FROM workspace_media_assets
                     WHERE workspace_id=?
                     ORDER BY created_at ASC,id ASC LIMIT ?
-                """, (workspace_id, limit)).fetchall()
+                """, (workspace_id, limit + 1)).fetchall()
+            assets_truncated = len(rows) > limit
+            rows = rows[:limit]
             for row in rows:
                 refs = asset_references.get(row["id"], {"snapshots": 0, "active": 0})
                 candidate = {
@@ -168,7 +178,9 @@ class RetentionInventory:
                       ON r.snapshot_id=a.snapshot_id AND r.workspace_id=a.workspace_id
                     WHERE a.workspace_id=?
                     ORDER BY a.created_at ASC,a.artifact_id ASC LIMIT ?
-                """, (workspace_id, limit)).fetchall()
+                """, (workspace_id, limit + 1)).fetchall()
+            artifacts_truncated = len(rows) > limit
+            rows = rows[:limit]
             for row in rows:
                 job_known, job_active = self._job_reference_state(
                     row["job_status"], row["review_status"]
@@ -215,6 +227,8 @@ class RetentionInventory:
             "blocked_count": len(candidates) - eligible_count,
             "reason_counts": dict(sorted(reason_counts.items())),
             "candidates": candidates,
+            "truncated": assets_truncated or artifacts_truncated or not snapshot_inventory_complete,
+            "snapshot_reference_inventory_complete": snapshot_inventory_complete,
             "read_only": True,
             "destructive_action_performed": False,
         }
