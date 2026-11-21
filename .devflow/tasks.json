@@ -249,7 +249,8 @@
         "Visual timeline ruler and lane layout expand to the explicitly requested project duration so trailing black duration and overlays/audio extending beyond the video sequence remain visible.",
         "Exact-head backend/browser/responsive checks and real FFmpeg/ffprobe Compose trailing-gap integration passed on 8be9f95c5a775c45fe7b7f888d0a78ec13b1d801.",
         "Visual VIDEO lane now shortens total duration for crossfades, shifts subsequent clips left by the overlap duration and displays a labeled crossfade marker at each join.",
-        "Added a black-gap clip-connection mode alongside hard cut and crossfade; timeline shows a distinct BLACK marker and places following clips after the configured interval."
+        "Added a black-gap clip-connection mode alongside hard cut and crossfade; timeline shows a distinct BLACK marker and places following clips after the configured interval.",
+        "Video shelf thumbnails now use IntersectionObserver with a bounded prefetch margin and preload=none, so only visible or near-visible cards initiate media metadata/decode work; browsers without IntersectionObserver retain a safe eager fallback."
       ],
       "remaining": [
         "Validate thumbnail extraction with representative real customer codecs and large files"
