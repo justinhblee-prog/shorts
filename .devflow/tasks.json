@@ -197,7 +197,8 @@
         "EDL v1 accepts optional explicit black-gap records between adjacent video clips, bounded to whole-millisecond durations of 100–10000 ms; a join cannot carry both a crossfade and a black gap.",
         "FFmpeg renderer inserts a generated black color segment between the referenced clips, then concatenates the following video while preserving audio mixing, timed title overlays and explicit trailing project duration.",
         "Timeline editor adds a Black Screen clip-connection mode and duration control; visual VIDEO lane positions later clips after each black interval and marks the interval separately from crossfades.",
-        "Backend EDL tests, renderer filter-graph tests, authenticated Playwright API-contract smoke and real-media Compose worker smoke cover black-gap validation, rendering and review-pending artifact adoption."
+        "Backend EDL tests, renderer filter-graph tests, authenticated Playwright API-contract smoke and real-media Compose worker smoke cover black-gap validation, rendering and review-pending artifact adoption.",
+        "EDL v1 API validation now rejects title-only timelines before immutable snapshot creation and queue handoff, matching the FFmpeg renderer's existing requirement for at least one video source; regression test added and exact-head backend/browser/Compose CI passed."
       ],
       "remaining": [
         "Validate the Vercel preview against a live authenticated API deployed from the BUILD-00352 integration branch; browser UI contract tests currently use API mocks",
