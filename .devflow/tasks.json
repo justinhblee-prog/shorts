@@ -181,10 +181,12 @@
         "Added browser-local clip preview, source trim/reorder and timed title overlays with private server render submission controls",
         "Connected workspace creation, binary media upload, fail-closed rescan, EDL v1 validation, idempotent render submission/status, private artifact download and artifact-bound review decisions",
         "Added optional audio-bed upload with gain and fade controls",
-        "Added a Playwright API-contract smoke for upload → validate → render → private preview → human review"
+        "Added a Playwright API-contract smoke for upload → validate → render → private preview → human review",
+        "Exact-head browser validation passed on commit c0e4168544a56faafc5c999fa577af5e498651e3: run 44901102049 passed backend validation, authenticated timeline editor API-contract browser workflow and responsive workbench layout checks.",
+        "Exact-head Compose integration passed on commit c0e4168544a56faafc5c999fa577af5e498651e3: run 44901102137 passed real generated-media FFmpeg render, private artifact adoption/review and authenticated API-to-worker integration smoke."
       ],
       "remaining": [
-        "Run exact-head backend and browser CI; do not mark this task complete until all required jobs pass",
+        "Validate the frontend against a reachable live authenticated API built from the BUILD-00352 integration branch; current Playwright timeline tests verify the API contract with browser interception, while the Compose suite separately verifies real backend/worker media processing.",
         "Validate the UI against a live authenticated API deployed from the BUILD-00352 integration branch",
         "Run real clean/infected media scan and FFmpeg render using target-host ClamAV signatures and persistent storage",
         "Expand the UI from one audio bed to multiple independent audio tracks and add explicit timeline duration controls",
