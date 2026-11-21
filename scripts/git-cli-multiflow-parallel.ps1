@@ -172,10 +172,12 @@ $activeWorktreeIds=@([regex]::Matches(($activeWorktreeText -join "`n"),'(?i)BUIL
 $openFiles=@()
 foreach($pr in $openPrs){
  if($supervisorBranch -and [string]$pr.headRefName -eq $supervisorBranch){continue}
- $prFiles=& gh pr view ([string]$pr.number) --json files --jq ".files[].path"
+ $prFilesJson=& gh pr view ([string]$pr.number) --json files
  if($LASTEXITCODE -ne 0){throw "Cannot inspect changed files for open PR #$($pr.number); refusing overlapping dispatch."}
- foreach($path in @($prFiles)){
-  if($path){$openFiles+=(([string]$path).Replace("\\","/").ToLowerInvariant())}
+ $prDetails=$prFilesJson|ConvertFrom-Json
+ foreach($file in @($prDetails.files)){
+  $path=[string]$file.path
+  if($path){$openFiles+=($path.Replace("\\","/").ToLowerInvariant())}
  }
 }
 $eligible=@();$acceptedScopes=@()
