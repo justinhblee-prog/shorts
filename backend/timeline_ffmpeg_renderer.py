@@ -1,7 +1,9 @@
 """Lease-cancellable, argv-only EDL v1 renderer for private local media assets.
 
-The renderer supports contiguous video clips, bounded timed title overlays,
-and optional bounded audio tracks. Transitions, gaps and overlaps are rejected.
+The renderer supports ordered video clips joined by hard cuts, declared
+crossfades or explicit black intervals, an optional trailing black duration,
+bounded timed title overlays, and up to eight bounded audio tracks. Every
+join is checked against its declared timeline interval before FFmpeg runs.
 Title text is staged as UTF-8 text files and rendered with a trusted configured
 font. All source media is resolved by a trusted workspace asset callback;
 arbitrary paths and URLs never come from the EDL.
