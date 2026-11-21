@@ -418,7 +418,8 @@ async function waitForServer() {
     failQueueStats = false;
 
     await page.reload({ waitUntil: "networkidle" });
-    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.evaluate(() => { window.scrollTo(0, 0); document.activeElement?.blur?.(); });
+    await page.locator("body").click({ position: { x: 1, y: 1 } });
     await page.keyboard.press("Tab");
     assert.equal(await page.evaluate(() => document.activeElement.classList.contains("skip-link")), true);
     await page.keyboard.press("Enter");
