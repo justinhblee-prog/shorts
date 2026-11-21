@@ -121,6 +121,13 @@ Automated CI and Compose smoke do not prove:
 7. Confirm backup encryption key custody, off-host backup replication, restore procedure and monitoring.
 8. Run the full visual browser QA and API-connected acceptance flow with real test credentials.
 
+## 5.1. Artifact reconciliation observability follow-up
+
+- Draft PR [#468](https://github.com/justinhblee-prog/shorts/pull/468) is stacked on #467 via branch `feat/build-00352-artifact-reconcile-observability-2026-11-21`, latest code head `a4705b8`.
+- The worker already ran orphaned staging and unindexed-file cleanup every 300 seconds with a 7200-second grace period. PR #468 adds success counters (files/directories/bytes) and failure-type logs, plus a service-level regression test.
+- This is not indexed artifact retention/deletion, durable metrics/alerts or a hard storage quota. Target persistent filesystem validation remains required.
+- Exact-head Backend run `44882746096` and Compose run `44882746102` are in progress.
+
 ## 6. Immediate next actions
 
 1. Keep all Draft PRs open and unmerged; preserve dependency ordering (#452 before #456/#453).
