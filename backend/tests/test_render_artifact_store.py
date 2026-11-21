@@ -101,6 +101,12 @@ class RenderArtifactStoreTests(unittest.TestCase):
         self.assertTrue(second_staged.exists())
         self.assertEqual(len(list(self.artifacts.glob("rart_*.mp4"))), 1)
 
+    def test_zero_artifact_free_space_reserve_disables_filesystem_preflight(self):
+        with patch("render_artifact_store.shutil.disk_usage", side_effect=OSError("unavailable")):
+            result = self.adopt()
+        self.assertEqual(result["status"], "review_pending")
+        self.assertFalse(self.staged.exists())
+
     def test_artifact_volume_reserve_fails_closed_when_free_space_is_low(self):
         limited = RenderArtifactStore(
             self.queue, self.staging, self.artifacts,
