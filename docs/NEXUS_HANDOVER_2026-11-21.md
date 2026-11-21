@@ -159,8 +159,9 @@ Automated CI and Compose smoke do not prove:
 
 - Draft PR [#473](https://github.com/justinhblee-prog/shorts/pull/473) is based on #471 branch head `8e4634e` and adds a pure evaluator only.
 - It requires explicit versioned retention periods and grace periods, complete reference checks, zero active/snapshot references, explicit no-hold state, verified integrity, known storage state and known backup implications.
-- It returns deterministic reason codes and timestamps; it does not read/write a database, touch files, tombstone records or schedule deletion. Unknown inputs fail closed.
-- Backend and Compose exact-head CI are running; do not mark this evaluator validated until both pass.
+- It returns deterministic reason codes and UTC timestamps; it does not read/write a database, touch files, tombstone records or schedule deletion. Unknown inputs and malformed timestamps fail closed.
+- Functional code head `50c7f204` passed Backend [run `44886115569`](https://github.com/justinhblee-prog/shorts/actions/runs/44886115569) (**939 tests plus Playwright browser smoke**) and Compose [run `44886115567`](https://github.com/justinhblee-prog/shorts/actions/runs/44886115567) (service isolation, real FFmpeg render/adoption/review, authenticated API E2E and encrypted backup/restore).
+- Latest docs/task-ledger head `208f2e4aae1e697f71b434196108f94f8e3a4509` is being revalidated by Backend [run `44886279762`](https://github.com/justinhblee-prog/shorts/actions/runs/44886279762) and Compose [run `44886279825`](https://github.com/justinhblee-prog/shorts/actions/runs/44886279825); do not mark the latest head validated until both pass.
 ## 5.5. Artifact retention policy design
 
 - Draft PR [#472](https://github.com/justinhblee-prog/shorts/pull/472) adds a non-destructive policy design stacked on #471.
@@ -171,7 +172,7 @@ Automated CI and Compose smoke do not prove:
 
 1. Keep all Draft PRs open and unmerged; preserve dependency ordering (#452 before #456/#453).
 2. Reconcile #444 with the current #436 baseline, then revalidate the complete #444→#448→#449→#450→#452→#453/#456 stack at exact heads.
-3. Revalidate the latest docs/task-ledger head for PR #471, then review PR #472's non-destructive retention design. Validate PR #473's read-only retention evaluator; keep all destructive retention operations blocked until policy inputs are approved.
+3. Revalidate the latest docs/task-ledger head for PR #471, then review PR #472's non-destructive retention design. Revalidate PR #473's latest docs/task-ledger head, then extend only read-only retention inventory/observability. Keep all destructive retention operations blocked until owner/legal policy inputs are approved.
 4. Review the fresh Vercel preview manually on physical PC/tablet/mobile devices; headless Playwright coverage is now in place.
 5. Deploy a non-production backend and verify exact-origin CORS plus authenticated frontend operations.
 6. Validate real provider and platform workflows only after credentials and test accounts are available.
