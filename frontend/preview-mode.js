@@ -1,5 +1,8 @@
 (() => {
   "use strict";
+  // This safety overlay is only for the isolated Vercel preview host. Keep local/CI
+  // browser tests connected to their seeded test API and normal navigation semantics.
+  if (!location.hostname.startsWith("nexus-studio-pro-ui-preview") || !location.hostname.endsWith(".vercel.app")) return;
   document.documentElement.classList.add("nexus-visual-preview");
   const banner=document.createElement("aside");
   banner.className="nexus-preview-banner";
@@ -48,7 +51,7 @@
 
   const navLinks=[...document.querySelectorAll('header a[href^="#"]')].filter(a=>document.querySelector(a.getAttribute("href")));
   const navSections=navLinks.map(a=>({a,el:document.querySelector(a.getAttribute("href"))})).filter(x=>x.el);
-  const markActive=(id)=>navSections.forEach(({a,el})=>{const active=el.id===id;a.classList.toggle("preview-nav-active",active);if(active)a.setAttribute("aria-current","location");else a.removeAttribute("aria-current");});
+  const markActive=(id)=>navSections.forEach(({a,el})=>{const active=el.id===id;a.classList.toggle("preview-nav-active",active);if(active)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current");});
   if("IntersectionObserver" in window){
     const observer=new IntersectionObserver(entries=>{const visible=entries.filter(e=>e.isIntersecting).sort((a,b)=>b.intersectionRatio-a.intersectionRatio)[0];if(visible)markActive(visible.target.id);},{rootMargin:"-18% 0px -68% 0px",threshold:[0,.15,.35,.6]});
     navSections.forEach(({el})=>observer.observe(el));
