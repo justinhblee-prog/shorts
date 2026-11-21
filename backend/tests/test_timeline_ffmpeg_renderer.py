@@ -148,17 +148,8 @@ class TimelineFFmpegRendererTests(unittest.TestCase):
         self.assertTrue(Path(result["staged_path"]).is_file())
         self.assertEqual(len(self.commands), 1)
 
-    def test_rejects_titles_gaps_untrusted_assets_and_audio_past_end(self):
-        title_only = json.loads(json.dumps(self.payload))
-        title_only["edl"]["clips"] = [{
-            "id": "title1", "type": "title", "start_ms": 0,
-            "end_ms": 5000, "text": "Title without video",
-        }]
-        title_only["edl"]["audio_tracks"] = []
-        self._rehash(title_only)
-        with self.assertRaisesRegex(TimelineRenderError, "at least one video clip"):
-            self.renderer(title_only, stop_event=threading.Event(), workspace_id="ws_demo", principal_id="alice")
-
+    def test_rejects_gaps_untrusted_assets_and_audio_past_end(self):
+        # Title-only EDLs are rejected by validate_edl before the renderer is queued.
         gap = json.loads(json.dumps(self.payload))
         gap["edl"]["clips"][0]["start_ms"] = 100
         gap["edl"]["clips"][0]["end_ms"] = 5100
