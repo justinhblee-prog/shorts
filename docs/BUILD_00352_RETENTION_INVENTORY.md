@@ -41,3 +41,8 @@ Unit tests use an isolated SQLite fixture to verify workspace isolation, one-con
 ## Exact-head validation
 
 Latest inventory head `cb09e67ba4a24c8c10e581d0da368d04ae7d1c33` passed Backend [run 44886936983](https://github.com/justinhblee-prog/shorts/actions/runs/44886936983) (**943 tests plus Playwright browser smoke**) and Compose [run 44886936974](https://github.com/justinhblee-prog/shorts/actions/runs/44886936974) (service isolation, real FFmpeg render/adoption/review, authenticated API E2E, encrypted backup and isolated restore). This validates generated SQLite fixtures and the broader Compose pipeline, not production database scale or retention compliance.
+
+
+## Atomic read-snapshot validation
+
+The atomic read-snapshot revision at head `130dd2e9d9392880418e21aa3253defcfb466a92` passed Backend [run 44887197433](https://github.com/justinhblee-prog/shorts/actions/runs/44887197433) (**944 tests plus Playwright browser smoke**) and Compose [run 44887197535](https://github.com/justinhblee-prog/shorts/actions/runs/44887197535) (service isolation, real FFmpeg render/adoption/review, authenticated API E2E, encrypted backup and isolated restore). The single read transaction makes reference counts internally consistent; unknown legal-hold, integrity/storage and backup state still blocks all candidates.
