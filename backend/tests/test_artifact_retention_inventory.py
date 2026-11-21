@@ -21,6 +21,9 @@ class _SQLiteStore:
         finally:
             connection.close()
 
+    def _db(self):
+        return self.db()
+
 
 class _WorkspaceStore:
     def require_membership(self, workspace_id, principal_id):
