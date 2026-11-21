@@ -132,9 +132,14 @@ def evaluate_retention_candidate(candidate, policy, *, now):
     expires_at = None
     eligible_after = None
     if created_at is not None and retention_days is not None and grace_days is not None:
-        expires_at = created_at + timedelta(days=retention_days)
-        eligible_after = expires_at + timedelta(days=grace_days)
-        if evaluation_time is not None:
+        try:
+            expires_at = created_at + timedelta(days=retention_days)
+            eligible_after = expires_at + timedelta(days=grace_days)
+        except OverflowError:
+            reasons.append("retention_timestamp_out_of_range")
+            expires_at = None
+            eligible_after = None
+        if evaluation_time is not None and eligible_after is not None:
             if evaluation_time < expires_at:
                 reasons.append("retention_period_not_elapsed")
             elif evaluation_time < eligible_after:
