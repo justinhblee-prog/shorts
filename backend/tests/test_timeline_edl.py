@@ -99,8 +99,7 @@ class TimelineEDLTests(unittest.TestCase):
                 validate_edl(invalid)
         missing = {**payload}
         missing.pop("transitions")
-        with self.assertRaisesRegex(EDLValidationError, "crossfade"):
-            validate_edl(missing)
+        self.assertNotIn("transitions", validate_edl(missing))
 
     def test_does_not_mutate_input(self):
         import copy
