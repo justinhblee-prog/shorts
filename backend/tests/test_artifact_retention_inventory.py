@@ -2,6 +2,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from unittest.mock import patch
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -158,6 +159,32 @@ class RetentionInventoryTests(unittest.TestCase):
         self.assertEqual(self.snapshots.open_count, 1)
         self.assertEqual(self.assets.open_count, 0)
         self.assertEqual(self.artifacts.queue.open_count, 0)
+
+    def test_inventory_uses_real_integrity_provider_evidence_and_fails_closed(self):
+        def verify_asset(workspace_id, principal_id, asset_id):
+            if asset_id == "asset-a":
+                return {"verified": True, "byte_size": 100, "scan_status": "clean"}
+            raise OSError("private object unavailable")
+        with (
+            patch.object(self.assets, "verify_integrity", side_effect=verify_asset, create=True),
+            patch.object(self.artifacts, "get", return_value={
+                "artifact_sha256": "a" * 64, "byte_size": 400,
+            }, create=True),
+        ):
+            result = self.inventory.list_workspace(
+                "ws-a", "owner-a", self.policy,
+                now="2026-11-21T12:00:00+00:00", limit=10,
+            )
+        by_id = {item["candidate"]["id"]: item["candidate"] for item in result["candidates"]}
+        self.assertTrue(by_id["asset-a"]["integrity_verified"])
+        self.assertTrue(by_id["asset-a"]["storage_state_known"])
+        self.assertEqual(by_id["asset-a"]["integrity_evidence_source"], "workspace_asset_store.sha256")
+        self.assertEqual(by_id["asset-c"]["integrity_check_status"], "verification_failed")
+        self.assertFalse(by_id["asset-c"]["integrity_verified"])
+        self.assertTrue(by_id["rart-a"]["integrity_verified"])
+        self.assertEqual(by_id["rart-a"]["integrity_evidence_source"], "render_artifact_store.artifact_sha256")
+        self.assertFalse(by_id["rart-a"]["backup_state_known"])
+        self.assertEqual(result["integrity_observations"], {"verified": 2, "unverified": 1})
 
     def test_workspace_membership_is_required_before_inventory(self):
         with self.assertRaises(PermissionError):
