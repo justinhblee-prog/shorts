@@ -1,8 +1,8 @@
 """Lease-cancellable, argv-only EDL v1 renderer for private local media assets.
 
-The renderer supports ordered non-overlapping video clips, black timeline gaps,
-bounded timed title overlays, explicit project duration and optional audio tracks.
-Overlaps/transitions remain unsupported. Title text is staged as UTF-8 text files
+The renderer supports ordered video clips, black timeline gaps, bounded timed
+title overlays, explicit project duration, optional audio beds and opt-in embedded
+source audio aligned to declared video crossfades. Title text is staged as UTF-8 text files
 and rendered with a trusted configured font. All source media is resolved by a
 trusted workspace asset callback; arbitrary paths and URLs never come from the EDL.
 """
