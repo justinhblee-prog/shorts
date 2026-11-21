@@ -50,7 +50,7 @@ def validate_edl(payload: Any) -> dict:
         raise EDLValidationError("unsupported EDL schema or version")
     if payload.get("timebase") != "milliseconds":
         raise EDLValidationError("timebase must be milliseconds")
-    allowed_root = {"schema", "version", "timebase", "clips", "audio_tracks", "project_duration_ms"}
+    allowed_root = {"schema", "version", "timebase", "clips", "audio_tracks", "project_duration_ms", "transitions"}
     if set(payload) - allowed_root:
         raise EDLValidationError("EDL contains unsupported root fields")
     clips = payload.get("clips")
@@ -152,10 +152,76 @@ def validate_edl(payload: Any) -> dict:
             for track in audio_tracks):
         raise EDLValidationError("project_duration_ms must cover all audio tracks")
 
+    has_transitions = "transitions" in payload
+    transitions = []
+    transition_ids = set()
+    transition_pairs = set()
+    raw_transitions = payload.get("transitions", [])
+    if not isinstance(raw_transitions, list) or len(raw_transitions) > MAX_CLIPS - 1:
+        raise EDLValidationError("transitions must contain 0 to MAX_CLIPS-1 entries")
+    video_by_id = {item["id"]: item for item in normalized if item["type"] == "video"}
+    ordered_video = sorted(video_by_id.values(), key=lambda item: (item["start_ms"], item["id"]))
+    for index, raw in enumerate(raw_transitions):
+        prefix = f"transitions[{index}]"
+        required = {"id", "type", "from_clip_id", "to_clip_id", "duration_ms"}
+        if not isinstance(raw, dict) or set(raw) != required:
+            raise EDLValidationError(f"{prefix} has unsupported or missing fields")
+        transition_id = raw["id"]
+        from_id = raw["from_clip_id"]
+        to_id = raw["to_clip_id"]
+        duration = _number(raw["duration_ms"], f"{prefix}.duration_ms")
+        if (not isinstance(transition_id, str) or not _ID.fullmatch(transition_id)
+                or transition_id in transition_ids or transition_id in seen):
+            raise EDLValidationError(f"{prefix}.id must be unique and valid")
+        transition_ids.add(transition_id)
+        if raw["type"] != "crossfade":
+            raise EDLValidationError(f"{prefix}.type must be crossfade")
+        if (not isinstance(from_id, str) or not isinstance(to_id, str)
+                or from_id not in video_by_id or to_id not in video_by_id):
+            raise EDLValidationError(f"{prefix} must reference two video clips")
+        pair = (from_id, to_id)
+        if pair in transition_pairs:
+            raise EDLValidationError(f"{prefix} duplicates a transition pair")
+        transition_pairs.add(pair)
+        if not float(duration).is_integer() or not 100 <= duration <= 5000:
+            raise EDLValidationError(f"{prefix}.duration_ms must be 100 to 5000 whole milliseconds")
+        transitions.append({
+            "id": transition_id, "type": "crossfade",
+            "from_clip_id": from_id, "to_clip_id": to_id,
+            "duration_ms": int(duration),
+        })
+
+    transitions_by_pair = {(item["from_clip_id"], item["to_clip_id"]): item for item in transitions}
+    adjacent_pairs = set()
+    for index, clip in enumerate(ordered_video):
+        if index == 0:
+            continue
+        previous = ordered_video[index - 1]
+        pair = (previous["id"], clip["id"])
+        adjacent_pairs.add(pair)
+        overlap = float(previous["end_ms"]) - float(clip["start_ms"])
+        transition = transitions_by_pair.get(pair)
+        if overlap > 1.0:
+            if transition is None or not math.isclose(overlap, transition["duration_ms"], abs_tol=0.001):
+                raise EDLValidationError("overlapping video clips require a matching crossfade of the exact overlap duration")
+            if float(clip["end_ms"]) <= float(previous["end_ms"]):
+                raise EDLValidationError("crossfade destination clip must extend beyond the source clip")
+        elif transition is not None:
+            raise EDLValidationError("crossfade requires overlapping adjacent video clips")
+    if set(transitions_by_pair) - adjacent_pairs:
+        raise EDLValidationError("crossfade must connect adjacent video clips in timeline order")
+    for clip in ordered_video:
+        incoming = next((t["duration_ms"] for t in transitions if t["to_clip_id"] == clip["id"]), 0)
+        outgoing = next((t["duration_ms"] for t in transitions if t["from_clip_id"] == clip["id"]), 0)
+        if incoming + outgoing > float(clip["end_ms"]) - float(clip["start_ms"]):
+            raise EDLValidationError("crossfade durations exceed the clip's available timeline duration")
+
     result = {
         "schema": SCHEMA, "version": VERSION, "timebase": "milliseconds",
         "clips": normalized, "audio_tracks": audio_tracks,
     }
     if has_project_duration:
         result["project_duration_ms"] = int(project_duration_ms)
+    if has_transitions:
+        result["transitions"] = transitions
     return result
