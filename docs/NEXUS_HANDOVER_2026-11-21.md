@@ -205,7 +205,7 @@ Automated CI and Compose smoke do not prove:
 - Audited current YouTube/TikTok OAuth and publishing adapters. Both OAuth implementations accept injected transports for deterministic offline testing; publishing suites use fake Google service objects and fake TikTok transports.
 - Hardened Google and TikTok OAuth token adapters to reject non-object JSON responses. TikTok token expiry values must be positive, non-boolean JSON integers before tokens are encrypted/persisted.
 - Added no-network regression tests for malformed response objects and invalid TikTok expiry values. Added matrix/runbook `docs/BUILD_00353_PROVIDER_OFFLINE_CONTRACTS.md`.
-- Exact-head CI for #475 is pending/not yet visible; do not mark validated until Backend and Compose checks on the current head pass.
+- Latest exact head `40dde147f8dc212be9d9a978a822abcf28d3234d` passed Backend [run 44888809207](https://github.com/justinhblee-prog/shorts/actions/runs/44888809207): 949 tests plus Playwright browser smoke, and Compose [run 44888809309](https://github.com/justinhblee-prog/shorts/actions/runs/44888809309): service isolation, ClamAV readiness, real FFmpeg render/adoption/review, authenticated upload/review/private preview and encrypted backup/isolated restore.
 - BUILD-00353 remains externally blocked for live HTTPS contract checks, real script/voice/video generation, provider cost/latency evidence and publishing. Current OAuth stores are singleton/global; workspace-owned provider connections remain design-only in `WORKSPACE_PROVIDER_CONNECTION_CONTRACT.md`.
 - No credentials, scopes, connected accounts, external uploads or public posts were changed. No live network calls were made.
 
