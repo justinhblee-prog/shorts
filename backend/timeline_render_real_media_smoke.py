@@ -23,6 +23,10 @@ from timeline_render_worker import TimelineRenderWorker
 
 
 def main():
+    # This isolated smoke uses a temporary fixture volume that can be smaller
+    # than the production free-space reserve. The upload guard has dedicated
+    # unit coverage; disable it only for this disposable end-to-end fixture.
+    os.environ["NEXUS_MEDIA_MIN_FREE_BYTES"] = "0"
     ffmpeg = Path("/usr/bin/ffmpeg")
     ffprobe = Path("/usr/bin/ffprobe")
     for binary in (ffmpeg, ffprobe):

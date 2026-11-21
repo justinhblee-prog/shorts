@@ -22,7 +22,7 @@ class WorkspaceAssetStoreTests(unittest.TestCase):
         self.workspaces.create("Studio", "alice", "ws_studio")
         self.store = WorkspaceAssetStore(
             self.db_path, str(self.root / "private-media"), self.workspaces,
-            max_asset_bytes=32, max_workspace_bytes=40,
+            max_asset_bytes=32, max_workspace_bytes=40, max_total_media_bytes=50,
         )
 
     def tearDown(self):
@@ -75,6 +75,56 @@ class WorkspaceAssetStoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.store.register_stream(
                 "ws_studio", "alice", io.BytesIO(b"x"), "../escape.mp4"
+            )
+
+
+    def test_upload_preserves_configured_physical_media_free_space(self):
+        from unittest.mock import patch
+        usage = type("Usage", (), {"free": 50})()
+        with patch.dict(os.environ, {"NEXUS_MEDIA_MIN_FREE_BYTES": "100"}):
+            with patch("workspace_asset_store.shutil.disk_usage", return_value=usage):
+                with self.assertRaisesRegex(AssetError, "insufficient media storage free space"):
+                    self.store.register_stream(
+                        "ws_studio", "alice", io.BytesIO(b"four"), "low-space.mp4"
+                    )
+        with self.store.db() as db:
+            active = db.execute("SELECT COUNT(*) AS count FROM workspace_media_assets").fetchone()["count"]
+            pending = db.execute("SELECT COUNT(*) AS count FROM workspace_asset_upload_reservations").fetchone()["count"]
+        self.assertEqual(active, 0)
+        self.assertEqual(pending, 0)
+
+    def test_installation_wide_capacity_counts_assets_across_workspaces(self):
+        self.workspaces.create("Other", "bob", "ws_other")
+        first = self.store.register_stream(
+            "ws_studio", "alice", io.BytesIO(b"a" * 30), "studio.mp4"
+        )
+        self.assertEqual(first["size_bytes"], 30)
+        with self.assertRaisesRegex(AssetError, "global media storage capacity"):
+            self.store.register_stream(
+                "ws_other", "bob", io.BytesIO(b"b" * 21), "other.mp4"
+            )
+        with self.store.db() as db:
+            active = db.execute("""
+                SELECT COALESCE(SUM(byte_size),0) AS total
+                FROM workspace_media_assets WHERE status='active'
+            """).fetchone()["total"]
+            pending = db.execute("""
+                SELECT COALESCE(SUM(byte_size),0) AS total
+                FROM workspace_asset_upload_reservations
+            """).fetchone()["total"]
+        self.assertEqual(active, 30)
+        self.assertEqual(pending, 0)
+
+    def test_global_capacity_must_cover_workspace_capacity(self):
+        with self.assertRaisesRegex(ValueError, "max_total_media_bytes"):
+            WorkspaceAssetStore(
+                self.db_path, str(self.root / "other-private"), self.workspaces,
+                max_asset_bytes=16, max_workspace_bytes=40, max_total_media_bytes=39,
+            )
+        with self.assertRaises(ValueError):
+            WorkspaceAssetStore(
+                self.db_path, str(self.root / "invalid-private"), self.workspaces,
+                max_asset_bytes=16, max_workspace_bytes=40, max_total_media_bytes=True,
             )
 
     def test_workspace_quota_counts_existing_assets(self):

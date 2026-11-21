@@ -1548,3 +1548,8 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Exact-head Actions validation pending.
 
 - BUILD-00351 exact checkpoint `1dbd12852bf41c9c58c11a801a30d9d3000daffa` passed 725 backend tests and the health-aware five-service Compose integration: [backend 44506538368](https://github.com/justinhblee-prog/shorts/actions/runs/44506538368), [Compose 44506538484](https://github.com/justinhblee-prog/shorts/actions/runs/44506538484). Worker, scheduler, metrics collector and backup reported healthy; backup success marker and encrypted isolated restore were verified.
+
+
+## BUILD-00360 — global private media capacity
+
+The workspace asset store now enforces `NEXUS_MAX_TOTAL_MEDIA_BYTES` (default 20 GiB) across all workspaces. Every upload chunk is reserved against both the per-workspace and installation-wide active + pending totals inside one `BEGIN IMMEDIATE` transaction before it is written. The global cap must be greater than or equal to the workspace cap. This is an application admission limit for private workspace assets only; it does not include render scratch/output, backups or other filesystem consumers and does not replace host volume quotas.

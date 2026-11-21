@@ -736,3 +736,13 @@ This protects local database consistency only. It does not make the external pro
 - Check `docker compose ps` and require API, worker, scheduler, metrics collector and backup to report `healthy`.
 - The backup service updates `/backups/.last-success` only after an encrypted archive is successfully created. Set `NEXUS_BACKUP_HEALTH_MAX_AGE_SECONDS` to adjust the maximum acceptable age; default is 48 hours for a daily schedule.
 - A process health probe confirms the expected PID-1 worker/scheduler/collector command is alive; it does not replace operational monitoring of job throughput or provider errors.
+
+
+### Private media capacity limits
+
+Set `NEXUS_MAX_TOTAL_MEDIA_BYTES` to the maximum combined active private workspace assets plus in-flight upload reservations (default 20 GiB). It must be greater than or equal to `NEXUS_MAX_WORKSPACE_ASSET_BYTES`. Monitor the actual volume separately: this application cap excludes renderer scratch/output, backup archives, logs and other containers. Apply an OS/container volume quota and alert on free disk space; do not assume the SQLite admission cap is a physical filesystem limit.
+
+
+### BUILD-00364 — media upload free-space reserve
+
+Configure `NEXUS_MEDIA_MIN_FREE_BYTES` (default 1 GiB) to keep a free-space reserve on the private media volume. Streamed uploads check free bytes before each chunk and fail before writing a chunk that would cross the reserve. Set to `0` only when the operator intentionally disables this guard. The check is advisory under concurrent writes and does not reserve physical blocks; worker scratch, database growth and other services may still consume the volume. Use host/container quotas and volume alerts for hard enforcement.
