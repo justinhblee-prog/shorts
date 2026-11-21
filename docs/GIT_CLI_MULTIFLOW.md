@@ -59,12 +59,18 @@ You can select one task with `-Task BUILD-xxxxx` or override the base branch wit
 For runs that must continue if the interactive PowerShell window or remote desktop session closes, start the scheduler as a separate hidden PowerShell process:
 
 ```powershell
+# Continuous scheduler: poll every 5 minutes, retry failures with bounded backoff
 .\scripts\start-devflow-detached.ps1 -MaxTasks 20
+
+# Optional bounded run for verification: execute two scheduler cycles then exit
+.\scripts\start-devflow-detached.ps1 -MaxTasks 3 -PollIntervalSeconds 30 -MaxCycles 2
 ```
 
-The launcher returns immediately with a PID, run metadata, stdout/stderr log paths, and a status-file path. The detached supervisor holds an exclusive scheduler lock for the full run, invokes the normal launcher (including its existing preflight), and writes a terminal `completed` or `failed` status. Logs and metadata are written beside the checkout under `<repo>-multiflow-logs`; worker state and the scheduler lease remain under `<repo>-multiflow-state`. Inspect the status JSON and log files to resume diagnosis after reconnecting. Do not delete the scheduler lock file while a supervisor is running; the OS file handle is the lock.
+The launcher returns immediately with a PID, run metadata, stdout/stderr log paths, and a status-file path. By default, the detached supervisor stays alive and repeatedly invokes the normal launcher every 300 seconds, including its existing preflight, dependency checks, open-PR duplicate protection, worker leases, validation and Draft-PR-only creation. A failed cycle is retried with exponential backoff (5, 10, 20, then 30 minutes); a successful or empty-queue cycle uses the configured poll interval. The exclusive scheduler lock spans all cycles, preventing overlapping supervisors. `-MaxCycles 0` means continuous operation; a positive value bounds the number of cycles for tests or controlled sessions. Status JSON records the cycle count, last exit code, consecutive failures and next poll time. Logs and metadata are written beside the checkout under `<repo>-multiflow-logs`; worker state and the scheduler lease remain under `<repo>-multiflow-state`.
 
-This protects the local automation process from closure of the interactive PowerShell window. It does not restore a lost ChatGPT-to-Windows connector or prove that the coding-agent CLI/provider remains authenticated. A provider failure is recorded in the logs and worker state; rerun only after inspecting the failure and retained worktree. The normal dependency, open-PR, lease, validation, and Draft-PR safety gates remain in force.
+The supervisor re-reads the task manifest from its local checkout on each cycle. It does not silently pull or rewrite the shared automation branch; new task definitions must arrive through the normal reviewed branch update. This protects the local automation process from closure of the interactive PowerShell window but does not restore a lost ChatGPT-to-Windows connector, start an offline Windows PC, or prove that the coding-agent CLI/provider remains authenticated. The local runner must remain online, and the configured Agent must pass preflight. The normal dependency, open-PR, lease, validation, and Draft-PR safety gates remain in force.
+
+A deterministic regression harness runs the detached supervisor against a disposable local Git repository and a fake launcher. It forces the first scheduler cycle to fail, verifies a later cycle is retried and succeeds, checks the persisted terminal status, and confirms the scheduler lease is released. Run it with `pwsh -File scripts/test-devflow-detached-supervisor.ps1`; the Windows Agent workflow runs this regression before attempting any real Agent task.
 
 ## Flow and safety gates
 
