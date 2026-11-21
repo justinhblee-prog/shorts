@@ -54,6 +54,14 @@ async function waitForServer() {
     assert.equal(await app.locator(".studio-floor").count(), 1);
     assert.equal(await app.locator(".stage-node").count(), 4);
     assert.equal(await app.locator("#studioMediaSpotlight").count(), 1);
+    assert.match(await app.locator("#studioMediaSpotlight").textContent(), /검수 가능한 영상/);
+    await app.locator("#globalSearch").fill("콘텐츠 제작");
+    assert.ok(await app.locator("#globalSearchResults button").count() > 0, "Global search should return matching workspace content");
+    await app.locator("#globalSearchResults button").first().click();
+    assert.equal(await app.locator("#globalSearchResults").isVisible(), false);
+    await app.locator("body").press("Control+k");
+    assert.equal(await app.locator("#globalSearch").evaluate(el => document.activeElement === el), true, "Ctrl+K should focus global search");
+    await app.locator("#globalSearch").press("Escape");
     assert.equal(await app.locator(".gate-list li").count(), 4);
     assert.equal(await app.locator("#overviewTrends").count(), 1);
     assert.match(await app.locator("body").textContent(), /운영 커맨드 센터/);
