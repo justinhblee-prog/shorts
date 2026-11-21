@@ -133,7 +133,7 @@
             </div>
             <div class="timeline-server-controls">
               <div class="timeline-workspace-create"><label>새 작업공간<input id="timelineWorkspaceName" maxlength="120" placeholder="브랜드 캠페인 / Shorts 프로젝트"></label><button type="button" class="button button-outline button-small" id="timelineCreateWorkspace">워크스페이스 생성</button><small>상단 워크스페이스 선택기에서 활성 공간을 지정합니다.</small></div>
-              <div class="timeline-audio-control"><label class="button button-outline timeline-upload">오디오 추가<input id="timelineAudioInput" type="file" accept="audio/*" hidden></label><span id="timelineAudioStatus">선택 오디오 없음</span><label>Gain <input id="timelineAudioGain" type="number" min="0" max="4" step="0.1" value="1"></label><label>Fade in <input id="timelineAudioFadeIn" type="number" min="0" max="60" step="0.1" value="0"></label><label>Fade out <input id="timelineAudioFadeOut" type="number" min="0" max="60" step="0.1" value="0"></label></div>
+              <div class="timeline-audio-control"><label class="button button-outline timeline-upload">오디오 트랙 추가<input id="timelineAudioInput" type="file" accept="audio/*" multiple hidden></label><span id="timelineAudioStatus">오디오 트랙 0/8</span><div id="timelineAudioTracks" class="timeline-audio-tracks" aria-live="polite"><small>최대 8개 독립 오디오 트랙 · 트랙별 시작 위치, Gain, Fade 설정</small></div></div>
             </div>
             <div class="timeline-workspace">
               <aside class="timeline-media-shelf-panel">

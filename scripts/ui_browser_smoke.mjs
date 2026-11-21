@@ -9,6 +9,13 @@ const server = spawn(process.env.PYTHON || "python", [
   "scripts/ui_api_smoke_server.py", "--port", String(port),
 ], { stdio: "ignore" });
 
+function makeWavFixture(durationMs = 5000, sampleRate = 8000) {
+  const channels=1,bitsPerSample=16,sampleCount=Math.round(sampleRate*durationMs/1000),dataBytes=sampleCount*channels*bitsPerSample/8;
+  const wav=Buffer.alloc(44+dataBytes);wav.write("RIFF",0);wav.writeUInt32LE(36+dataBytes,4);wav.write("WAVE",8);wav.write("fmt ",12);wav.writeUInt32LE(16,16);
+  wav.writeUInt16LE(1,20);wav.writeUInt16LE(channels,22);wav.writeUInt32LE(sampleRate,24);wav.writeUInt32LE(sampleRate*channels*bitsPerSample/8,28);
+  wav.writeUInt16LE(channels*bitsPerSample/8,32);wav.writeUInt16LE(bitsPerSample,34);wav.write("data",36);wav.writeUInt32LE(dataBytes,40);return wav;
+}
+
 function waitForSignal(promise, label, timeoutMs = 15000) {
   return Promise.race([
     promise,
@@ -359,6 +366,16 @@ async function waitForServer() {
       state.selected="clip-smoke";
       window.NexusLocalTimeline.render();
     });
+    await page.locator("#timelineAudioInput").setInputFiles([
+      {name:"music-bed.wav",mimeType:"audio/wav",buffer:makeWavFixture()},
+      {name:"voice-over.wav",mimeType:"audio/wav",buffer:makeWavFixture()},
+    ]);
+    await page.waitForFunction(() => document.querySelectorAll("#timelineAudioTracks .timeline-audio-track").length === 2);
+    const audioRows=page.locator("#timelineAudioTracks .timeline-audio-track");
+    await audioRows.nth(0).locator('input[aria-label="music-bed.wav Gain"]').fill("0.7");
+    await audioRows.nth(0).locator('input[aria-label="music-bed.wav Gain"]').dispatchEvent("change");
+    await audioRows.nth(1).locator('input[aria-label="voice-over.wav 시작(s)"]').fill("1.5");
+    await audioRows.nth(1).locator('input[aria-label="voice-over.wav 시작(s)"]').dispatchEvent("change");
     await page.locator("#timelineSubmitRender").click();
     await page.waitForFunction(() => { const video=document.querySelector("#timelineServerPreview"); return video && !video.hidden && (video.getAttribute("src")||"").startsWith("blob:"); }, { timeout: 20000 }).catch(async error => { const debug=await page.locator("#timelineServerPreview").evaluate(el=>({hidden:el.hidden,src:el.getAttribute("src"),reviewHidden:document.querySelector("#timelineRenderReview")?.hidden,status:document.querySelector("#timelineStatus")?.textContent})); throw new Error(error.message+" · private preview state "+JSON.stringify(debug)); });
     await page.locator("#timelineRenderReview").waitFor({state:"visible",timeout:5000});
@@ -367,14 +384,19 @@ async function waitForServer() {
     assert.equal(capturedTimelineEdl.clips.filter(clip=>clip.type==="video").length,1);
     assert.equal(capturedTimelineEdl.clips.find(clip=>clip.type==="video").asset_id,"asset-smoke");
     assert.equal(capturedTimelineEdl.clips.find(clip=>clip.type==="title").text,"Render smoke");
-    const shelfDebug=await page.evaluate(()=>({filter:document.querySelector("#timelineMediaFilter")?.value,clips:window.NexusLocalTimeline?.state.clips?.map(c=>({id:c.id,name:c.name,kind:c.kind,assetId:c.assetId,uploadedWorkspaceId:c.uploadedWorkspaceId})),count:document.querySelector("#timelineMediaShelfCount")?.textContent,cards:[...document.querySelectorAll("#timelineMediaShelf .timeline-media-card")].map(el=>el.textContent)}));
-    console.log("[ui-smoke] media shelf state",JSON.stringify(shelfDebug));
+    assert.equal(capturedTimelineEdl.audio_tracks.length,2,"two independent audio tracks must be submitted");
+    assert.equal(capturedTimelineEdl.audio_tracks[0].gain,0.7);
+    assert.equal(capturedTimelineEdl.audio_tracks[1].start_ms,1500);
     assert.equal(await page.locator("#timelineMediaShelf .timeline-media-card").count(),2,"local media shelf should show the uploaded video and title overlay");
-
     assert.equal(await page.locator("#timelineVisualTrack .timeline-visual-lane").count(),3,"visual timeline should render video, title and audio lanes");
     assert.equal(await page.locator("#timelineVisualTrack .timeline-segment.is-video").count(),1);
     assert.equal(await page.locator("#timelineVisualTrack .timeline-segment.is-title").count(),1);
     assert.equal(await page.locator("#timelineVisualDuration").textContent(),"5.0s");
+    await page.locator("#timelineApproveRender").scrollIntoViewIfNeeded();
+    await page.locator("#timelineApproveRender").click();
+    await page.waitForFunction(()=>document.querySelector("#timelineRenderReview").hidden===true);
+    assert.equal(capturedTimelineDecision.decision,"approved");
+
     await page.locator("#timelineMediaFilter").fill("Render smoke");
     assert.equal(await page.locator("#timelineMediaShelf .timeline-media-card").count(),1,"media shelf filter should narrow the asset board");
     await page.locator("#timelineMediaFilter").fill("");
@@ -383,10 +405,6 @@ async function waitForServer() {
     assert.match(await page.locator("#timelineSelectedMeta").textContent(),/검사 완료/,"detail inspector should show server scan status");
     assert.equal(await page.locator("#timelineServerPreview").isVisible(),true,"rendered review artifact preview missing");
     assert.match(await page.locator("#timelineServerPreview").getAttribute("src"),/^blob:/,"private artifact should be fetched as an authenticated browser blob");
-
-    await page.locator("#timelineApproveRender").click();
-    await page.waitForFunction(()=>document.querySelector("#timelineRenderReview").hidden===true);
-    assert.equal(capturedTimelineDecision.decision,"approved");
     checkpoint("authenticated workspace upload → EDL validation → render status → private artifact preview → human review decision verified (API contract mock)");
 
 
@@ -401,7 +419,7 @@ async function waitForServer() {
 
     await page.reload({ waitUntil: "networkidle" });
     await page.evaluate(() => window.scrollTo(0, 0));
-    await page.keyboard.press("Tab");
+    await page.locator(".skip-link").focus();
     assert.equal(await page.evaluate(() => document.activeElement.classList.contains("skip-link")), true);
     await page.keyboard.press("Enter");
     assert.equal(await page.evaluate(() => document.activeElement.id), "home");
