@@ -1556,7 +1556,7 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - The production floor adds live Discover/Create/Review/Measure indicators, a private review-video spotlight and the persistent queue rail.
 - The existing browser-local timeline remains non-destructive and retains source preview, trim, reorder, title overlay and JSON export. The new authenticated render controls create workspaces, upload source video/audio to private workspace storage, require server-side ClamAV/ffprobe clean attestation, validate EDL v1, submit an idempotent render, poll status, download the integrity-checked review artifact and record an artifact-bound human decision.
 - EDL v1 client subset: sequential video clips, timed title overlays and one optional audio bed with gain/fades. No transitions, gaps, overlaps, arbitrary paths/URLs or public publishing.
-- .devflow/tasks.json now tracks BUILD-00361 as in progress. The UI API-contract browser smoke has been added but exact-head CI is pending; no success claim until it passes.
+- .devflow/tasks.json tracks BUILD-00361 as in progress. Exact-head validation passed on branch head abcfd823edefdc3d4044a45a99385577cc38053c: run 44901290376 passed backend validation, the authenticated timeline editor API-contract Playwright flow and responsive workbench smoke; run 44901290337 passed the real-media Compose FFmpeg/ClamAV upload-render-review-private-preview integration.
 - External validation remains: point the Vercel preview at a reachable API built from BUILD-00352, use an operator token with workspace.read and media.manage, and validate target-host ClamAV signatures, ffprobe, worker and persistent storage with representative media.
 
 
@@ -1567,3 +1567,5 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Compose CI independently verifies real generated-media FFmpeg/ffprobe rendering, private artifact adoption/review and authenticated API-to-worker flow on isolated test storage.
 - BUILD-00361 remains in progress: validate against a reachable live API, target-host ClamAV/ffprobe/worker/persistent storage and representative customer media. Multiple audio tracks and explicit project-duration controls remain future editor work.
 - PR #480 remains Draft/open/unmerged. Vercel deployment is being created for this exact head; no production deploy or public publishing.
+
+- The static Vercel preview is deployed from b91db13d3c71c5f0ae28583da471b9ffbe5874b8 at https://nexus-studio-pro-ui-preview-j7gg655lv-justinhblee-9540.vercel.app/preview.html. It exposes an API-origin field in Settings; the API host must allow this preview origin via CORS. The operator token stays in page memory, not localStorage.
