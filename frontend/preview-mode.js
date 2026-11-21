@@ -52,7 +52,7 @@
   }
   const statusObserver = new MutationObserver(() => {
     const node = document.getElementById("connection");
-    if (node && node.textContent !== "화면 미리보기 · API 미연결") {
+    if (node && node.textContent.trim() !== "화면 미리보기 · API 미연결") {
       node.innerHTML = '<i aria-hidden="true"></i> 화면 미리보기 · API 미연결';
       node.title = "이 주소는 UI 검토용입니다. 실제 운영 데이터나 API 작업은 수행하지 않습니다.";
       node.setAttribute("aria-label", "화면 미리보기, 운영 API 미연결");
