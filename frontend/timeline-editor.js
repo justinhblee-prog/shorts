@@ -115,7 +115,9 @@
     const clips=local()?.state.clips||[];
     const videos=clips.filter(clip=>clip.kind==="video");
     const titles=clips.filter(clip=>clip.kind==="title");
-    const duration=videos.reduce((sum,clip)=>sum+Math.max(0,clip.outPoint-clip.inPoint),0);
+    const videoDuration=videos.reduce((sum,clip)=>sum+Math.max(0,clip.outPoint-clip.inPoint),0);
+    const requestedDuration=Number($("timelineProjectDuration")?.value||0);
+    const duration=Math.max(videoDuration,Number.isFinite(requestedDuration)&&requestedDuration>0?requestedDuration:0);
     $("timelineVisualDuration").textContent=formatTime(duration);
     root.replaceChildren();
     if(!videos.length||duration<=0){
@@ -254,23 +256,33 @@
       cursor+=duration;
     }
     if(cursor<=0)throw new Error("렌더링할 영상 구간이 없습니다.");
+    const projectDurationRaw=$("timelineProjectDuration").value.trim();
+    let projectDurationMs=cursor;
+    if(projectDurationRaw){
+      const requestedSeconds=Number(projectDurationRaw);
+      if(!Number.isFinite(requestedSeconds)||requestedSeconds<=0||requestedSeconds>3600)throw new Error("프로젝트 길이는 0초 초과, 3600초 이하로 입력하세요.");
+      projectDurationMs=secondsToMs(requestedSeconds);
+      if(projectDurationMs<cursor)throw new Error("프로젝트 길이는 전체 영상 클립 길이보다 짧을 수 없습니다.");
+    }
     for(const [index,clip] of titleClips().entries()){
-      const start=Math.min(secondsToMs(clip.inPoint),Math.max(0,cursor-100));
-      const end=Math.min(secondsToMs(clip.outPoint),cursor);
+      const start=Math.min(secondsToMs(clip.inPoint),Math.max(0,projectDurationMs-100));
+      const end=Math.min(secondsToMs(clip.outPoint),projectDurationMs);
       if(end<=start)throw new Error("타이틀 클립의 시작·종료 시간을 확인하세요.");
       edlClips.push({id:clip.id,type:"title",start_ms:start,end_ms:end,text:clip.text});
     }
     const audioTracks=audioTracksInput.map((track,index)=>{
       const startMs=Math.max(0,Math.round(Number(track.startMs)||0));
-      if(startMs>=cursor)throw new Error(track.name+" · 시작 위치가 프로젝트 길이보다 늦습니다.");
+      if(startMs>=projectDurationMs)throw new Error(track.name+" · 시작 위치가 프로젝트 길이보다 늦습니다.");
       const sourceIn=Math.max(0,Math.round(Number(track.sourceInMs)||0)),requestedSourceOut=Number(track.sourceOutMs);
-      const sourceOut=Math.min(track.serverDurationMs,Number.isFinite(requestedSourceOut)?Math.round(requestedSourceOut):track.serverDurationMs,sourceIn+Math.max(0,cursor-startMs));
+      const sourceOut=Math.min(track.serverDurationMs,Number.isFinite(requestedSourceOut)?Math.round(requestedSourceOut):track.serverDurationMs,sourceIn+Math.max(0,projectDurationMs-startMs));
       if(sourceOut<=sourceIn)throw new Error(track.name+" · 타임라인에 배치할 오디오 구간이 없습니다.");
       const available=sourceOut-sourceIn,fadeIn=Math.min(Math.max(0,Math.round(Number(track.fadeInMs)||0)),available);
       const fadeOut=Math.min(Math.max(0,Math.round(Number(track.fadeOutMs)||0)),Math.max(0,available-fadeIn));
       return {id:"audio_track_"+(index+1),asset_id:track.assetId,start_ms:startMs,source_in_ms:sourceIn,source_out_ms:sourceOut,gain:Math.max(0,Math.min(4,Number(track.gain??1))),fade_in_ms:fadeIn,fade_out_ms:fadeOut};
     });
-    return {schema:"nexus-edit-decision-list",version:1,timebase:"milliseconds",clips:edlClips,audio_tracks:audioTracks};
+    const edl={schema:"nexus-edit-decision-list",version:1,timebase:"milliseconds",clips:edlClips,audio_tracks:audioTracks};
+    if(projectDurationRaw)edl.project_duration_ms=projectDurationMs;
+    return edl;
   }
   async function fetchArtifact(workspaceId,snapshotId){
     const listing=await api().request(pathFor(workspaceId,"/render-artifacts?limit=100"));
@@ -404,6 +416,7 @@
     $("timelineZoomIn").addEventListener("click",()=>applyTimelineZoom(state.zoom+.25));
     $("timelineZoomOut").addEventListener("click",()=>applyTimelineZoom(state.zoom-.25));
     $("timelineZoomFit").addEventListener("click",()=>applyTimelineZoom(1));
+    $("timelineProjectDuration").addEventListener("input",renderTimelineViews);
     $("timelineScrollLeft").addEventListener("click",()=>scrollTimeline(-1));
     $("timelineScrollRight").addEventListener("click",()=>scrollTimeline(1));
     applyTimelineZoom(state.zoom);
