@@ -1576,3 +1576,5 @@ Added composite indexes for publication video/status lookups and metric video/ti
 - Browser smoke now uploads two audio fixtures and checks the normalized EDL preserves independent gain and start offsets.
 - This is a UI/API-contract regression. Real audio mixing remains covered by the Compose renderer smoke and still needs representative customer-media/target-host validation.
 - Follow-up PR is based on PR #480 exact head `b91db13d3c71c5f0ae28583da471b9ffbe5874b8`; remains Draft/open/unmerged.
+
+- Follow-up hardening: browser audio fixtures now contain valid PCM WAV headers/data so Chromium can read local metadata before the mocked private upload; EDL normalization no longer silently converts an explicit zero source-out value into full-length audio.
