@@ -270,7 +270,7 @@ class TimelineRenderWorkerTests(unittest.TestCase):
 
         def render(payload, stop_event):
             self.assertTrue(heartbeat_failed.wait(2), "heartbeat monitor did not run")
-            self.assertTrue(stop_event.is_set(), "lease loss was not propagated to renderer")
+            self.assertTrue(stop_event.wait(2), "lease loss was not propagated to renderer")
             # Simulate a renderer that finishes writing at the cancellation boundary.
             staged.write_bytes(b"late-output-after-lease-loss")
             return {"staged_path": str(staged)}
