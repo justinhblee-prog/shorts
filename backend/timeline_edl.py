@@ -40,8 +40,10 @@ def validate_edl(payload: Any) -> dict:
 
     Supported payload shape: schema, version, timebase='milliseconds', clips[].
     Each clip has id, type ('video'|'title'), start_ms, end_ms, and for video
-    clips an opaque asset_id plus source_in_ms/source_out_ms. Browser paths,
-    URLs, filters, transitions and arbitrary renderer directives are rejected.
+    clips an opaque asset_id plus source_in_ms/source_out_ms. Video clips may
+    opt in to embedded source audio. Adjacent overlaps require a separately
+    declared bounded crossfade for rendering. Browser paths, URLs, arbitrary
+    filters and renderer directives are rejected.
     """
     if not isinstance(payload, dict):
         raise EDLValidationError("EDL must be a JSON object")
