@@ -1312,3 +1312,13 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Windows worker base PR #416 remains Draft/open/unmerged at `604fff33a23f1d271a7f7c6183d44b7f21e6f909`; Backend [44851183939](https://github.com/justinhblee-prog/shorts/actions/runs/44851183939) passed. Dedicated low-privilege Windows runner, ACL/egress/secret audit, actual Windows/Ollama execution and cross-run LocalAppData persistence remain external activation gates.
 - DEV-ORCH-008 PR #445 is now reconciled with latest PR #416 base by two-parent merge commit `1da9824a05983b0c7ef679a586403c7d0c55b49d`; compare is 15 ahead / 0 behind and GitHub mergeable. Exact-head Backend [44895214665](https://github.com/justinhblee-prog/shorts/actions/runs/44895214665) passed **629 tests**, frontend JS/DOM checks and worker workflow YAML parsing. Shared Windows SQLite DB and real browser integration remain unverified.
 - All referenced PRs remain Draft/open/unmerged. No Windows runner activation, workflow dispatch, secrets changes, merge, production deployment or publishing was performed.
+
+
+## Additional open-PR audit — 2026-11-21
+
+- Read-only development monitor PR #447: Draft/open, GitHub mergeable. Its latest Backend workflow [44862185026](https://github.com/justinhblee-prog/shorts/actions/runs/44862185026) is `action_required`; no job executed. Do not bypass repository workflow approval.
+- Development monitor pagination/order regression PR #455: Draft/open, mergeable. Backend workflow [44868453319](https://github.com/justinhblee-prog/shorts/actions/runs/44868453319) is `action_required`; no job executed.
+- UI preview accessibility/mobile PR #457: Draft/open, mergeable. Backend workflow [44868529200](https://github.com/justinhblee-prog/shorts/actions/runs/44868529200) is `action_required`; no job executed.
+- Persistent visual preview PR #451 exact head `515a7381037145d92d5082585387f4042b5a489e` passed Backend [44867292313](https://github.com/justinhblee-prog/shorts/actions/runs/44867292313).
+- Responsive device preview PR #460 exact head `18d5ddf36522549796ed52ad02d37e0b59b21e85` passed Backend [44870039465](https://github.com/justinhblee-prog/shorts/actions/runs/44870039465).
+- These PRs remain Draft/open/unmerged. `action_required` is an external GitHub workflow-approval gate; no approval was attempted.
