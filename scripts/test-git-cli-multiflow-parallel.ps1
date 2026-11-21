@@ -52,8 +52,8 @@ try{
  $agentCode=@'
 param([string]$Prompt)
 $log=$env:DEVFLOW_TEST_LOG
-if($env:GH_TOKEN){Add-Content -LiteralPath $log -Value "credential-leak"}else{Add-Content -LiteralPath $log -Value "credential-isolated"}
 $start=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+if($env:GH_TOKEN){Add-Content -LiteralPath $log -Value "credential-leak|$start|$PID"}else{Add-Content -LiteralPath $log -Value "credential-isolated|$start|$PID"}
 Add-Content -LiteralPath $log -Value "start|$start|$PID"
 Start-Sleep -Seconds 5
 $marker=Join-Path (Get-Location) ("worker-"+$PID+".txt")
