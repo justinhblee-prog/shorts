@@ -101,13 +101,13 @@ def validate_edl(payload: Any) -> dict:
     if max(item["end_ms"] for item in normalized) > MAX_DURATION_MS:
         raise EDLValidationError("timeline exceeds maximum duration")
 
+    video_clips = [item for item in normalized if item["type"] == "video"]
+    transition_pairs = set()
+    transitions = []
     if "transitions" in payload:
         raw_transitions = payload["transitions"]
-        video_clips = [item for item in normalized if item["type"] == "video"]
         if not isinstance(raw_transitions, list) or len(raw_transitions) > max(0, len(video_clips) - 1):
             raise EDLValidationError("transitions must describe at most one transition per adjacent video pair")
-        transition_pairs = set()
-        transitions = []
         for index, raw in enumerate(raw_transitions):
             prefix = f"transitions[{index}]"
             expected_fields = {"from_clip_id", "to_clip_id", "type", "duration_ms"}
