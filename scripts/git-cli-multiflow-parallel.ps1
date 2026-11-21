@@ -6,6 +6,7 @@ param(
  [ValidateRange(1,20)][int]$MaxTasks=20
 )
 $ErrorActionPreference="Stop"
+$env:DEVFLOW_VALIDATOR_PATH=Join-Path $PSScriptRoot "devflow.py"
 if($PSVersionTable.PSVersion.Major -lt 7){throw "PowerShell 7 or newer is required."}
 . (Join-Path $PSScriptRoot "devflow-agent-process.ps1")
 function Read-State([string]$Path){
@@ -68,7 +69,7 @@ if($Worker){
   Remove-Item -LiteralPath $taskData.prompt -Force -ErrorAction SilentlyContinue
   if(& git -C $taskData.worktree status --porcelain -- .devflow/tasks.json){throw "Protected task manifest was modified."}
   if(-not(& git -C $taskData.worktree status --porcelain)){throw "Agent produced no changes."}
-  & python (Join-Path $taskData.worktree "scripts/devflow.py") validate;if($LASTEXITCODE -ne 0){throw "Validation failed."}
+  $validator=$env:DEVFLOW_VALIDATOR_PATH;if(-not $validator -or -not(Test-Path -LiteralPath $validator)){$validator=Join-Path $taskData.worktree "scripts/devflow.py"};if(-not(Test-Path -LiteralPath $validator)){throw "DevFlow validator is unavailable in runner checkout and task worktree."};& python $validator validate;if($LASTEXITCODE -ne 0){throw "Validation failed."}
   foreach($n in @(".env",".env.local","credentials.json","secrets.json")){
    $secret=Get-ChildItem $taskData.worktree -Force -Recurse -File -Filter $n -ErrorAction SilentlyContinue|Where-Object{$_.FullName -notmatch '[\\/](\.git|node_modules|\.venv)[\\/]'}
    if($secret){throw "Potential secret file: $n"}
