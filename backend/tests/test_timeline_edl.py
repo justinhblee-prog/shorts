@@ -33,6 +33,17 @@ class TimelineEDLTests(unittest.TestCase):
             with self.subTest(payload=payload), self.assertRaises(EDLValidationError):
                 validate_edl(payload)
 
+    def test_rejects_title_only_edl_before_render_submission(self):
+        payload = {
+            **self.valid,
+            "clips": [{
+                "id": "title-only", "type": "title",
+                "start_ms": 0, "end_ms": 3000, "text": "Opening title",
+            }],
+        }
+        with self.assertRaisesRegex(EDLValidationError, "at least one video clip"):
+            validate_edl(payload)
+
     def test_rejects_duplicate_ids_and_unknown_asset_aliases(self):
         payload = {**self.valid, "clips": [dict(x) for x in self.valid["clips"]]}
         payload["clips"][1]["id"] = "clip-1"
