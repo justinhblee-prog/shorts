@@ -34,6 +34,14 @@ GitHub Actions on the integrated Draft PR:
 
 The smoke uses generated fixture media. It does not establish production compatibility across arbitrary user media or prove a malware-signature update on the deployment host.
 
+## Workspace upload capacity controls
+
+- Each workspace has a durable private-media byte quota configured by `NEXUS_MAX_WORKSPACE_ASSET_BYTES` (default: 2 GiB); the per-file limit remains independently controlled by `NEXUS_MAX_ASSET_BYTES`.
+- Concurrent upload registration reserves capacity in a short SQLite `BEGIN IMMEDIATE` transaction. Active asset bytes and unexpired reservations are counted together before the asset is adopted.
+- Reservations are released in the same transaction that registers the asset, or on failure; abandoned reservations expire after ten minutes.
+- Quota rejection occurs before a staged file is adopted into the workspace asset directory. The request staging buffer remains separately bounded by the per-file upload limit.
+- Host filesystem quotas and total disk limits for render staging/artifacts are still required operational controls; this workspace quota does not replace them.
+
 ## Remaining production gates
 
 - Pin FFmpeg/ffprobe to reviewed versions and verify against an independently maintained checksum manifest; the image currently generates its manifest from the installed binaries.
