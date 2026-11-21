@@ -111,8 +111,11 @@ jobs:
           if (-not (Test-Path -LiteralPath $agentScript)) { throw "Ollama agent script is missing: $agentScript" }
           $env:DEVFLOW_AGENT_COMMAND = $python
           $env:DEVFLOW_AGENT_ARGS_JSON = ConvertTo-Json -Compress -InputObject @($agentScript, "--prompt-file", "{prompt_file}", "--model", "qwen2.5-coder:7b")
-          & "$PWD/scripts/start-devflow-autopilot.ps1" -Run -MaxTasks $count
-          if ($LASTEXITCODE -ne 0) { throw "Real Ollama multi-flow run failed with exit code $LASTEXITCODE." }
+          # Keep a real 5-minute supervisor loop alive after this push. The
+          # bounded 12-cycle run gives the queue one hour of autonomous retries
+          # and discovery without requiring the user's Windows PC to stay online.
+          & "$PWD/scripts/start-devflow-detached.ps1" -Supervisor -MaxTasks $count -PollIntervalSeconds 300 -MaxCycles 12
+          if ($LASTEXITCODE -ne 0) { throw "Ollama supervisor loop failed with exit code $LASTEXITCODE." }
 
       - name: Collect execution evidence
         if: always()
