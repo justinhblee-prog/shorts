@@ -182,13 +182,15 @@
         "Connected workspace creation, binary media upload, fail-closed rescan, EDL v1 validation, idempotent render submission/status, private artifact download and artifact-bound review decisions",
         "Added optional audio-bed upload with gain and fade controls",
         "Added a Playwright API-contract smoke for upload → validate → render → private preview → human review",
-        "Exact-head validation passed on branch head abcfd823edefdc3d4044a45a99385577cc38053c: backend validation + authenticated timeline editor API-contract Playwright + responsive workbench smoke passed in run 44901290376; Compose real-media FFmpeg/ClamAV upload-render-review/private-preview integration passed in run 44901290337."
+        "Exact-head validation passed on branch head abcfd823edefdc3d4044a45a99385577cc38053c: backend validation + authenticated timeline editor API-contract Playwright + responsive workbench smoke passed in run 44901290376; Compose real-media FFmpeg/ClamAV upload-render-review/private-preview integration passed in run 44901290337.",
+        "Expanded the timeline editor from one optional audio bed to up to eight independent audio tracks with per-track timeline start, source trim, gain, fade-in and fade-out controls; browser smoke asserts multiple-track EDL output."
       ],
       "remaining": [
         "Validate the Vercel preview against a live authenticated API deployed from the BUILD-00352 integration branch; browser UI contract tests currently use API mocks",
         "Run real customer-media clean/infected scan and FFmpeg render on the target host with its ClamAV signatures, ffprobe, worker and persistent storage",
         "Expand the UI from one audio bed to multiple independent audio tracks and add explicit project-duration/timeline controls",
-        "Validate representative codecs, variable frame rates and longer inputs; transitions, gaps and overlaps remain outside the current UI EDL v1 subset"
+        "Validate representative codecs, variable frame rates and longer inputs; transitions, gaps and overlaps remain outside the current UI EDL v1 subset",
+        "Validate multi-track audio mixing with representative customer audio formats and target-host FFmpeg/ffprobe."
       ]
     }
   ]
