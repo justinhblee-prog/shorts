@@ -129,6 +129,10 @@ def build_worker():
 
 
 def main():
+    logging.basicConfig(
+        level=os.getenv("NEXUS_LOG_LEVEL", "INFO").upper(),
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
     queue, worker, stopping, artifact_store = build_worker()
     generation = None
 
@@ -141,9 +145,10 @@ def main():
         registration = queue.register_worker(WORKER_ID, socket.gethostname())
         generation = registration["generation_token"]
         worker.generation_token = generation
-        print(
-            f"timeline_render_worker_started id={WORKER_ID} "
-            f"lease_seconds={LEASE_SECONDS} heartbeat_seconds={HEARTBEAT_SECONDS}"
+        logging.getLogger("nexus.timeline_render_worker").info(
+            "timeline_render_worker_started id=%s lease_seconds=%s "
+            "heartbeat_seconds=%s reconciliation_interval_seconds=%s",
+            WORKER_ID, LEASE_SECONDS, HEARTBEAT_SECONDS, RECONCILE_INTERVAL_SECONDS,
         )
         next_reconciliation = 0.0
         logger = logging.getLogger("nexus.timeline_render_worker")
