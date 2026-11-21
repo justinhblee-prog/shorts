@@ -11,7 +11,8 @@ Entry point: `RetentionInventory.list_workspace(workspace_id, principal_id, poli
 - Uses bounded, workspace-filtered SELECT queries and sets SQLite `PRAGMA query_only=ON` on each inventory connection.
 - Reads original asset metadata, immutable EDL snapshot references, render artifact metadata, job states and review decisions.
 - Does not read media bytes, expose storage paths/keys, verify file hashes, update rows, acquire leases, change queue state, create tombstones or delete files.
-- Limits each asset/artifact class to 1–200 rows; snapshot reference scans are bounded to ten times the per-class limit. Truncation or malformed/unknown snapshot/job state marks reference evidence incomplete and blocks eligibility.
+- Limits each asset/artifact class to 1–200 rows; snapshot reference scans are bounded to ten times the per-class limit. Truncation or malformed/unknown snapshot/job state marks the scan incomplete and blocks eligibility.
+- Reads use separate store connections, so cross-store reference counts are not one atomic database snapshot. The inventory always sets `reference_check_complete: false` and `reference_snapshot_consistency: "non_atomic"`; observed counts are diagnostic only and cannot authorize retention.
 - Returns per-candidate evaluator reason codes and aggregate blocker counts.
 
 ## Deliberately unknown state
@@ -23,7 +24,7 @@ The current schema has no legal-hold provider or per-object backup/replica inven
 - `storage_state_known: false`
 - `backup_state_known: false`
 
-These conditions deliberately block every candidate from `eligible_for_review`. This is not a defect or a temporary permissive mode; do not infer a no-hold state or a backup guarantee.
+These conditions deliberately block every candidate from `eligible_for_review`. Cross-store reference evidence is also explicitly non-atomic. This is not a defect or a temporary permissive mode; do not infer a no-hold state, a complete reference snapshot or a backup guarantee.
 
 The existing workspace asset `retention_until` value is returned as metadata only. Eligibility is calculated only from a caller-supplied explicit versioned policy; this module supplies no retention period.
 
