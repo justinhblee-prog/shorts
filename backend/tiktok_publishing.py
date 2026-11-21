@@ -710,13 +710,18 @@ class TikTokPublisher:
             raise TikTokPublishError("TikTok returned an invalid response") from exc
         if not binary and not isinstance(data, dict):
             raise TikTokPublishError("TikTok returned an unexpected response shape")
-        error = data.get("error") if isinstance(data, dict) else None
-        if isinstance(error, dict):
+        error = data.get("error")
+        if error is None:
+            error_code = None
+        elif isinstance(error, dict):
             error_code = error.get("code")
+            if not isinstance(error_code, str) or not error_code.strip():
+                raise TikTokPublishError("TikTok response error object has an unexpected shape")
+            error_code = error_code.strip()
         elif isinstance(error, str):
             error_code = error.strip() or None
         else:
-            error_code = None
+            raise TikTokPublishError("TikTok response error field has an unexpected shape")
         if status < 200 or status >= 300:
             raise TikTokPublishError(
                 "TikTok HTTP " + str(status) + ": " +
