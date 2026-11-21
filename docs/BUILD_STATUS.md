@@ -1173,3 +1173,11 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Refresh the top-level validation checkpoint to the latest verified BUILD-00140 CI run.
 - Replace the stale 408-test summary with the current 466-test result and link to the exact GitHub Actions run.
 - Keep all live-provider, account, deployment and revenue limitations explicit.
+
+
+## BUILD-00361 — backup staging free-space guard
+
+- Backup creation inventories source media and checks target-volume free space before creating snapshot files, then rechecks actual snapshot size before archiving and immediately before encrypted duplication.
+- The estimate conservatively budgets three times the source database + media size (snapshot, tarball and possible encrypted copy), manifest overhead and a configurable free-space reserve (`NEXUS_BACKUP_MIN_FREE_BYTES`, default 1 GiB).
+- Insufficient or uninspectable free space and invalid reserve settings fail closed before staging; regression tests cover low-space and invalid configuration.
+- This is a preflight admission check, not an OS quota and cannot prevent space consumption by concurrent unrelated processes.

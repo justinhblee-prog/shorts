@@ -490,3 +490,10 @@ GitHub Actions run [43796187131](https://github.com/justinhblee-prog/shorts/acti
 ### BUILD-00138 validation checkpoint
 
 GitHub Actions run [43797131269](https://github.com/justinhblee-prog/shorts/actions/runs/43797131269) passed **462 backend tests** and the complete validation script. After deployment, restart the collector service and verify token-column migrations before enabling multiple collector instances.
+
+
+### Backup disk-space reserve
+
+Configure `NEXUS_BACKUP_MIN_FREE_BYTES` (default 1073741824 / 1 GiB) to retain free capacity on the backup output volume after the conservative staging estimate. The backup process budgets the source snapshot (including the SQLite WAL), a worst-case tarball and (when encrypted) a second archive copy, and rechecks capacity during staging. If preflight reports insufficient free space, expand/clean the backup volume or move backups to a dedicated volume; do not lower the reserve without checking concurrent backup and restore activity. This check is not a physical reservation, so keep volume free-space alerts and quotas enabled.
+
+Configure `NEXUS_RESTORE_MIN_FREE_BYTES` (default 1073741824 / 1 GiB) to retain free capacity on the restore workspace and database/media target volumes. Before decrypting an encrypted archive, restore checks that the workspace can hold its plaintext tarball plus the reserve. It then scans bounded tar metadata without extracting payloads and checks space for the uncompressed database/media payload plus the reserve before extraction. After checksum and SQLite verification, it checks each target volume (or their combined capacity when they share a volume) before copying replacement files. These checks are preflight estimates, not physical block reservations; concurrent writers can still consume space. Maintain host/container quotas and volume alerts.

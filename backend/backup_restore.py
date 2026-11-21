@@ -31,6 +31,7 @@ ENCRYPTED_NONCE_BYTES = 12
 ENCRYPTED_TAG_BYTES = 16
 ENCRYPTED_SUFFIX = ".tar.gz.enc"
 CHUNK_BYTES = 1024 * 1024
+DEFAULT_BACKUP_MIN_FREE_BYTES = 1024 * 1024 * 1024
 _USE_ENV_KEY = object()
 
 
@@ -255,6 +256,73 @@ def _prune_backups(output_dir, retain_days):
     return removed
 
 
+
+def _require_backup_staging_space(output_dir, required_bytes):
+    """Fail before staging when the target volume lacks a conservative free-space reserve."""
+    try:
+        minimum_free = int(os.getenv(
+            "NEXUS_BACKUP_MIN_FREE_BYTES", str(DEFAULT_BACKUP_MIN_FREE_BYTES)
+        ))
+    except (TypeError, ValueError) as exc:
+        raise BackupRestoreError("NEXUS_BACKUP_MIN_FREE_BYTES must be a non-negative integer") from exc
+    if minimum_free < 0:
+        raise BackupRestoreError("NEXUS_BACKUP_MIN_FREE_BYTES must be a non-negative integer")
+    try:
+        free_bytes = shutil.disk_usage(output_dir).free
+    except OSError as exc:
+        raise BackupRestoreError("Backup output volume free space could not be checked") from exc
+    if free_bytes < required_bytes + minimum_free:
+        raise BackupRestoreError(
+            "Insufficient free disk space for backup staging "
+            f"(need {required_bytes + minimum_free} bytes including reserve; have {free_bytes})"
+        )
+
+
+def _archive_uncompressed_size(archive_path):
+    """Read tar metadata without extracting payloads and return bounded file bytes."""
+    total_size = 0
+    try:
+        with tarfile.open(archive_path, "r:gz") as archive:
+            members = archive.getmembers()
+            if len(members) > MAX_ARCHIVE_MEMBERS:
+                raise BackupRestoreError("Backup archive contains too many entries")
+            for member in members:
+                if member.isfile():
+                    if member.size < 0:
+                        raise BackupRestoreError("Backup archive contains an invalid file size")
+                    total_size += member.size
+                    if total_size > MAX_ARCHIVE_BYTES:
+                        raise BackupRestoreError(
+                            "Backup archive exceeds the supported uncompressed size"
+                        )
+    except BackupRestoreError:
+        raise
+    except (tarfile.TarError, OSError, EOFError) as exc:
+        raise BackupRestoreError("Backup archive cannot be read during space preflight") from exc
+    return total_size
+
+
+def _require_restore_staging_space(path, required_bytes):
+    """Check target-volume capacity before copying verified restore files into place."""
+    try:
+        minimum_free = int(os.getenv(
+            "NEXUS_RESTORE_MIN_FREE_BYTES", str(DEFAULT_BACKUP_MIN_FREE_BYTES)
+        ))
+    except (TypeError, ValueError) as exc:
+        raise BackupRestoreError("NEXUS_RESTORE_MIN_FREE_BYTES must be a non-negative integer") from exc
+    if minimum_free < 0:
+        raise BackupRestoreError("NEXUS_RESTORE_MIN_FREE_BYTES must be a non-negative integer")
+    try:
+        free_bytes = shutil.disk_usage(path).free
+    except OSError as exc:
+        raise BackupRestoreError("Restore target volume free space could not be checked") from exc
+    if free_bytes < required_bytes + minimum_free:
+        raise BackupRestoreError(
+            "Insufficient free disk space for restore staging "
+            f"(need {required_bytes + minimum_free} bytes including reserve; have {free_bytes})"
+        )
+
+
 def create_backup(db_path, media_dir, output_dir, retain_days=14,
                   encryption_key=_USE_ENV_KEY):
     encryption_key = _effective_encryption_key(encryption_key)
@@ -277,6 +345,23 @@ def create_backup(db_path, media_dir, output_dir, retain_days=14,
     if not db_path.is_file():
         raise BackupRestoreError("SQLite database does not exist: " + str(db_path))
 
+    # Estimate the simultaneous source snapshot, tarball and optional encrypted
+    # copy before creating any staging files. Compression is not assumed to save
+    # space; the conservative multiplier also covers incompressible media.
+    source_inventory = _media_inventory(media_dir)
+    source_media_bytes = sum(item["size"] for item in source_inventory)
+    source_database_bytes = db_path.stat().st_size
+    wal_path = Path(str(db_path) + "-wal")
+    if wal_path.is_file():
+        source_database_bytes += wal_path.stat().st_size
+    if source_media_bytes > MAX_MEDIA_BYTES:
+        raise BackupRestoreError("Media backup exceeds the supported size")
+    if source_database_bytes > MAX_DATABASE_BYTES:
+        raise BackupRestoreError("SQLite backup exceeds the supported size")
+    source_bytes = source_media_bytes + source_database_bytes
+    required_staging_bytes = (3 * source_bytes) + MAX_MANIFEST_BYTES + (16 * 1024 * 1024)
+    _require_backup_staging_space(output_dir, required_staging_bytes)
+
     stamp = _stamp()
     encrypted = encryption_key is not None
     suffix = ENCRYPTED_SUFFIX if encrypted else ".tar.gz"
@@ -296,6 +381,14 @@ def create_backup(db_path, media_dir, output_dir, retain_days=14,
         if media_entry_count > MAX_ARCHIVE_MEMBERS - 2:
             raise BackupRestoreError("Media backup contains too many entries")
         media_bytes = sum(item["size"] for item in inventory)
+        # Recheck against the actual snapshot after copying: source files may
+        # grow between the initial inventory and the staging copy, and SQLite
+        # WAL content may enlarge the consistent snapshot.
+        actual_snapshot_bytes = media_bytes + db_snapshot.stat().st_size
+        _require_backup_staging_space(
+            output_dir,
+            (3 * actual_snapshot_bytes) + MAX_MANIFEST_BYTES + (16 * 1024 * 1024),
+        )
         if media_bytes > MAX_MEDIA_BYTES:
             raise BackupRestoreError("Media backup exceeds the supported size")
         if db_snapshot.stat().st_size > MAX_DATABASE_BYTES:
@@ -317,6 +410,11 @@ def create_backup(db_path, media_dir, output_dir, retain_days=14,
                 archive.add(db_snapshot, arcname=DATABASE_NAME)
                 archive.add(media_snapshot, arcname=MEDIA_ROOT)
             if encrypted:
+                # Recheck immediately before creating the second archive copy.
+                _require_backup_staging_space(
+                    output_dir,
+                    temporary_archive.stat().st_size + MAX_MANIFEST_BYTES,
+                )
                 _encrypt_file(temporary_archive, temporary_encrypted, encryption_key)
                 os.replace(temporary_encrypted, final_path)
             else:
@@ -514,6 +612,19 @@ def restore_backup(archive_path, db_path, media_dir, backup_dir,
             "Backup encryption is required; refusing to restore a plaintext archive"
         )
 
+    # The restore workspace is on the database-parent volume. For encrypted
+    # archives, reserve room for the authenticated plaintext tarball before
+    # decrypting; then inspect bounded tar metadata and reserve extraction space
+    # before writing any expanded database/media payloads.
+    if encrypted:
+        encrypted_overhead = len(ENCRYPTED_MAGIC) + ENCRYPTED_NONCE_BYTES + ENCRYPTED_TAG_BYTES
+        encrypted_size = archive_path.stat().st_size
+        if encrypted_size < encrypted_overhead:
+            raise BackupRestoreError("Encrypted backup is truncated")
+        _require_restore_staging_space(
+            db_path.parent, encrypted_size - encrypted_overhead
+        )
+
     with tempfile.TemporaryDirectory(prefix="nexus-restore-", dir=db_path.parent) as temp:
         stage = Path(temp)
         source_archive = archive_path
@@ -521,21 +632,42 @@ def restore_backup(archive_path, db_path, media_dir, backup_dir,
             decrypted_archive = stage / "backup.tar.gz"
             _decrypt_file(archive_path, decrypted_archive, encryption_key)
             source_archive = decrypted_archive
+        extraction_bytes = _archive_uncompressed_size(source_archive)
+        _require_restore_staging_space(db_path.parent, extraction_bytes)
         extracted = stage / "extracted"
         manifest = _extract_and_verify(source_archive, extracted)
         staged_db = extracted / DATABASE_NAME
         staged_media = extracted / MEDIA_ROOT
+        # The extraction has been authenticated and checksum-verified. Before
+        # duplicating staged data into the live target volumes, ensure each
+        # destination can hold its copy while retaining the configured reserve.
+        restore_media_bytes = sum(item["size"] for item in manifest.get("media_files", []))
+        restore_db_bytes = staged_db.stat().st_size
+        same_target_volume = os.stat(db_path.parent).st_dev == os.stat(media_dir.parent).st_dev
+        if same_target_volume:
+            _require_restore_staging_space(
+                db_path.parent, restore_db_bytes + restore_media_bytes
+            )
+        else:
+            _require_restore_staging_space(db_path.parent, restore_db_bytes)
+            _require_restore_staging_space(media_dir.parent, restore_media_bytes)
         new_db = db_path.parent / (db_path.name + ".restore-" + _stamp())
         new_media = media_dir.parent / (media_dir.name + ".restore-" + _stamp())
         old_db = db_path.parent / (db_path.name + ".pre-restore-" + _stamp())
         old_media = media_dir.parent / (media_dir.name + ".pre-restore-" + _stamp())
-        shutil.copy2(staged_db, new_db)
-        _copy_media(staged_media, new_media)
-
-        pre_restore = create_backup(
-            db_path, media_dir, backup_dir, retain_days=retain_days,
-            encryption_key=encryption_key,
-        )["backup_path"]
+        try:
+            shutil.copy2(staged_db, new_db)
+            _copy_media(staged_media, new_media)
+            pre_restore = create_backup(
+                db_path, media_dir, backup_dir, retain_days=retain_days,
+                encryption_key=encryption_key,
+            )["backup_path"]
+        except Exception:
+            if new_db.exists():
+                new_db.unlink()
+            if new_media.exists():
+                shutil.rmtree(new_media)
+            raise
         moved_old_db = False
         moved_old_media = False
         installed_db = False

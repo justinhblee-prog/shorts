@@ -1258,3 +1258,8 @@ The latest workflow run observed during this update was [run 43662557760](https:
 - Backend suite: **466 tests, OK**.
 - The full `scripts/validate.sh` command completed successfully.
 - This validates candidate capture, deduplication and exact attribution logic; it does not validate live account publishing or audience outcomes.
+
+
+## BUILD-00361 — backup staging capacity preflight
+
+`create_backup` now inventories media and checks output-volume free space before creating temporary snapshots, includes the SQLite WAL in its initial estimate, then rechecks actual snapshot size before archiving and immediately before encrypted duplication. It conservatively estimates three copies of the source database + media footprint (snapshot, worst-case tarball and encrypted duplicate), adds manifest overhead and `NEXUS_BACKUP_MIN_FREE_BYTES` (default 1 GiB). Low/unavailable space and invalid settings fail closed. This cannot reserve physical blocks against concurrent processes; host volume quotas and free-space monitoring remain required.

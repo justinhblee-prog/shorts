@@ -39,6 +39,36 @@ class BackupRestoreTests(unittest.TestCase):
         with sqlite3.connect(self.db) as connection:
             return connection.execute("SELECT value FROM sample").fetchone()[0]
 
+
+    def test_backup_fails_before_staging_when_free_space_is_insufficient(self):
+        (self.media / "clip.mp4").write_bytes(b"media-payload")
+        low_space = type("DiskUsage", (), {"free": 0})()
+        with patch("backup_restore.shutil.disk_usage", return_value=low_space):
+            with patch.dict(os.environ, {"NEXUS_BACKUP_MIN_FREE_BYTES": "0"}):
+                with self.assertRaisesRegex(BackupRestoreError, "Insufficient free disk space"):
+                    create_backup(self.db, self.media, self.backups)
+        self.assertEqual(list(self.backups.iterdir()), [])
+
+
+    def test_backup_rechecks_free_space_after_snapshot_before_archive_creation(self):
+        (self.media / "clip.mp4").write_bytes(b"media-payload")
+        ample = type("DiskUsage", (), {"free": 10**12})()
+        exhausted = type("DiskUsage", (), {"free": 0})()
+        with patch("backup_restore.shutil.disk_usage", side_effect=[ample, exhausted]):
+            with patch.dict(os.environ, {"NEXUS_BACKUP_MIN_FREE_BYTES": "0"}):
+                with self.assertRaisesRegex(BackupRestoreError, "Insufficient free disk space"):
+                    create_backup(self.db, self.media, self.backups)
+        self.assertEqual(list(self.backups.iterdir()), [])
+
+    def test_backup_rejects_invalid_minimum_free_space_setting(self):
+        with patch.dict(os.environ, {"NEXUS_BACKUP_MIN_FREE_BYTES": "-1"}):
+            with self.assertRaisesRegex(BackupRestoreError, "non-negative integer"):
+                create_backup(self.db, self.media, self.backups)
+        with patch.dict(os.environ, {"NEXUS_BACKUP_MIN_FREE_BYTES": "invalid"}):
+            with self.assertRaisesRegex(BackupRestoreError, "non-negative integer"):
+                create_backup(self.db, self.media, self.backups)
+        self.assertEqual(list(self.backups.iterdir()), [])
+
     def test_backup_contains_consistent_database_and_media_manifest(self):
         (self.media / "clip.mp4").write_bytes(b"ftyp-test-media")
         (self.media / "nested").mkdir()
@@ -54,6 +84,85 @@ class BackupRestoreTests(unittest.TestCase):
         self.assertIn("database.sqlite3", names)
         self.assertIn("media/clip.mp4", names)
         self.assertIn("media/nested/caption.srt", names)
+
+    def test_restore_checks_target_volume_space_before_staging_replacement(self):
+        (self.media / "clip.mp4").write_bytes(b"restore-media")
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        self._create_db("current")
+        low = type("DiskUsage", (), {"free": 0})()
+        with patch("backup_restore.shutil.disk_usage", return_value=low):
+            with patch.dict(os.environ, {"NEXUS_RESTORE_MIN_FREE_BYTES": "0"}):
+                with self.assertRaisesRegex(BackupRestoreError, "Insufficient free disk space for restore staging"):
+                    restore_backup(backup, self.db, self.media, self.backups, confirm_restore=True)
+        self.assertEqual(self._db_value(), "current")
+        self.assertEqual((self.media / "clip.mp4").read_bytes(), b"restore-media")
+        self.assertEqual(len(list(Path(self.backups).glob("nexus-backup-*.tar.gz"))), 1)
+        self.assertFalse(list(self.root.glob("nexus-restore-*")))
+
+    def test_restore_checks_extraction_volume_before_writing_archive_payloads(self):
+        (self.media / "clip.mp4").write_bytes(b"restore-media")
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        low = type("DiskUsage", (), {"free": 0})()
+        with patch("backup_restore.shutil.disk_usage", return_value=low):
+            with patch("backup_restore._extract_and_verify") as extract:
+                with patch.dict(os.environ, {"NEXUS_RESTORE_MIN_FREE_BYTES": "0"}):
+                    with self.assertRaisesRegex(BackupRestoreError, "Insufficient free disk space"):
+                        restore_backup(backup, self.db, self.media, self.backups, confirm_restore=True)
+                extract.assert_not_called()
+        self.assertEqual(self._db_value(), "before")
+        self.assertFalse(list(self.root.glob("nexus-restore-*")))
+
+    def test_encrypted_restore_checks_plaintext_archive_space_before_decryption(self):
+        key = base64.urlsafe_b64encode(b"p" * 32).decode("ascii")
+        with patch.dict(os.environ, {"NEXUS_BACKUP_ENCRYPTION_KEY": key}):
+            backup = create_backup(
+                self.db, self.media, self.backups, encryption_key=key
+            )["backup_path"]
+        low = type("DiskUsage", (), {"free": 0})()
+        with patch("backup_restore.shutil.disk_usage", return_value=low):
+            with patch("backup_restore._decrypt_file") as decrypt:
+                with patch.dict(os.environ, {
+                    "NEXUS_BACKUP_ENCRYPTION_KEY": key,
+                    "NEXUS_RESTORE_MIN_FREE_BYTES": "0",
+                }):
+                    with self.assertRaisesRegex(BackupRestoreError, "Insufficient free disk space"):
+                        restore_backup(backup, self.db, self.media, self.backups, confirm_restore=True)
+                decrypt.assert_not_called()
+        self.assertEqual(self._db_value(), "before")
+        self.assertFalse(list(self.root.glob("nexus-restore-*")))
+
+    def test_restore_rejects_invalid_minimum_free_space_setting(self):
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        with patch.dict(os.environ, {"NEXUS_RESTORE_MIN_FREE_BYTES": "-1"}):
+            with self.assertRaisesRegex(BackupRestoreError, "NEXUS_RESTORE_MIN_FREE_BYTES"):
+                restore_backup(backup, self.db, self.media, self.backups, confirm_restore=True)
+        self.assertEqual(self._db_value(), "before")
+        self.assertFalse(list(self.root.glob("nexus-restore-*")))
+
+    def test_restore_same_volume_checks_combined_staging_capacity(self):
+        (self.media / "clip.mp4").write_bytes(b"media")
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        ample = type("DiskUsage", (), {"free": 10**12})()
+        # Both targets share this test filesystem: the combined DB + media
+        # staging size must be checked in one capacity request.
+        with patch("backup_restore.create_backup", return_value={"backup_path": str(backup)}):
+            with patch("backup_restore.shutil.disk_usage", return_value=ample) as disk_usage:
+                with patch.dict(os.environ, {"NEXUS_RESTORE_MIN_FREE_BYTES": "0"}):
+                    restore_backup(backup, self.db, self.media, self.backups, confirm_restore=True)
+        # One pre-extraction workspace check and one combined target-copy check.
+        self.assertEqual(disk_usage.call_count, 2)
+
+    def test_restore_cleans_replacement_staging_when_pre_restore_backup_fails(self):
+        (self.media / "clip.mp4").write_bytes(b"media")
+        backup = create_backup(self.db, self.media, self.backups)["backup_path"]
+        with patch("backup_restore.create_backup", side_effect=BackupRestoreError("backup unavailable")):
+            with self.assertRaisesRegex(BackupRestoreError, "backup unavailable"):
+                restore_backup(backup, self.db, self.media, self.backups, confirm_restore=True)
+        self.assertEqual(self._db_value(), "before")
+        self.assertEqual((self.media / "clip.mp4").read_bytes(), b"media")
+        self.assertFalse(list(self.root.glob("nexus-restore-*")))
+        self.assertFalse(list(self.root.glob("media.restore-*")))
+        self.assertFalse(list(self.root.glob("nexus.sqlite3.restore-*")))
 
     def test_restore_requires_explicit_confirmation_and_creates_pre_restore_backup(self):
         (self.media / "clip.mp4").write_bytes(b"old")
@@ -99,6 +208,18 @@ class BackupRestoreTests(unittest.TestCase):
                 corrupt, self.db, self.media, self.backups, confirm_restore=True
             )
         self.assertEqual(self._db_value(), "before")
+
+    def test_truncated_gzip_archive_fails_as_restore_error_during_space_preflight(self):
+        backup = Path(create_backup(self.db, self.media, self.backups)["backup_path"])
+        truncated = self.backups / "truncated.tar.gz"
+        payload = backup.read_bytes()
+        truncated.write_bytes(payload[:max(20, len(payload) // 2)])
+        with self.assertRaisesRegex(BackupRestoreError, "cannot be read during space preflight"):
+            restore_backup(
+                truncated, self.db, self.media, self.backups, confirm_restore=True
+            )
+        self.assertEqual(self._db_value(), "before")
+        self.assertFalse(list(self.root.glob("nexus-restore-*")))
 
     def test_restore_rejects_unsafe_archive_member_before_changing_live_data(self):
         backup = create_backup(self.db, self.media, self.backups)["backup_path"]
