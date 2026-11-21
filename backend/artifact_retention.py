@@ -64,7 +64,7 @@ def evaluate_retention_candidate(candidate, policy, *, now):
         candidate_id = None
 
     data_class = candidate.get("data_class")
-    if data_class not in _RETENTION_CLASSES:
+    if not isinstance(data_class, str) or data_class not in _RETENTION_CLASSES:
         reasons.append("unsupported_data_class")
 
     policy_version = policy.get("policy_version")
@@ -119,12 +119,14 @@ def evaluate_retention_candidate(candidate, policy, *, now):
     if data_class == "workspace_asset":
         if candidate.get("asset_status") != "active":
             reasons.append("asset_not_active")
-        if candidate.get("scan_status") == "pending":
+        scan_status = candidate.get("scan_status")
+        if scan_status == "pending":
             reasons.append("asset_scan_pending")
-        elif candidate.get("scan_status") not in {"clean", "rejected"}:
+        elif not isinstance(scan_status, str) or scan_status not in {"clean", "rejected"}:
             reasons.append("asset_scan_state_unknown")
     elif data_class == "render_artifact":
-        if candidate.get("review_status") not in _TERMINAL_REVIEWS:
+        review_status = candidate.get("review_status")
+        if not isinstance(review_status, str) or review_status not in _TERMINAL_REVIEWS:
             reasons.append("review_not_terminal")
 
     expires_at = None
