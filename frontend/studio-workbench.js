@@ -45,7 +45,7 @@
   }
   const targets=["metricQueued","metricRunning","metricReview","trendList","reviewList","approvedList"].map($).filter(Boolean);
   const observer=new MutationObserver(update);
-  targets.forEach(el=>observer.observe(el,{childList:true,subtree:true,characterData:true}));
+  targets.forEach(el=>observer.observe(el,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:["src","hidden"]}));
   window.addEventListener("nexus:auth-changed",update);
   window.addEventListener("nexus:workspace-changed",update);
   window.addEventListener("load",update);
