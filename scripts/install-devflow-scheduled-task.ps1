@@ -13,6 +13,15 @@ if($PSVersionTable.PSVersion.Major -lt 7){throw "PowerShell 7+ is required. Run 
 if(-not $IsWindows){throw "This scheduled-task installer is supported on Windows only."}
 if($ValidateOnly -and ($StartNow -or $Replace -or $Uninstall)){throw "ValidateOnly cannot be combined with StartNow, Replace or Uninstall."}
 if($Uninstall -and ($StartNow -or $Replace -or $ValidateOnly)){throw "Uninstall cannot be combined with StartNow, Replace or ValidateOnly."}
+$task=Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+if($Uninstall){
+ if(-not $task){Write-Host "Scheduled task '$TaskName' is not installed.";exit 0}
+ if($PSCmdlet.ShouldProcess($TaskName,"Unregister scheduled DevFlow supervisor")){
+  Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+  Write-Host "Uninstalled scheduled task '$TaskName'."
+ }else{Write-Host "No task changes made."}
+ exit 0
+}
 $root=& git rev-parse --show-toplevel 2>$null
 if($LASTEXITCODE -ne 0 -or -not $root){throw "Run inside the shorts Git checkout."}
 $root=$root.Trim()
@@ -20,16 +29,6 @@ $launcher=Join-Path $root "scripts/start-devflow-detached.ps1"
 if(-not(Test-Path -LiteralPath $launcher)){throw "Detached supervisor script is missing: $launcher"}
 $identity=[Security.Principal.WindowsIdentity]::GetCurrent().Name
 $pwsh=(Get-Command pwsh -ErrorAction Stop).Source
-$task=Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-if($Uninstall){
- if(-not $task){Write-Host "Scheduled task '$TaskName' is not installed.";exit 0}
- if($PSCmdlet.ShouldProcess($TaskName,"Unregister scheduled DevFlow supervisor")){
-  Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
-  Write-Host "Uninstalled scheduled task '$TaskName'."
- }
- exit 0
-}
-if($task -and -not $Replace){throw "Scheduled task '$TaskName' already exists. Use -Replace to update it or -Uninstall to remove it."}
 $arguments=@(
  "-NoProfile","-NonInteractive","-File",$launcher,
  "-MaxTasks",[string]$MaxTasks,
@@ -49,18 +48,15 @@ if($ValidateOnly){
  Write-Host "Task=$TaskName; User=$identity; Repository=$root; MaxTasks=$MaxTasks; PollIntervalSeconds=$PollIntervalSeconds"
  exit 0
 }
-if($task -and $Replace -and $PSCmdlet.ShouldProcess($TaskName,"Replace existing scheduled DevFlow supervisor")){
- Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
-}
+if($task -and -not $Replace){throw "Scheduled task '$TaskName' already exists. Use -Replace to update it or -Uninstall to remove it."}
 if($PSCmdlet.ShouldProcess($TaskName,"Register scheduled DevFlow supervisor at user logon")){
- Register-ScheduledTask -TaskName $TaskName -InputObject $definition -Force:$Replace | Out-Null
-}
-if($StartNow -and $PSCmdlet.ShouldProcess($TaskName,"Start scheduled DevFlow supervisor now")){
- Start-ScheduledTask -TaskName $TaskName
-}
-Write-Host "Scheduled task '$TaskName' registered for user logon."
-Write-Host "Repository: $root"
-Write-Host "Polling interval: $PollIntervalSeconds seconds; max tasks per cycle: $MaxTasks."
-if($StartNow){Write-Host "Immediate start requested; inspect the sibling *-multiflow-logs status JSON and logs."}
-else{Write-Host "The task starts at the next Windows user logon. Use -StartNow to start it immediately."}
-Write-Host "The task runs as the current user with an interactive logon token; no password or credential is stored."
+ if($task){Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false}
+ Register-ScheduledTask -TaskName $TaskName -InputObject $definition -Force | Out-Null
+ if($StartNow){Start-ScheduledTask -TaskName $TaskName}
+ Write-Host "Scheduled task '$TaskName' registered for user logon."
+ Write-Host "Repository: $root"
+ Write-Host "Polling interval: $PollIntervalSeconds seconds; max tasks per cycle: $MaxTasks."
+ if($StartNow){Write-Host "Immediate start requested; inspect the sibling *-multiflow-logs status JSON and logs."}
+ else{Write-Host "The task starts at the next Windows user logon. Use -StartNow to start it immediately."}
+ Write-Host "The task runs as the current user with an interactive logon token; no password or credential is stored."
+}else{Write-Host "No task changes made."}
