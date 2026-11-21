@@ -1,4 +1,5 @@
 """Evidence-bounded trend candidate ranking for brand production queues."""
+import math
 import re
 import statistics
 from datetime import datetime, timezone
@@ -7,6 +8,23 @@ from datetime import datetime, timezone
 def _tokens(value):
     return {x for x in re.findall(r"[a-z0-9가-힣]{2,}", str(value or "").lower())
             if x not in {"the","and","for","with","why","how","what","this","that","your","from","into"}}
+
+
+def _finite_nonnegative(value):
+    """Normalize a finite nonnegative metric without accepting booleans."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if math.isfinite(number) and number >= 0 else None
+
+
+def _normalized_ratio(value):
+    """Normalize a finite ratio in the inclusive 0–1 range."""
+    number = _finite_nonnegative(value)
+    return number if number is not None and number <= 1 else None
 
 
 def _age_hours(value, now):
@@ -34,7 +52,7 @@ def _competitor_context(topic, region, channels, videos_by_channel):
     for channel in selected:
         for video in videos_by_channel.get(channel.get("channel_id"), []):
             views = video.get("view_count")
-            if not isinstance(views, int) or views < 0:
+            if isinstance(views, bool) or not isinstance(views, int) or views < 0:
                 continue
             observed.append(video)
             title_tokens = _tokens(video.get("title"))
@@ -86,59 +104,57 @@ def _brand_fit_score(trend_tokens, brand, config):
 
 
 def _topic_performance_context(trend_tokens, brand_name, region, videos):
-    """Match historical topic evidence, including eligible YouTube Analytics metrics."""
+    """Match historical topic evidence after strict numeric validation."""
     matched = []
     region = str(region or "").upper()
     for video in videos or []:
-        if video.get("brand") != brand_name:
+        if not isinstance(video, dict) or video.get("brand") != brand_name:
             continue
         if region and region != "GLOBAL" and str(video.get("region") or "").upper() != region:
             continue
-        rate = video.get("views_per_hour")
-        if not isinstance(rate, (int, float)) or rate < 0:
-            rate = None
-        engaged_share = video.get("engaged_view_share")
-        if not isinstance(engaged_share, (int, float)) or engaged_share < 0:
-            engaged_share = None
-        average_percentage = video.get("average_view_percentage")
-        if not isinstance(average_percentage, (int, float)) or average_percentage < 0:
-            average_percentage = None
-        average_duration = video.get("average_view_duration_seconds")
-        if not isinstance(average_duration, (int, float)) or average_duration < 0:
-            average_duration = None
-        curve = video.get("audience_retention_curve") or []
+        rate = _finite_nonnegative(video.get("views_per_hour"))
+        engaged_share = _normalized_ratio(video.get("engaged_view_share"))
+        average_percentage = _finite_nonnegative(video.get("average_view_percentage"))
+        average_duration = _finite_nonnegative(video.get("average_view_duration_seconds"))
+        curve = video.get("audience_retention_curve")
+        retention_points = []
+        for point in curve if isinstance(curve, list) else []:
+            if not isinstance(point, dict):
+                continue
+            position = _normalized_ratio(point.get("elapsed_video_time_ratio"))
+            audience = _normalized_ratio(point.get("audience_watch_ratio"))
+            if position is not None and audience is not None:
+                retention_points.append({
+                    "elapsed_video_time_ratio": position,
+                    "audience_watch_ratio": audience,
+                })
         retention = {}
         for target in (0.25, 0.50, 0.75):
-            points = [
-                point for point in curve if isinstance(point, dict)
-                and isinstance(point.get("elapsed_video_time_ratio"), (int, float))
-                and isinstance(point.get("audience_watch_ratio"), (int, float))
-                and point.get("audience_watch_ratio") >= 0
-            ]
-            if points:
-                nearest = min(
-                    points,
-                    key=lambda point: abs(float(point["elapsed_video_time_ratio"]) - target),
-                )
-                retention[f"audience_watch_ratio_{int(target * 100)}"] = float(
-                    nearest["audience_watch_ratio"]
-                )
-            else:
-                retention[f"audience_watch_ratio_{int(target * 100)}"] = None
+            nearest = min(
+                retention_points,
+                key=lambda point: abs(point["elapsed_video_time_ratio"] - target),
+                default=None,
+            )
+            retention[f"audience_watch_ratio_{int(target * 100)}"] = (
+                nearest["audience_watch_ratio"] if nearest else None
+            )
+        interaction_rate = _finite_nonnegative(
+            video.get("interactions_per_1000_view_delta")
+        )
         if rate is None and engaged_share is None and average_percentage is None and average_duration is None and not any(
             value is not None for value in retention.values()
-        ):
+        ) and interaction_rate is None:
             continue
         topic_tokens = _tokens(video.get("topic"))
         overlap = len(trend_tokens & topic_tokens) / len(trend_tokens) if trend_tokens else 0.0
         if overlap >= 0.25:
             matched.append({
-                "views_per_hour": float(rate) if rate is not None else None,
-                "engaged_view_share": float(engaged_share) if engaged_share is not None else None,
-                "average_view_percentage": float(average_percentage) if average_percentage is not None else None,
-                "average_view_duration_seconds": float(average_duration) if average_duration is not None else None,
+                "views_per_hour": rate,
+                "engaged_view_share": engaged_share,
+                "average_view_percentage": average_percentage,
+                "average_view_duration_seconds": average_duration,
+                "interaction_rate": interaction_rate,
                 **retention,
-                "interaction_rate": video.get("interactions_per_1000_view_delta"),
                 "topic": video.get("topic"),
                 "region": video.get("region"),
                 "overlap": round(overlap, 3),
@@ -146,8 +162,7 @@ def _topic_performance_context(trend_tokens, brand_name, region, videos):
     rates = [item["views_per_hour"] for item in matched if item["views_per_hour"] is not None]
     interaction_rates = [
         item["interaction_rate"] for item in matched
-        if isinstance(item["interaction_rate"], (int, float))
-        and item["interaction_rate"] >= 0
+        if item["interaction_rate"] is not None
     ]
     engaged_shares = [
         item["engaged_view_share"] for item in matched
