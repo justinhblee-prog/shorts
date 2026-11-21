@@ -187,8 +187,8 @@ def build_preflight(env=None, youtube_refresh_token_configured=None):
             age = time.time() - newest_mtime
             if age < -300:
                 scan_missing.append("ClamAV " + family + " signature timestamp is in the future")
-            elif signature_age_valid and age > max_signature_age:
-                scan_missing.append("ClamAV " + family + " signatures are stale; refresh the media-scan database")
+            elif family == "daily" and signature_age_valid and age > max_signature_age:
+                scan_missing.append("ClamAV daily signatures are stale; refresh the media-scan database")
         if not scan_timeout_valid:
             scan_missing.append("NEXUS_MEDIA_SCAN_TIMEOUT_SECONDS (must be a positive integer)")
         try:
