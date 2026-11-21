@@ -551,6 +551,50 @@ class TikTokPublishingTests(unittest.TestCase):
             )
         self.assertEqual(self.transport.calls, [])
 
+    def test_creator_info_rejects_non_object_data_before_publish(self):
+        self.transport.responses[0] = (200, {
+            "data": ["unexpected"], "error": {"code": "ok"},
+        })
+        with self.assertRaisesRegex(TikTokPublishError, "creator response data"):
+            self.publisher.publish_private_approved(
+                "job-1", self.media, self.review, "AI generated short", "operator-1",
+                explicit_consent=True, privacy_level="SELF_ONLY",
+            )
+        self.assertEqual(len(self.transport.calls), 1)
+        self.assertEqual(self.store.get("job-1")["status"], "failed")
+
+    def test_init_rejects_non_object_data_and_keeps_remote_outcome_uncertain(self):
+        self.transport.responses[1] = (200, {
+            "data": ["unexpected"], "error": {"code": "ok"},
+        })
+        with self.assertRaisesRegex(TikTokPublishError, "outcome is uncertain"):
+            self.publisher.publish_private_approved(
+                "job-1", self.media, self.review, "AI generated short", "operator-1",
+                explicit_consent=True, privacy_level="SELF_ONLY",
+            )
+        record = self.store.get("job-1")
+        self.assertEqual(record["status"], "reconciliation_required")
+        self.assertIsNone(record["publish_id"])
+        self.assertEqual(len(self.transport.calls), 2)
+
+    def test_init_rejects_non_string_publish_id_and_keeps_remote_outcome_uncertain(self):
+        self.transport.responses[1] = (200, {
+            "data": {
+                "publish_id": ["unexpected"],
+                "upload_url": "https://upload.us.tiktokapis.com/video/?token=x",
+            },
+            "error": {"code": "ok"},
+        })
+        with self.assertRaisesRegex(TikTokPublishError, "outcome is uncertain"):
+            self.publisher.publish_private_approved(
+                "job-1", self.media, self.review, "AI generated short", "operator-1",
+                explicit_consent=True, privacy_level="SELF_ONLY",
+            )
+        record = self.store.get("job-1")
+        self.assertEqual(record["status"], "reconciliation_required")
+        self.assertIsNone(record["publish_id"])
+        self.assertEqual(len(self.transport.calls), 2)
+
     def test_video_exceeding_creator_duration_limit_is_blocked_before_init(self):
         self.transport.responses[0] = (200, {
             "data": {
