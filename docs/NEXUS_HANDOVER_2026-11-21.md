@@ -235,3 +235,20 @@ Automated CI and Compose smoke do not prove:
 - Never represent mocked provider tests as live AI generation.
 - Never represent CI success as live platform connectivity or revenue success.
 - Preserve existing UI and established workflows; keep independent modules separated and testable.
+
+
+## 5.7. Retention inventory API and integrity evidence
+
+- Draft PR [#474](https://github.com/justinhblee-prog/shorts/pull/474), branch `feat/build-00352-retention-readonly-inventory-2026-11-21`, exact code/integrity head `741730c3787f449f950d98bd4b3142192021a18e`.
+- Workspace-scoped GET endpoint requires `operations.read` and resolved workspace membership. Explicit policy comes from `NEXUS_RETENTION_POLICY_JSON`; missing/malformed policy and storage failures fail closed with sanitized errors.
+- Asset checks use no-follow regular-file opens and registered size/SHA-256; indexed render artifacts are verified through the existing artifact store. Filesystem checks are point-in-time observations after the consistent, bounded SQLite read snapshot.
+- Exact-head Backend [44888403066](https://github.com/justinhblee-prog/shorts/actions/runs/44888403066) and Compose [44888403123](https://github.com/justinhblee-prog/shorts/actions/runs/44888403123) passed. Backend ran repository validation and Playwright browser smoke. Compose validated ClamAV readiness, worker isolation, generated-media FFmpeg render/adoption/review, authenticated upload-to-worker/private-preview E2E, encrypted backup and isolated restore.
+- Latest documentation/task-ledger head is being revalidated separately. CI uses generated media and isolated storage; no customer-media, production-scale, target persistent-filesystem or legal compliance claim is implied.
+- Legal-hold and per-object backup/replica evidence remain unknown; storage lifecycle state is not authoritative. All candidates remain blocked. No retention period, tombstone, purge or deletion is implemented.
+
+## 5.8. BUILD-00353 offline OAuth contract increment
+
+- Draft PR [#475](https://github.com/justinhblee-prog/shorts/pull/475), exact head `40dde147f8dc212be9d9a978a822abcf28d3234d`.
+- YouTube and TikTok OAuth adapters reject non-object token JSON before persistence; TikTok expiry fields require positive non-boolean JSON integers. Deterministic fake-transport tests verify malformed payloads do not persist credentials.
+- Exact-head Backend [44888809207](https://github.com/justinhblee-prog/shorts/actions/runs/44888809207) passed repository validation and Playwright browser smoke (**949 tests**); Compose [44888809309](https://github.com/justinhblee-prog/shorts/actions/runs/44888809309) passed the real-media render/API/backup integration suite.
+- These are offline contract tests, not live Google/YouTube or TikTok HTTPS verification. Live provider validation remains blocked by operator credentials, an approved spend ceiling, licensing/data-processing review and authorized private test accounts. Existing token stores are global singleton connections; workspace-owned provider credentials remain a separate prerequisite before enabling independent B2B tenant connections.
