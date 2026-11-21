@@ -68,3 +68,8 @@ The latest provider implementation and tests at `ee5e563330d9e4e1956f24b3ba710fc
 - Added offline fake-service tests for non-object completion responses and non-string video IDs, asserting that neither is recorded as a confirmed upload.
 - Exact code/test head `b4934a69507d120a5cb484234d72c712d5671d3f` passed Backend [run 44890001360](https://github.com/justinhblee-prog/shorts/actions/runs/44890001360): **954 tests**, font fallback and Playwright browser smoke. Compose [run 44890002208](https://github.com/justinhblee-prog/shorts/actions/runs/44890002208) passed ClamAV readiness, worker isolation, real FFmpeg render/adoption/review, authenticated upload-to-worker/private-preview E2E, encrypted backup and isolated restore.
 - These tests use fake provider services and generated media. They do not establish live Google/YouTube HTTPS behavior or customer account compatibility.
+
+
+## Provider documentation/task-ledger validation
+
+The documentation/task-ledger head `7575d24fd058b1a8b615e8ce4bee4268c77ee9cd` passed Backend [run 44890149253](https://github.com/justinhblee-prog/shorts/actions/runs/44890149253) and Compose [run 44890149269](https://github.com/justinhblee-prog/shorts/actions/runs/44890149269). Backend validation, font fallback and Playwright browser smoke passed; Compose service readiness, ClamAV, worker isolation, generated-media FFmpeg render/adoption/review, authenticated API E2E, encrypted backup and isolated restore passed. This is offline/generated-fixture validation, not live provider or customer-media verification.
