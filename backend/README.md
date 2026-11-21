@@ -608,3 +608,8 @@ The YouTube Data API, YouTube Analytics and TikTok metrics collectors use renewa
 ### Private media storage capacity
 
 `NEXUS_MAX_TOTAL_MEDIA_BYTES` sets an installation-wide logical cap across all workspaces (default 20 GiB). Active private assets and all unexpired in-flight upload reservations are summed inside the same SQLite `BEGIN IMMEDIATE` transaction before each chunk is staged. The total cap must be at least as large as `NEXUS_MAX_WORKSPACE_ASSET_BYTES`. This is an application-level admission limit for the workspace asset store; it is not an operating-system filesystem quota and does not include unrelated files, render scratch space, backups or other containers. Configure host/container volume quotas and free-space alerts separately.
+
+
+### Physical free-space guard for private media uploads
+
+Set `NEXUS_MEDIA_MIN_FREE_BYTES` to preserve a minimum amount of free space on the private media storage filesystem while streaming workspace uploads (default 1 GiB; set to `0` to disable). The guard checks the volume before each chunk is staged and rejects the upload if the next chunk would cross the reserve. This is a best-effort admission check, not a filesystem quota or atomic reservation: concurrent upload/worker/backup activity can consume space after a check. Keep OS/container volume limits and monitoring in place.
