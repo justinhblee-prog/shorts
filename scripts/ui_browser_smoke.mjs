@@ -403,11 +403,6 @@ async function waitForServer() {
     assert.equal(await page.locator("#timelineZoomValue").textContent(),"100%");
     assert.equal(await page.locator("#timelineScrollLeft").isVisible(),true);
     assert.equal(await page.locator("#timelineScrollRight").isVisible(),true);
-    await page.locator("#timelineApproveRender").scrollIntoViewIfNeeded();
-    await page.locator("#timelineApproveRender").click();
-    await page.waitForFunction(()=>document.querySelector("#timelineRenderReview").hidden===true);
-    assert.equal(capturedTimelineDecision.decision,"approved");
-    await page.locator("#timelineApproveRender").scrollIntoViewIfNeeded();
     await page.locator("#timelineApproveRender").click();
     await page.waitForFunction(()=>document.querySelector("#timelineRenderReview").hidden===true);
     assert.equal(capturedTimelineDecision.decision,"approved");
