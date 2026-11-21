@@ -1,6 +1,8 @@
 from pathlib import Path
 import unittest
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "nexus-development-job-worker.yml"
@@ -10,6 +12,22 @@ class DevelopmentWorkerWorkflowContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.source = WORKFLOW.read_text(encoding="utf-8")
+        cls.workflow = yaml.safe_load(cls.source)
+
+    def test_job_token_permissions_are_exact_and_least_privilege(self):
+        self.assertEqual(self.workflow["permissions"], {"contents": "read"})
+        self.assertEqual(
+            self.workflow["jobs"]["recover-reviews"]["permissions"],
+            {"contents": "read", "pull-requests": "read"},
+        )
+        self.assertEqual(
+            self.workflow["jobs"]["development-cycle"]["permissions"],
+            {
+                "contents": "write",
+                "pull-requests": "write",
+                "actions": "write",
+            },
+        )
 
     def test_global_permissions_are_read_only_by_default(self):
         top_level = self.source.split("jobs:", 1)[0]
